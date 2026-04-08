@@ -8,261 +8,181 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 25px; box-sizing: border-box; }
-        
         #header { pointer-events: auto; max-width: 320px; }
         h1 { margin: 0; font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; color: #aaa; }
-        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin-top: 5px; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin-top: 5px; }
         .bar { text-decoration: overline; }
-
-        /* Calculation Table */
         #calc-box { margin-top: 15px; background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 12px; backdrop-filter: blur(5px); }
-        .calc-title { font-size: 0.7rem; color: #ffaa00; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; letter-spacing: 1px; }
+        .calc-title { font-size: 0.7rem; color: #ffaa00; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
         td { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        tr:last-child td { border-bottom: none; font-weight: bold; }
+        tr:last-child td { border-bottom: none; }
         .col-label { color: #888; }
         .col-val { text-align: right; font-family: monospace; }
-
         #controls { pointer-events: auto; width: 260px; align-self: flex-end; background: rgba(15, 15, 25, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px); }
-        
         .mode-switch { display: flex; background: #000; border-radius: 6px; padding: 4px; margin-bottom: 15px; }
-        .mode-btn { flex: 1; border: none; background: none; color: #666; padding: 8px; cursor: pointer; font-size: 0.7rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
-        .mode-btn.active { background: #1a1a2e; color: #00ffff; box-shadow: 0 0 8px rgba(0,255,255,0.2); }
-
+        .mode-btn { flex: 1; border: none; background: none; color: #666; padding: 8px; cursor: pointer; font-size: 0.7rem; font-weight: bold; border-radius: 4px; }
+        .mode-btn.active { background: #1a1a2e; color: #00ffff; }
         .slider-row { margin-bottom: 12px; }
-        .slider-header { display: flex; justify-content: space-between; font-size: 0.7rem; color: #888; margin-bottom: 4px; }
-        .slider-val { font-weight: bold; color: #fff; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 0.7rem; color: #888; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: #aaa; }
-
-        #action-row { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; }
-        #rotate-btn { background: #333; color: white; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; transition: 0.2s; }
-        #rotate-btn:hover { background: #444; }
-        #rotate-btn.active { background: #00ffff; color: #000; border-color: #00ffff; box-shadow: 0 0 8px rgba(0,255,255,0.4); }
-
-        #legend { margin-top: 15px; font-size: 0.65rem; color: #777; line-height: 1.6; }
-        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+        #rotate-btn { background: #333; color: white; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; width: 100%; margin-top: 10px; }
+        #rotate-btn.active { background: #00ffff; color: #000; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
     </style>
 </head>
 <body>
-
     <div id="ui-layer">
         <div id="header">
             <h1>Cubic System</h1>
             <div id="notation">(1 1 1)</div>
-            
             <div id="calc-box">
                 <div id="calc-title" class="calc-title">Calculations</div>
-                <table>
-                    <tbody id="calc-body">
-                        </tbody>
-                </table>
+                <table><tbody id="calc-body"></tbody></table>
             </div>
         </div>
-
         <div id="controls">
             <div class="mode-switch">
                 <button id="btn-plane" class="mode-btn active" onclick="setMode('plane')">PLANE (hkl)</button>
                 <button id="btn-dir" class="mode-btn" onclick="setMode('dir')">DIRECTION [uvw]</button>
             </div>
-
-            <div class="slider-row">
-                <div class="slider-header">Index H/U <span class="slider-val" id="val-h">1</span></div>
-                <input type="range" id="in-h" min="-4" max="4" step="1" value="1" oninput="updateState()">
-            </div>
-            <div class="slider-row">
-                <div class="slider-header">Index K/V <span class="slider-val" id="val-k">1</span></div>
-                <input type="range" id="in-k" min="-4" max="4" step="1" value="1" oninput="updateState()">
-            </div>
-            <div class="slider-row">
-                <div class="slider-header">Index L/W <span class="slider-val" id="val-l">1</span></div>
-                <input type="range" id="in-l" min="-4" max="4" step="1" value="1" oninput="updateState()">
-            </div>
-
-            <div id="action-row">
-                <button id="rotate-btn" onclick="toggleRotation()">AUTO-ROTATE: OFF</button>
-            </div>
-
-            <div id="legend">
-                <div><span class="dot" style="background: rgba(255,255,255,0.4)"></span> Default (0,0,0)</div>
-                <div><span class="dot" style="background: #ffaa00"></span> Active Origin</div>
+            <div class="slider-row"><div class="slider-header">Index H/U <span id="val-h">1</span></div><input type="range" id="in-h" min="-4" max="4" step="1" value="1" oninput="updateState()"></div>
+            <div class="slider-row"><div class="slider-header">Index K/V <span id="val-k">1</span></div><input type="range" id="in-k" min="-4" max="4" step="1" value="1" oninput="updateState()"></div>
+            <div class="slider-row"><div class="slider-header">Index L/W <span id="val-l">1</span></div><input type="range" id="in-l" min="-4" max="4" step="1" value="1" oninput="updateState()"></div>
+            <button id="rotate-btn" onclick="toggleRotation()">AUTO-ROTATE: OFF</button>
+            <div style="margin-top:15px; font-size:0.65rem; color:#777;">
+                <div><span class="dot" style="background:rgba(255,255,255,0.3)"></span> Default (0,0,0)</div>
+                <div><span class="dot" style="background:#ffaa00"></span> Active Origin</div>
             </div>
         </div>
     </div>
 
     <script>
-        let scene, camera, renderer, controls;
-        let vizGroup, originDot;
-        let mode = 'plane', h = 1, k = 1, l = 1;
-        let autoRotate = false;
+        let scene, camera, renderer, controls, vizGroup, originDot;
+        let mode = 'plane', h=1, k=1, l=1, autoRotate=false;
 
-        // Initialize when the DOM is fully ready
-        document.addEventListener("DOMContentLoaded", function() {
-            init3D();
-            updateState();
-            animate();
+        document.addEventListener("DOMContentLoaded", () => {
+            init3D(); updateState(); animate();
         });
 
         function init3D() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
             camera.position.set(2.5, 2, 3.5);
-
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
-
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
 
-            // Lights
             scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            const pLight = new THREE.PointLight(0xffffff, 0.8);
-            pLight.position.set(5, 5, 5);
-            scene.add(pLight);
+            const pl = new THREE.PointLight(0xffffff, 0.8); pl.position.set(5, 5, 5); scene.add(pl);
 
-            // 1. White Wireframe Cube
             const wireframe = new THREE.LineSegments(
                 new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), 
                 new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })
             );
-            wireframe.position.set(0.5, 0.5, 0.5); // Center the box so corner is at 0,0,0
-            scene.add(wireframe);
+            wireframe.position.set(0.5, 0.5, 0.5); scene.add(wireframe);
 
-            // 2. Persistent Muted Origin
-            const defaultOrigin = new THREE.Mesh(
-                new THREE.SphereGeometry(0.025, 16, 16),
-                new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 })
-            );
-            scene.add(defaultOrigin);
-
-            // 3. Active Origin (Orange)
-            originDot = new THREE.Mesh(
-                new THREE.SphereGeometry(0.045, 16, 16),
-                new THREE.MeshBasicMaterial({ color: 0xffaa00 })
-            );
+            scene.add(new THREE.Mesh(new THREE.SphereGeometry(0.02,16,16), new THREE.MeshBasicMaterial({color:0xffffff, opacity:0.3, transparent:true})));
+            originDot = new THREE.Mesh(new THREE.SphereGeometry(0.04,16,16), new THREE.MeshBasicMaterial({color:0xffaa00}));
             scene.add(originDot);
 
-            vizGroup = new THREE.Group();
-            scene.add(vizGroup);
-
+            vizGroup = new THREE.Group(); scene.add(vizGroup);
             window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
+                camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
         }
 
-        window.toggleRotation = function() {
-            autoRotate = !autoRotate;
-            controls.autoRotate = autoRotate;
-            controls.autoRotateSpeed = 2.0;
-            const btn = document.getElementById('rotate-btn');
-            btn.innerText = autoRotate ? "AUTO-ROTATE: ON" : "AUTO-ROTATE: OFF";
-            btn.className = autoRotate ? "active" : "";
+        window.toggleRotation = () => {
+            autoRotate = !autoRotate; controls.autoRotate = autoRotate;
+            document.getElementById('rotate-btn').innerText = autoRotate ? "AUTO-ROTATE: ON" : "AUTO-ROTATE: OFF";
+            document.getElementById('rotate-btn').className = autoRotate ? "active" : "";
         };
 
-        window.setMode = function(newMode) {
-            mode = newMode;
+        window.setMode = (m) => {
+            mode = m;
             document.getElementById('btn-plane').className = mode === 'plane' ? 'mode-btn active' : 'mode-btn';
             document.getElementById('btn-dir').className = mode === 'dir' ? 'mode-btn active' : 'mode-btn';
             updateState();
         };
 
-        window.updateState = function() {
-            h = parseInt(document.getElementById('in-h').value);
-            k = parseInt(document.getElementById('in-k').value);
-            l = parseInt(document.getElementById('in-l').value);
-
+        window.updateState = () => {
+            h=parseInt(document.getElementById('in-h').value);
+            k=parseInt(document.getElementById('in-k').value);
+            l=parseInt(document.getElementById('in-l').value);
             document.getElementById('val-h').innerText = h;
             document.getElementById('val-k').innerText = k;
             document.getElementById('val-l').innerText = l;
 
             const format = (v) => v < 0 ? `<span class="bar">${Math.abs(v)}</span>` : v;
-            document.getElementById('notation').innerHTML = mode === 'plane' 
-                ? `(${format(h)} ${format(k)} ${format(l)})` 
-                : `[${format(h)} ${format(k)} ${format(l)}]`;
+            document.getElementById('notation').innerHTML = mode === 'plane' ? `(${format(h)} ${format(k)} ${format(l)})` : `[${format(h)} ${format(k)} ${format(l)}]`;
 
-            updateCalculationTable();
-            drawVisualization();
+            updateTable(); drawViz();
         };
 
-        function updateCalculationTable() {
-            document.getElementById('calc-title').innerText = mode === 'plane' ? 'Planes (hkl)' : 'Directions [uvw]';
+        function updateTable() {
             const tbody = document.getElementById('calc-body');
-            
-            if (mode === 'dir') {
-                let tx = h < 0 ? 1 : 0, ty = k < 0 ? 1 : 0, tz = l < 0 ? 1 : 0;
-                tbody.innerHTML = `
-                    <tr><td class="col-label">Head</td><td class="col-val" style="color:#00ffff">${h}, ${k}, ${l}</td></tr>
-                    <tr><td class="col-label">Tail (Origin)</td><td class="col-val" style="color:#00ffff">${tx}, ${ty}, ${tz}</td></tr>
-                    <tr><td class="col-label">Difference</td><td class="col-val" style="color:#00ffff">${h}, ${k}, ${l}</td></tr>
-                    <tr><td class="col-label">Final [uvw]</td><td class="col-val" style="color:#00ffff; font-size:0.9rem;">[${h} ${k} ${l}]</td></tr>
-                `;
+            if(mode === 'dir') {
+                let tx = h<0?1:0, ty = k<0?1:0, tz = l<0?1:0;
+                tbody.innerHTML = `<tr><td class="col-label">Head</td><td class="col-val">${h}, ${k}, ${l}</td></tr>
+                    <tr><td class="col-label">Tail (Origin)</td><td class="col-val">${tx}, ${ty}, ${tz}</td></tr>
+                    <tr><td class="col-label">Final [uvw]</td><td class="col-val" style="color:#00ffff">[${h} ${k} ${l}]</td></tr>`;
             } else {
-                let ix = h !== 0 ? (h === 1 ? '1' : h === -1 ? '-1' : `1/${h}`) : '∞';
-                let iy = k !== 0 ? (k === 1 ? '1' : k === -1 ? '-1' : `1/${k}`) : '∞';
-                let iz = l !== 0 ? (l === 1 ? '1' : l === -1 ? '-1' : `1/${l}`) : '∞';
-                tbody.innerHTML = `
-                    <tr><td class="col-label">Intercepts</td><td class="col-val" style="color:#ff00ff">${ix}, ${iy}, ${iz}</td></tr>
-                    <tr><td class="col-label">Reciprocals</td><td class="col-val" style="color:#ff00ff">${h}, ${k}, ${l}</td></tr>
-                    <tr><td class="col-label">Final (hkl)</td><td class="col-val" style="color:#ff00ff; font-size:0.9rem;">(${h} ${k} ${l})</td></tr>
-                `;
+                const fix = (v) => v === 0 ? '∞' : (v > 0 ? `1/${v}` : `-1/${Math.abs(v)}`);
+                tbody.innerHTML = `<tr><td class="col-label">Intercepts</td><td class="col-val" style="color:#ff00ff">${fix(h)} ${fix(k)} ${fix(l)}</td></tr>
+                    <tr><td class="col-label">Reciprocals</td><td class="col-val" style="color:#ff00ff">${h} ${k} ${l}</td></tr>
+                    <tr><td class="col-label">Final (hkl)</td><td class="col-val" style="color:#ff00ff">(${h} ${k} ${l})</td></tr>`;
             }
         }
 
-        function drawVisualization() {
-            while(vizGroup.children.length > 0) {
-                vizGroup.remove(vizGroup.children[0]);
-            }
-
-            let ox = h < 0 ? 1 : 0;
-            let oy = k < 0 ? 1 : 0;
-            let oz = l < 0 ? 1 : 0;
+        function drawViz() {
+            while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]);
+            let ox=h<0?1:0, oy=k<0?1:0, oz=l<0?1:0;
             originDot.position.set(ox, oy, oz);
+            if(h===0 && k===0 && l===0) return;
 
-            if (h === 0 && k === 0 && l === 0) return;
-
-            if (mode === 'dir') {
-                const dirVec = new THREE.Vector3(h, k, l);
-                if (dirVec.length() > 0) {
-                    dirVec.normalize();
-                    const arrow = new THREE.ArrowHelper(dirVec, new THREE.Vector3(ox, oy, oz), 1.2, 0x00ffff, 0.2, 0.1);
-                    vizGroup.add(arrow);
-                }
+            if(mode === 'dir') {
+                const rawVec = new THREE.Vector3(h, k, l);
+                // Scale vector to terminate exactly at the unit cell boundary
+                const absMax = Math.max(Math.abs(h), Math.abs(k), Math.abs(l));
+                const scaledVec = rawVec.clone().divideScalar(absMax);
+                const arrow = new THREE.ArrowHelper(scaledVec.clone().normalize(), new THREE.Vector3(ox, oy, oz), scaledVec.length(), 0x00ffff, 0.15, 0.08);
+                vizGroup.add(arrow);
             } else {
-                const p1 = new THREE.Vector3(ox + (h !== 0 ? 1/h : 50), oy, oz);
-                const p2 = new THREE.Vector3(ox, oy + (k !== 0 ? 1/k : 50), oz);
-                const p3 = new THREE.Vector3(ox, oy, oz + (l !== 0 ? 1/l : 50));
-
-                const vertices = new Float32Array([
-                    p1.x, p1.y, p1.z,  p2.x, p2.y, p2.z,  p3.x, p3.y, p3.z
-                ]);
-
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                // Plane Clipping Logic for 0/inf
+                let pts = [];
+                let ih = h!==0?1/h:null, ik = k!==0?1/k:null, il = l!==0?1/l:null;
                 
-                const mesh = new THREE.Mesh(
-                    geo, 
-                    new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
-                );
-                
-                const edges = new THREE.EdgesGeometry(geo);
-                const outline = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 }));
-                mesh.add(outline);
+                // Pure intercepts
+                if(ih!==null) pts.push(new THREE.Vector3(ox+ih, oy, oz));
+                if(ik!==null) pts.push(new THREE.Vector3(ox, oy+ik, oz));
+                if(il!==null) pts.push(new THREE.Vector3(ox, oy, oz+il));
 
+                // Handle cases with 0s (parallel planes) by adding points at the unit cell edge (1)
+                if(h===0) { 
+                    pts.push(new THREE.Vector3(ox+1, oy+ik, oz));
+                    pts.push(new THREE.Vector3(ox+1, oy, oz+il));
+                }
+                if(k===0) {
+                    pts.push(new THREE.Vector3(ox+ih, oy+1, oz));
+                    pts.push(new THREE.Vector3(ox, oy+1, oz+il));
+                }
+                if(l===0) {
+                    pts.push(new THREE.Vector3(ox+ih, oy, oz+1));
+                    pts.push(new THREE.Vector3(ox, oy+ik, oz+1));
+                }
+
+                // Filtering to keep within 0-1 range
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xff00ff, side: THREE.DoubleSide, transparent:true, opacity:0.5}));
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xff00ff})));
                 vizGroup.add(mesh);
             }
         }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update(); // Required for damping and auto-rotate
-            renderer.render(scene, camera);
-        }
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     </script>
 </body>
 </html>
