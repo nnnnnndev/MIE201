@@ -3,41 +3,57 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIE 201 - Master Crystallography</title>
+    <title>MIE 201 - Materials Science Module</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
     <style>
-        body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 25px; box-sizing: border-box; }
-        #header, #controls { pointer-events: auto; }
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* The 3D Canvas Container */
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        /* The Interactive UI Layer */
+        #ui-layer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; pointer-events: none; 
+            display: flex; flex-direction: column; justify-content: space-between; 
+            padding: 20px; 
+        }
+        
+        #header, #controls { pointer-events: auto; background: rgba(10, 10, 15, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; }
         
         #header { max-width: 320px; }
-        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin: 10px 0; }
+        #notation { font-size: 2.4rem; font-weight: 800; margin: 5px 0; color: #fff; text-shadow: 0 0 15px rgba(0,255,255,0.3); }
         .bar { text-decoration: overline; }
 
-        #calc-box { background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; backdrop-filter: blur(10px); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 10px; }
         td { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .col-val { text-align: right; font-family: monospace; color: #00ffff; }
+        .col-val { text-align: right; font-family: 'Courier New', monospace; color: #00ffff; font-weight: bold; }
 
-        #controls { width: 280px; align-self: flex-end; background: rgba(15, 15, 25, 0.95); border: 1px solid #333; border-radius: 12px; padding: 20px; }
-        .btn-row { display: flex; gap: 5px; margin-bottom: 10px; }
-        .t-btn { flex: 1; padding: 8px; border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-size: 0.65rem; font-weight: bold; border-radius: 4px; }
-        .t-btn.active { background: #1a1a2e; color: #00ffff; border-color: #00ffff; }
+        #controls { width: 280px; align-self: flex-end; }
+        .btn-group { display: flex; gap: 4px; margin-bottom: 12px; }
+        .t-btn { flex: 1; padding: 8px; border: 1px solid #444; background: #111; color: #888; cursor: pointer; font-size: 0.65rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .t-btn:hover { background: #222; color: #ccc; }
+        .t-btn.active { background: #1a1a2e; color: #00ffff; border-color: #00ffff; box-shadow: 0 0 10px rgba(0,255,255,0.2); }
         
         .slider-row { margin-bottom: 12px; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
+        .slider-label { font-size: 0.7rem; color: #aaa; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; height: 6px; border-radius: 3px; }
         
-        .special-btn { width: 100%; padding: 10px; margin-top: 5px; background: #222; border: 1px solid #444; color: white; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
-        .special-btn.on { border-color: #ffaa00; color: #ffaa00; }
-        #draw-btn.active { background: #5522ff; border-color: #9977ff; color: white; }
+        .action-btn { width: 100%; padding: 10px; margin-top: 8px; background: #222; border: 1px solid #444; color: #fff; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; transition: 0.2s; }
+        .action-btn.on { border-color: #ffaa00; color: #ffaa00; box-shadow: 0 0 10px rgba(255,170,0,0.2); }
+        #draw-btn.on { border-color: #a200ff; color: #a200ff; }
     </style>
 </head>
 <body>
 
+    <div id="canvas-container"></div>
+
     <div id="ui-layer">
         <div id="header">
-            <div class="btn-row">
+            <div class="btn-group">
                 <button id="sys-cubic" class="t-btn active" onclick="setSystem('cubic')">CUBIC</button>
                 <button id="sys-hex" class="t-btn" onclick="setSystem('hex')">HEXAGONAL</button>
             </div>
@@ -48,107 +64,125 @@
         </div>
 
         <div id="controls">
-            <div class="btn-row">
+            <div class="btn-group">
                 <button id="m-plane" class="t-btn active" onclick="setMode('plane')">PLANE</button>
                 <button id="m-dir" class="t-btn" onclick="setMode('dir')">DIRECTION</button>
             </div>
-            <div class="slider-row"><input type="range" id="in-h" min="-3" max="3" value="1" oninput="update()"></div>
-            <div class="slider-row"><input type="range" id="in-k" min="-3" max="3" value="1" oninput="update()"></div>
-            <div class="slider-row"><input type="range" id="in-l" min="-3" max="3" value="1" oninput="update()"></div>
             
-            <div id="cubic-only">
-                <div class="btn-row">
-                    <button id="at-none" class="t-btn active" onclick="setAtoms('none')">NONE</button>
+            <div class="slider-row">
+                <div class="slider-label">H / U <span id="label-h">1</span></div>
+                <input type="range" id="in-h" min="-3" max="3" value="1" oninput="update()">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">K / V <span id="label-k">1</span></div>
+                <input type="range" id="in-k" min="-3" max="3" value="1" oninput="update()">
+            </div>
+            <div class="slider-row">
+                <div class="slider-label">L / W <span id="label-l">1</span></div>
+                <input type="range" id="in-l" min="-3" max="3" value="1" oninput="update()">
+            </div>
+            
+            <div id="cubic-only-ui">
+                <div class="btn-group">
+                    <button id="at-none" class="t-btn active" onclick="setAtoms('none')">NO ATOMS</button>
                     <button id="at-bcc" class="t-btn" onclick="setAtoms('bcc')">BCC</button>
                     <button id="at-fcc" class="t-btn" onclick="setAtoms('fcc')">FCC</button>
                 </div>
             </div>
 
-            <button id="draw-btn" class="special-btn" onclick="toggleDrawMode()">QUIZ: DRAW MODE OFF</button>
-            <button id="rot-btn" class="special-btn" onclick="toggleRotation()">AUTO-ROTATE OFF</button>
+            <button id="draw-btn" class="action-btn" onclick="toggleDraw()">QUIZ: DRAW MODE OFF</button>
+            <button id="rot-btn" class="action-btn" onclick="toggleRotation()">AUTO-ROTATE OFF</button>
         </div>
     </div>
 
     <script>
-        let scene, camera, renderer, controls, raycaster, mouse;
-        let gridGroup, vizGroup, atomGroup, clickGroup;
+        // Global variables
+        let scene, camera, renderer, controls;
+        let gridGroup, vizGroup, atomGroup;
         let system = 'cubic', mode = 'plane', atoms = 'none', drawMode = false;
         let h=1, k=1, l=1;
 
-        init();
-        animate();
+        // Initialization Logic
+        window.onload = function() {
+            console.log("Initializing MIE 201 Module...");
+            try {
+                initCore();
+                buildGrid();
+                update();
+                animate();
+                console.log("Successfully loaded.");
+            } catch (e) {
+                console.error("Initialization Failed: ", e);
+            }
+        };
 
-        function init() {
+        function initCore() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
-            camera.position.set(3, 3, 5);
+            camera.position.set(3, 2.5, 4);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            document.body.appendChild(renderer.domElement);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            raycaster = new THREE.Raycaster();
-            mouse = new THREE.Vector2();
-
             scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            const pLight = new THREE.PointLight(0xffffff, 0.8);
-            pLight.position.set(5, 10, 5);
-            scene.add(pLight);
+            const sun = new THREE.PointLight(0xffffff, 0.8);
+            sun.position.set(5, 10, 5);
+            scene.add(sun);
 
             gridGroup = new THREE.Group(); scene.add(gridGroup);
             vizGroup = new THREE.Group(); scene.add(vizGroup);
             atomGroup = new THREE.Group(); scene.add(atomGroup);
-            clickGroup = new THREE.Group(); scene.add(clickGroup);
 
-            window.addEventListener('resize', onWindowResize);
-            window.addEventListener('click', onClick);
-
-            buildGrids();
-            update();
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
         }
 
-        function buildGrids() {
+        function buildGrid() {
             while(gridGroup.children.length > 0) gridGroup.remove(gridGroup.children[0]);
-            const mat = new THREE.LineBasicMaterial({ color: 0x444444 });
+            const mat = new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.5 });
 
             if (system === 'cubic') {
                 const box = new THREE.BoxGeometry(1, 1, 1);
                 const edges = new THREE.EdgesGeometry(box);
-                const line = new THREE.LineSegments(edges, mat);
-                line.position.set(0.5, 0.5, 0.5);
-                gridGroup.add(line);
+                const cube = new THREE.LineSegments(edges, mat);
+                cube.position.set(0.5, 0.5, 0.5);
+                gridGroup.add(cube);
             } else {
-                // Hexagonal Prism
+                // Hexagonal Prism Math
                 const hexPts = [];
                 for(let i=0; i<=6; i++) {
                     let a = (i * 60) * Math.PI / 180;
                     hexPts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
                 }
-                const base = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hexPts), mat);
-                const top = base.clone(); top.position.y = 1.6;
-                gridGroup.add(base); gridGroup.add(top);
+                const bottom = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hexPts), mat);
+                const top = bottom.clone(); top.position.y = 1.633;
+                gridGroup.add(bottom); gridGroup.add(top);
                 for(let i=0; i<6; i++) {
                     let a = (i * 60) * Math.PI / 180;
-                    const v = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),0,Math.sin(a)), new THREE.Vector3(Math.cos(a),1.6,Math.sin(a))]);
-                    gridGroup.add(new THREE.Line(v, new THREE.LineBasicMaterial({color:0x222222})));
+                    const v = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),0,Math.sin(a)), new THREE.Vector3(Math.cos(a),1.633,Math.sin(a))]);
+                    gridGroup.add(new THREE.Line(v, new THREE.LineBasicMaterial({color: 0x333333})));
                 }
-                // Primitive Rhombus overlay
+                // Highlight the Primitive Rhombus (Unit Cell)
                 const rPts = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(1.5,0,0.866), new THREE.Vector3(0.5,0,0.866), new THREE.Vector3(0,0,0)];
-                const rhombus = new THREE.Line(new THREE.BufferGeometry().setFromPoints(rPts), new THREE.LineBasicMaterial({color: 0x8844ff, transparent: true, opacity: 0.6}));
-                gridGroup.add(rhombus);
+                const rhom = new THREE.Line(new THREE.BufferGeometry().setFromPoints(rPts), new THREE.LineBasicMaterial({color: 0x8844ff, transparent: true, opacity: 0.7}));
+                gridGroup.add(rhom);
             }
         }
 
-        window.setSystem = (s) => { 
-            system = s; 
+        window.setSystem = (s) => {
+            system = s;
             document.getElementById('sys-cubic').className = s==='cubic'?'t-btn active':'t-btn';
             document.getElementById('sys-hex').className = s==='hex'?'t-btn active':'t-btn';
-            document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none';
-            buildGrids(); update(); 
+            document.getElementById('cubic-only-ui').style.display = s==='cubic'?'block':'none';
+            buildGrid(); update();
         };
 
         window.setMode = (m) => {
@@ -158,29 +192,32 @@
             update();
         };
 
-        window.setAtoms = (a) => {
-            atoms = a;
+        window.setAtoms = (type) => {
+            atoms = type;
             ['none', 'bcc', 'fcc'].forEach(id => document.getElementById('at-'+id).className = (atoms===id?'t-btn active':'t-btn'));
             drawAtoms();
-        };
-
-        window.toggleDrawMode = () => {
-            drawMode = !drawMode;
-            document.getElementById('draw-btn').innerText = drawMode ? "QUIZ: DRAW MODE ON" : "QUIZ: DRAW MODE OFF";
-            document.getElementById('draw-btn').className = drawMode ? "special-btn active" : "special-btn";
-            update();
         };
 
         window.toggleRotation = () => {
             controls.autoRotate = !controls.autoRotate;
             document.getElementById('rot-btn').innerText = controls.autoRotate ? "AUTO-ROTATE ON" : "AUTO-ROTATE OFF";
-            document.getElementById('rot-btn').className = controls.autoRotate ? "special-btn on" : "special-btn";
+            document.getElementById('rot-btn').className = controls.autoRotate ? "action-btn on" : "action-btn";
+        };
+
+        window.toggleDraw = () => {
+            drawMode = !drawMode;
+            document.getElementById('draw-btn').innerText = drawMode ? "QUIZ: DRAW MODE ON" : "QUIZ: DRAW MODE OFF";
+            document.getElementById('draw-btn').className = drawMode ? "action-btn on" : "action-btn";
+            update();
         };
 
         window.update = () => {
             h = parseInt(document.getElementById('in-h').value);
             k = parseInt(document.getElementById('in-k').value);
             l = parseInt(document.getElementById('in-l').value);
+            document.getElementById('label-h').innerText = h;
+            document.getElementById('label-k').innerText = k;
+            document.getElementById('label-l').innerText = l;
 
             const format = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
             const tbody = document.getElementById('calc-body');
@@ -201,8 +238,8 @@
         function drawAtoms() {
             while(atomGroup.children.length > 0) atomGroup.remove(atomGroup.children[0]);
             if (system !== 'cubic' || atoms === 'none') return;
-            const mat = new THREE.MeshPhongMaterial({color: 0x888888, transparent: true, opacity: 0.6});
-            const geo = new THREE.SphereGeometry(0.1, 16, 16);
+            const mat = new THREE.MeshPhongMaterial({color: 0x999999, transparent: true, opacity: 0.6});
+            const geo = new THREE.SphereGeometry(0.12, 16, 16);
             const add = (x,y,z) => { const m=new THREE.Mesh(geo, mat); m.position.set(x,y,z); atomGroup.add(m); };
             for(let x=0; x<=1; x++) for(let y=0; y<=1; y++) for(let z=0; z<=1; z++) add(x,y,z);
             if(atoms==='bcc') add(0.5, 0.5, 0.5);
@@ -212,10 +249,10 @@
         function drawViz() {
             while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]);
             if (h===0 && k===0 && l===0) return;
-            
             let ox=h<0?1:0, oy=k<0?1:0, oz=l<0?1:0;
-            if(system === 'cubic') {
-                if(mode==='dir') {
+
+            if (system === 'cubic') {
+                if (mode === 'dir') {
                     const v = new THREE.Vector3(h, k, l); const m = Math.max(Math.abs(h), Math.abs(k), Math.abs(l));
                     vizGroup.add(new THREE.ArrowHelper(v.clone().normalize(), new THREE.Vector3(ox,oy,oz), v.length()/m, 0x00ffff, 0.15, 0.08));
                 } else {
@@ -227,6 +264,7 @@
                     if(h===0) { pts.push(new THREE.Vector3(ox+1, oy+ik, oz)); pts.push(new THREE.Vector3(ox+1, oy, oz+il)); }
                     if(k===0) { pts.push(new THREE.Vector3(ox+ih, oy+1, oz)); pts.push(new THREE.Vector3(ox, oy+1, oz+il)); }
                     if(l===0) { pts.push(new THREE.Vector3(ox+ih, oy, oz+1)); pts.push(new THREE.Vector3(ox, oy+ik, oz+1)); }
+                    
                     const geo = new THREE.BufferGeometry().setFromPoints(pts);
                     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xff00ff, side: 2, transparent:true, opacity:0.5}));
                     mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xff00ff})));
@@ -236,23 +274,7 @@
         }
 
         function clearViz() { while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]); }
-
-        function onClick(event) {
-            if (!drawMode) return;
-            // Vertex selection logic for Quiz Mode will be finalized in the next pass
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
     </script>
 </body>
 </html>
