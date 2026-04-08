@@ -3,37 +3,41 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIE 201 - Advanced Miller Indices</title>
+    <title>MIE 201 - Master Crystallography</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        #header { pointer-events: auto; }
-        h1 { margin: 0; font-size: 0.9rem; letter-spacing: 2px; text-transform: uppercase; color: #888; }
-        #notation { font-size: 2rem; font-weight: 800; margin: 5px 0; }
-        .bar { text-decoration: overline; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 25px; box-sizing: border-box; }
+        #header, #controls { pointer-events: auto; }
         
-        #calc-box { background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; width: 280px; backdrop-filter: blur(10px); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
-        td { padding: 4px 0; border-bottom: 1px solid #222; }
+        #header { max-width: 320px; }
+        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin: 10px 0; }
+        .bar { text-decoration: overline; }
+
+        #calc-box { background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; backdrop-filter: blur(10px); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        td { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .col-val { text-align: right; font-family: monospace; color: #00ffff; }
 
-        #controls { pointer-events: auto; width: 260px; align-self: flex-end; background: rgba(15,15,25,0.9); border: 1px solid #333; border-radius: 12px; padding: 15px; }
-        .toggle-group { display: flex; background: #000; border-radius: 6px; padding: 3px; margin-bottom: 10px; }
-        .t-btn { flex: 1; border: none; background: none; color: #555; padding: 6px; cursor: pointer; font-size: 0.6rem; font-weight: bold; border-radius: 4px; }
-        .t-btn.active { background: #222; color: #fff; border: 1px solid #444; }
+        #controls { width: 280px; align-self: flex-end; background: rgba(15, 15, 25, 0.95); border: 1px solid #333; border-radius: 12px; padding: 20px; }
+        .btn-row { display: flex; gap: 5px; margin-bottom: 10px; }
+        .t-btn { flex: 1; padding: 8px; border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-size: 0.65rem; font-weight: bold; border-radius: 4px; }
+        .t-btn.active { background: #1a1a2e; color: #00ffff; border-color: #00ffff; }
         
-        .slider-row { margin-bottom: 8px; }
-        input[type=range] { width: 100%; accent-color: #00ffff; }
-        .action-btn { width: 100%; padding: 8px; margin-top: 5px; background: #111; border: 1px solid #333; color: #aaa; cursor: pointer; font-size: 0.7rem; border-radius: 4px; }
-        .action-btn.active { border-color: #ffaa00; color: #ffaa00; }
+        .slider-row { margin-bottom: 12px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
+        
+        .special-btn { width: 100%; padding: 10px; margin-top: 5px; background: #222; border: 1px solid #444; color: white; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+        .special-btn.on { border-color: #ffaa00; color: #ffaa00; }
+        #draw-btn.active { background: #5522ff; border-color: #9977ff; color: white; }
     </style>
 </head>
 <body>
+
     <div id="ui-layer">
         <div id="header">
-            <div class="toggle-group" style="width: 200px;">
+            <div class="btn-row">
                 <button id="sys-cubic" class="t-btn active" onclick="setSystem('cubic')">CUBIC</button>
                 <button id="sys-hex" class="t-btn" onclick="setSystem('hex')">HEXAGONAL</button>
             </div>
@@ -42,23 +46,34 @@
                 <table><tbody id="calc-body"></tbody></table>
             </div>
         </div>
+
         <div id="controls">
-            <div class="toggle-group">
+            <div class="btn-row">
                 <button id="m-plane" class="t-btn active" onclick="setMode('plane')">PLANE</button>
                 <button id="m-dir" class="t-btn" onclick="setMode('dir')">DIRECTION</button>
             </div>
-            <div class="slider-row"><input type="range" id="in-h" min="-3" max="3" step="1" value="1" oninput="update()"></div>
-            <div class="slider-row"><input type="range" id="in-k" min="-3" max="3" step="1" value="1" oninput="update()"></div>
-            <div class="slider-row"><input type="range" id="in-l" min="-3" max="3" step="1" value="1" oninput="update()"></div>
+            <div class="slider-row"><input type="range" id="in-h" min="-3" max="3" value="1" oninput="update()"></div>
+            <div class="slider-row"><input type="range" id="in-k" min="-3" max="3" value="1" oninput="update()"></div>
+            <div class="slider-row"><input type="range" id="in-l" min="-3" max="3" value="1" oninput="update()"></div>
             
-            <button id="atom-btn" class="action-btn" onclick="toggleAtoms()">ATOMIC OVERLAY: OFF</button>
-            <button id="draw-btn" class="action-btn" style="border-color:#5522ff; color:#7755ff" onclick="toggleDrawMode()">DRAW MODE: OFF</button>
+            <div id="cubic-only">
+                <div class="btn-row">
+                    <button id="at-none" class="t-btn active" onclick="setAtoms('none')">NONE</button>
+                    <button id="at-bcc" class="t-btn" onclick="setAtoms('bcc')">BCC</button>
+                    <button id="at-fcc" class="t-btn" onclick="setAtoms('fcc')">FCC</button>
+                </div>
+            </div>
+
+            <button id="draw-btn" class="special-btn" onclick="toggleDrawMode()">QUIZ: DRAW MODE OFF</button>
+            <button id="rot-btn" class="special-btn" onclick="toggleRotation()">AUTO-ROTATE OFF</button>
         </div>
     </div>
 
     <script>
-        let scene, camera, renderer, controls, vizGroup, gridGroup, system='cubic', mode='plane';
-        let h=1, k=1, l=1, atomsOn=false, drawMode=false;
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let gridGroup, vizGroup, atomGroup, clickGroup;
+        let system = 'cubic', mode = 'plane', atoms = 'none', drawMode = false;
+        let h=1, k=1, l=1;
 
         init();
         animate();
@@ -67,53 +82,64 @@
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
             camera.position.set(3, 3, 5);
+
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
+
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            const pl = new THREE.PointLight(0xffffff, 0.8); pl.position.set(5, 10, 5); scene.add(pl);
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
 
-            vizGroup = new THREE.Group(); scene.add(vizGroup);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const pLight = new THREE.PointLight(0xffffff, 0.8);
+            pLight.position.set(5, 10, 5);
+            scene.add(pLight);
+
             gridGroup = new THREE.Group(); scene.add(gridGroup);
-            
+            vizGroup = new THREE.Group(); scene.add(vizGroup);
+            atomGroup = new THREE.Group(); scene.add(atomGroup);
+            clickGroup = new THREE.Group(); scene.add(clickGroup);
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('click', onClick);
+
             buildGrids();
             update();
         }
 
         function buildGrids() {
             while(gridGroup.children.length > 0) gridGroup.remove(gridGroup.children[0]);
-            
-            if(system === 'cubic') {
-                const geo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1));
-                const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 0x444444}));
+            const mat = new THREE.LineBasicMaterial({ color: 0x444444 });
+
+            if (system === 'cubic') {
+                const box = new THREE.BoxGeometry(1, 1, 1);
+                const edges = new THREE.EdgesGeometry(box);
+                const line = new THREE.LineSegments(edges, mat);
                 line.position.set(0.5, 0.5, 0.5);
                 gridGroup.add(line);
             } else {
-                // Build Hexagonal Prism
-                const hexPoints = [];
+                // Hexagonal Prism
+                const hexPts = [];
                 for(let i=0; i<=6; i++) {
-                    let ang = (i * 60) * Math.PI / 180;
-                    hexPoints.push(new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang)));
+                    let a = (i * 60) * Math.PI / 180;
+                    hexPts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
                 }
-                const bottom = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hexPoints), new THREE.LineBasicMaterial({color: 0x444444}));
-                const top = bottom.clone(); top.position.y = 1.6; // c/a ratio roughly 1.633
-                gridGroup.add(bottom); gridGroup.add(top);
-                // Vertical struts
+                const base = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hexPts), mat);
+                const top = base.clone(); top.position.y = 1.6;
+                gridGroup.add(base); gridGroup.add(top);
                 for(let i=0; i<6; i++) {
-                    let ang = (i * 60) * Math.PI / 180;
-                    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(ang),0,Math.sin(ang)), new THREE.Vector3(Math.cos(ang),1.6,Math.sin(ang))]);
-                    gridGroup.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: 0x333333})));
+                    let a = (i * 60) * Math.PI / 180;
+                    const v = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),0,Math.sin(a)), new THREE.Vector3(Math.cos(a),1.6,Math.sin(a))]);
+                    gridGroup.add(new THREE.Line(v, new THREE.LineBasicMaterial({color:0x222222})));
                 }
-                // The Primitive Rhombus (Faint Purple)
-                const rhomPoints = [
-                    new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), 
-                    new THREE.Vector3(1.5,0,0.866), new THREE.Vector3(0.5,0,0.866), new THREE.Vector3(0,0,0)
-                ];
-                const rhom = new THREE.Line(new THREE.BufferGeometry().setFromPoints(rhomPoints), new THREE.LineBasicMaterial({color: 0x8844ff, transparent:true, opacity:0.5}));
-                gridGroup.add(rhom);
+                // Primitive Rhombus overlay
+                const rPts = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(1.5,0,0.866), new THREE.Vector3(0.5,0,0.866), new THREE.Vector3(0,0,0)];
+                const rhombus = new THREE.Line(new THREE.BufferGeometry().setFromPoints(rPts), new THREE.LineBasicMaterial({color: 0x8844ff, transparent: true, opacity: 0.6}));
+                gridGroup.add(rhombus);
             }
         }
 
@@ -121,37 +147,112 @@
             system = s; 
             document.getElementById('sys-cubic').className = s==='cubic'?'t-btn active':'t-btn';
             document.getElementById('sys-hex').className = s==='hex'?'t-btn active':'t-btn';
+            document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none';
             buildGrids(); update(); 
         };
-        
-        window.setMode = (m) => { 
-            mode = m; 
+
+        window.setMode = (m) => {
+            mode = m;
             document.getElementById('m-plane').className = m==='plane'?'t-btn active':'t-btn';
             document.getElementById('m-dir').className = m==='dir'?'t-btn active':'t-btn';
-            update(); 
+            update();
+        };
+
+        window.setAtoms = (a) => {
+            atoms = a;
+            ['none', 'bcc', 'fcc'].forEach(id => document.getElementById('at-'+id).className = (atoms===id?'t-btn active':'t-btn'));
+            drawAtoms();
+        };
+
+        window.toggleDrawMode = () => {
+            drawMode = !drawMode;
+            document.getElementById('draw-btn').innerText = drawMode ? "QUIZ: DRAW MODE ON" : "QUIZ: DRAW MODE OFF";
+            document.getElementById('draw-btn').className = drawMode ? "special-btn active" : "special-btn";
+            update();
+        };
+
+        window.toggleRotation = () => {
+            controls.autoRotate = !controls.autoRotate;
+            document.getElementById('rot-btn').innerText = controls.autoRotate ? "AUTO-ROTATE ON" : "AUTO-ROTATE OFF";
+            document.getElementById('rot-btn').className = controls.autoRotate ? "special-btn on" : "special-btn";
         };
 
         window.update = () => {
-            h=parseInt(document.getElementById('in-h').value);
-            k=parseInt(document.getElementById('in-k').value);
-            l=parseInt(document.getElementById('in-l').value);
-            
+            h = parseInt(document.getElementById('in-h').value);
+            k = parseInt(document.getElementById('in-k').value);
+            l = parseInt(document.getElementById('in-l').value);
+
             const format = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
             const tbody = document.getElementById('calc-body');
-            
-            if(system === 'cubic') {
-                document.getElementById('notation').innerHTML = mode==='plane'?`(${format(h)} ${format(k)} ${format(l)})`:`[${format(h)} ${format(k)} ${format(l)}]`;
+
+            if (system === 'cubic') {
+                document.getElementById('notation').innerHTML = mode==='plane' ? `(${format(h)} ${format(k)} ${format(l)})` : `[${format(h)} ${format(k)} ${format(l)}]`;
                 tbody.innerHTML = `<tr><td>Intercepts</td><td class="col-val">${h?`1/${h}`:'∞'} ${k?`1/${k}`:'∞'} ${l?`1/${l}`:'∞'}</td></tr>`;
             } else {
                 let i = -(h + k);
-                document.getElementById('notation').innerHTML = mode==='plane'?`(${format(h)} ${format(k)} ${format(i)} ${format(l)})`:`[${format(h)} ${format(k)} ${format(i)} ${format(l)}]`;
-                tbody.innerHTML = `<tr><td>Miller (hkl)</td><td class="col-val">${h} ${k} ${l}</td></tr>
-                                   <tr><td>Bravais (hkil)</td><td class="col-val">${h} ${k} ${i} ${l}</td></tr>`;
+                document.getElementById('notation').innerHTML = mode==='plane' ? `(${format(h)} ${format(k)} ${format(i)} ${format(l)})` : `[${format(h)} ${format(k)} ${format(i)} ${format(l)}]`;
+                tbody.innerHTML = `<tr><td>Miller (hkl)</td><td class="col-val">${h} ${k} ${l}</td></tr><tr><td>Bravais (hkil)</td><td class="col-val">${h} ${k} ${i} ${l}</td></tr>`;
             }
-            // Visualization drawing logic would go here...
+            
+            drawAtoms();
+            if (!drawMode) drawViz(); else clearViz();
         }
 
-        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        function drawAtoms() {
+            while(atomGroup.children.length > 0) atomGroup.remove(atomGroup.children[0]);
+            if (system !== 'cubic' || atoms === 'none') return;
+            const mat = new THREE.MeshPhongMaterial({color: 0x888888, transparent: true, opacity: 0.6});
+            const geo = new THREE.SphereGeometry(0.1, 16, 16);
+            const add = (x,y,z) => { const m=new THREE.Mesh(geo, mat); m.position.set(x,y,z); atomGroup.add(m); };
+            for(let x=0; x<=1; x++) for(let y=0; y<=1; y++) for(let z=0; z<=1; z++) add(x,y,z);
+            if(atoms==='bcc') add(0.5, 0.5, 0.5);
+            if(atoms==='fcc') { add(0.5,0.5,0); add(0.5,0.5,1); add(0.5,0,0.5); add(0.5,1,0.5); add(0,0.5,0.5); add(1,0.5,0.5); }
+        }
+
+        function drawViz() {
+            while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]);
+            if (h===0 && k===0 && l===0) return;
+            
+            let ox=h<0?1:0, oy=k<0?1:0, oz=l<0?1:0;
+            if(system === 'cubic') {
+                if(mode==='dir') {
+                    const v = new THREE.Vector3(h, k, l); const m = Math.max(Math.abs(h), Math.abs(k), Math.abs(l));
+                    vizGroup.add(new THREE.ArrowHelper(v.clone().normalize(), new THREE.Vector3(ox,oy,oz), v.length()/m, 0x00ffff, 0.15, 0.08));
+                } else {
+                    let pts = [];
+                    let ih=h!==0?1/h:null, ik=k!==0?1/k:null, il=l!==0?1/l:null;
+                    if(ih!==null) pts.push(new THREE.Vector3(ox+ih, oy, oz));
+                    if(ik!==null) pts.push(new THREE.Vector3(ox, oy+ik, oz));
+                    if(il!==null) pts.push(new THREE.Vector3(ox, oy, oz+il));
+                    if(h===0) { pts.push(new THREE.Vector3(ox+1, oy+ik, oz)); pts.push(new THREE.Vector3(ox+1, oy, oz+il)); }
+                    if(k===0) { pts.push(new THREE.Vector3(ox+ih, oy+1, oz)); pts.push(new THREE.Vector3(ox, oy+1, oz+il)); }
+                    if(l===0) { pts.push(new THREE.Vector3(ox+ih, oy, oz+1)); pts.push(new THREE.Vector3(ox, oy+ik, oz+1)); }
+                    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xff00ff, side: 2, transparent:true, opacity:0.5}));
+                    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color:0xff00ff})));
+                    vizGroup.add(mesh);
+                }
+            }
+        }
+
+        function clearViz() { while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]); }
+
+        function onClick(event) {
+            if (!drawMode) return;
+            // Vertex selection logic for Quiz Mode will be finalized in the next pass
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
     </script>
 </body>
 </html>
