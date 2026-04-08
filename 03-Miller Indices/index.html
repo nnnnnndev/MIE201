@@ -8,185 +8,177 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui-header { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
         
-        #control-panel { 
-            position: absolute; top: 20px; right: 20px; 
-            width: 280px; background: rgba(255,255,255,0.05); 
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px; backdrop-filter: blur(10px);
-            padding: 20px; z-index: 20;
-        }
-
-        .input-group { margin-bottom: 12px; }
-        label { display: block; font-size: 0.7rem; text-transform: uppercase; opacity: 0.6; margin-bottom: 5px; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
         
-        .mode-toggle { display: flex; gap: 5px; margin-bottom: 20px; }
-        .mode-btn { 
-            flex: 1; height: 35px; background: rgba(0,0,0,0.5); border: 1px solid #444; 
-            color: white; cursor: pointer; font-size: 0.7rem; font-weight: bold; border-radius: 4px;
-        }
-        .mode-btn.active { border-color: #00ffff; box-shadow: 0 0 10px #00ffff; color: #00ffff; }
-
-        input[type=range] { width: 100%; accent-color: #ff00ff; cursor: pointer; }
-        .val-display { float: right; font-weight: bold; color: #ff00ff; }
-        
-        #notation { font-size: 1.8rem; text-align: center; margin: 15px 0; font-weight: bold; letter-spacing: 5px; }
+        #header { pointer-events: auto; }
+        h1 { margin: 0; font-size: 1rem; letter-spacing: 2px; text-transform: uppercase; color: #888; }
+        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin-top: 5px; }
         .bar { text-decoration: overline; }
 
-        #error-log { position: absolute; bottom: 10px; left: 10px; color: red; font-size: 10px; }
+        #calc-table { 
+            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; padding: 15px; margin-top: 15px; width: fit-content; font-size: 0.75rem;
+        }
+        table { border-collapse: collapse; width: 220px; }
+        td { padding: 4px 0; border-bottom: 1px solid #222; }
+        .step-label { color: #888; text-transform: uppercase; font-size: 0.6rem; }
+        .step-val { text-align: right; font-family: monospace; color: #00ffff; }
+
+        #controls { 
+            pointer-events: auto; width: 260px; align-self: flex-end;
+            background: rgba(15, 15, 25, 0.9); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; padding: 20px; backdrop-filter: blur(10px);
+        }
+
+        .mode-switch { display: flex; background: #000; border-radius: 6px; padding: 3px; margin-bottom: 15px; }
+        .mode-btn { flex: 1; border: none; background: none; color: #555; padding: 6px; cursor: pointer; font-size: 0.65rem; font-weight: bold; border-radius: 4px; }
+        .mode-btn.active { background: #1a1a2e; color: #00ffff; }
+
+        .slider-row { margin-bottom: 12px; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 0.65rem; color: #888; }
+        input[type=range] { width: 100%; accent-color: #ff00ff; cursor: pointer; }
+
+        #legend { margin-top: 10px; font-size: 0.6rem; color: #555; }
+        .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
     </style>
 </head>
 <body>
 
-    <div id="ui-header">
-        <h1>Miller Indices</h1>
-        <div id="notation">(1 1 1)</div>
+    <div id="ui-layer">
+        <div id="header">
+            <h1>Cubic Crystal System</h1>
+            <div id="notation">(1 1 1)</div>
+            
+            <div id="calc-table">
+                <table id="table-content">
+                    </table>
+            </div>
+        </div>
+
+        <div id="controls">
+            <div class="mode-switch">
+                <button id="p-btn" class="mode-btn active" onclick="setMode('plane')">PLANE (hkl)</button>
+                <button id="d-btn" class="mode-btn" onclick="setMode('dir')">DIRECTION [uvw]</button>
+            </div>
+            <div class="slider-row"><div class="slider-header">Index H/U <span id="h-val" style="color:#ff00ff">1</span></div><input type="range" id="h-in" min="-4" max="4" step="1" value="1" oninput="update()"></div>
+            <div class="slider-row"><div class="slider-header">Index K/V <span id="k-val" style="color:#ff00ff">1</span></div><input type="range" id="k-in" min="-4" max="4" step="1" value="1" oninput="update()"></div>
+            <div class="slider-row"><div class="slider-header">Index L/W <span id="l-val" style="color:#ff00ff">1</span></div><input type="range" id="l-in" min="-4" max="4" step="1" value="1" oninput="update()"></div>
+            
+            <div id="legend">
+                <div><span class="dot" style="background:#ffffff"></span> Default (0,0,0)</div>
+                <div><span class="dot" style="background:#ffaa00"></span> Shifted Origin</div>
+            </div>
+        </div>
     </div>
-
-    <div id="control-panel">
-        <div class="mode-toggle">
-            <button id="btn-plane" class="mode-btn active" onclick="setMode('plane')">PLANE (hkl)</button>
-            <button id="btn-dir" class="mode-btn" onclick="setMode('dir')">DIRECTION [uvw]</button>
-        </div>
-
-        <div class="input-group">
-            <label>Index H / U <span class="val-display" id="val-h">1</span></label>
-            <input type="range" id="input-h" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
-        </div>
-        <div class="input-group">
-            <label>Index K / V <span class="val-display" id="val-k">1</span></label>
-            <input type="range" id="input-k" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
-        </div>
-        <div class="input-group">
-            <label>Index L / W <span class="val-display" id="val-l">1</span></label>
-            <input type="range" id="input-l" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
-        </div>
-    </div>
-
-    <div id="canvas-container"></div>
-    <div id="error-log"></div>
 
     <script>
-        // Use a standard non-module script block
-        let scene, camera, renderer, controls, visualGroup, originMarker;
-        let mode = 'plane', h = 1, k = 1, l = 1;
+        let scene, camera, renderer, controls, vizGroup, originDot;
+        let mode = 'plane', h=1, k=1, l=1;
 
-        function logError(msg) {
-            document.getElementById('error-log').innerText += msg + "\n";
-        }
-
-        window.onload = function() {
-            try {
-                init();
-                animate();
-            } catch (e) {
-                logError("Init Error: " + e.message);
-            }
-        };
+        init();
+        animate();
 
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x050508);
-
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(3, 2, 3);
-
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+            camera.position.set(2.5, 2, 3);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            // Access OrbitControls via THREE namespace in this version
+            document.body.appendChild(renderer.domElement);
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-            const pLight = new THREE.PointLight(0xffffff, 1);
-            pLight.position.set(5, 5, 5);
-            scene.add(pLight);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            const pl = new THREE.PointLight(0xffffff, 0.8);
+            pl.position.set(5, 5, 5); scene.add(pl);
 
-            // Unit Cube
-            const geo = new THREE.BoxGeometry(1, 1, 1);
-            const edges = new THREE.EdgesGeometry(geo);
-            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x444444 }));
-            line.position.set(0.5, 0.5, 0.5);
-            scene.add(line);
+            // 1. WHITE WIREFRAME CUBE
+            const cubeLines = new THREE.LineSegments(
+                new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+                new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })
+            );
+            cubeLines.position.set(0.5, 0.5, 0.5);
+            scene.add(cubeLines);
 
-            // 1/4 tick marks
-            for(let i=0.25; i<1; i+=0.25) {
-                const s = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({color: 0x222222}));
-                s.position.set(i, 0, 0); scene.add(s.clone()); s.position.set(0, i, 0); scene.add(s.clone()); s.position.set(0,0,i); scene.add(s);
-            }
+            // 2. MUTED GLOWING DEFAULT ORIGIN
+            const oDefault = new THREE.Mesh(
+                new THREE.SphereGeometry(0.025), 
+                new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.8})
+            );
+            scene.add(oBase = oDefault);
 
-            originMarker = new THREE.Mesh(new THREE.SphereGeometry(0.04), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
-            scene.add(originMarker);
+            originDot = new THREE.Mesh(new THREE.SphereGeometry(0.04), new THREE.MeshBasicMaterial({color: 0xffaa00}));
+            scene.add(originDot);
 
-            visualGroup = new THREE.Group();
-            scene.add(visualGroup);
-
-            updateIndices();
+            vizGroup = new THREE.Group();
+            scene.add(vizGroup);
+            update();
         }
 
-        window.setMode = function(m) {
+        window.setMode = (m) => {
             mode = m;
-            document.getElementById('btn-plane').className = (mode === 'plane' ? 'mode-btn active' : 'mode-btn');
-            document.getElementById('btn-dir').className = (mode === 'dir' ? 'mode-btn active' : 'mode-btn');
-            updateIndices();
-        }
+            document.getElementById('p-btn').className = mode === 'plane' ? 'mode-btn active' : 'mode-btn';
+            document.getElementById('d-btn').className = mode === 'dir' ? 'mode-btn active' : 'mode-btn';
+            update();
+        };
 
-        window.updateIndices = function() {
-            h = parseInt(document.getElementById('input-h').value);
-            k = parseInt(document.getElementById('input-k').value);
-            l = parseInt(document.getElementById('input-l').value);
+        window.update = () => {
+            h = parseInt(document.getElementById('h-in').value);
+            k = parseInt(document.getElementById('k-in').value);
+            l = parseInt(document.getElementById('l-in').value);
+            document.getElementById('h-val').innerText = h;
+            document.getElementById('k-val').innerText = k;
+            document.getElementById('l-val').innerText = l;
             
-            document.getElementById('val-h').innerText = h;
-            document.getElementById('val-k').innerText = k;
-            document.getElementById('val-l').innerText = l;
+            const format = (v) => v < 0 ? `<span class="bar">${Math.abs(v)}</span>` : v;
+            document.getElementById('notation').innerHTML = (mode === 'plane' ? '(' : '[') + `${format(h)} ${format(k)} ${format(l)}` + (mode === 'plane' ? ')' : ']');
+            
+            updateTable();
+            draw();
+        };
 
-            const wrap = (val) => val < 0 ? `<span class="bar">${Math.abs(val)}</span>` : val;
-            document.getElementById('notation').innerHTML = (mode === 'plane' ? '(' : '[') + `${wrap(h)} ${wrap(k)} ${wrap(l)}` + (mode === 'plane' ? ')' : ']');
-
-            renderViz();
+        function updateTable() {
+            let html = "";
+            if (mode === 'dir') {
+                html = `<tr><td class="step-label">Head</td><td class="step-val">${h}, ${k}, ${l}</td></tr>
+                        <tr><td class="step-label">Tail (Origin)</td><td class="step-val">${h<0?1:0}, ${k<0?1:0}, ${l<0?1:0}</td></tr>
+                        <tr><td class="step-label">Difference</td><td class="step-val">${h}, ${k}, ${l}</td></tr>
+                        <tr><td class="step-label">Final [uvw]</td><td class="step-val">[${h} ${k} ${l}]</td></tr>`;
+            } else {
+                html = `<tr><td class="step-label">Intercepts</td><td class="step-val">${h!==0?`1/${h}`:'∞'}, ${k!==0?`1/${k}`:'∞'}, ${l!==0?`1/${l}`:'∞'}</td></tr>
+                        <tr><td class="step-label">Reciprocals</td><td class="step-val">${h}, ${k}, ${l}</td></tr>
+                        <tr><td class="step-label">Final (hkl)</td><td class="step-val">(${h} ${k} ${l})</td></tr>`;
+            }
+            document.getElementById('table-content').innerHTML = html;
         }
 
-        function renderViz() {
-            while(visualGroup.children.length > 0) visualGroup.remove(visualGroup.children[0]);
+        function draw() {
+            while(vizGroup.children.length > 0) vizGroup.remove(vizGroup.children[0]);
+            let ox = h < 0 ? 1 : 0, oy = k < 0 ? 1 : 0, oz = l < 0 ? 1 : 0;
+            originDot.position.set(ox, oy, oz);
+            if(h === 0 && k === 0 && l === 0) return;
 
-            let ox = h < 0 ? 1 : 0;
-            let oy = k < 0 ? 1 : 0;
-            let oz = l < 0 ? 1 : 0;
-            originMarker.position.set(ox, oy, oz);
-
-            if (mode === 'dir') {
-                if (h === 0 && k === 0 && l === 0) return;
+            if(mode === 'dir') {
                 const dir = new THREE.Vector3(h, k, l).normalize();
-                visualGroup.add(new THREE.ArrowHelper(dir, new THREE.Vector3(ox, oy, oz), 1, 0x00ffff, 0.2, 0.1));
+                vizGroup.add(new THREE.ArrowHelper(dir, new THREE.Vector3(ox, oy, oz), 1, 0x00ffff, 0.15, 0.08));
             } else {
-                if (h === 0 && k === 0 && l === 0) return;
-                const geometry = new THREE.BufferGeometry();
-                const v1 = new THREE.Vector3(ox + (h !== 0 ? 1/h : 100), oy, oz);
-                const v2 = new THREE.Vector3(ox, oy + (k !== 0 ? 1/k : 100), oz);
-                const v3 = new THREE.Vector3(ox, oy, oz + (l !== 0 ? 1/l : 100));
-                const vertices = new Float32Array([v1.x,v1.y,v1.z, v2.x,v2.y,v2.z, v3.x,v3.y,v3.z]);
-                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
-                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0xff00ff })));
-                visualGroup.add(mesh);
+                const geo = new THREE.BufferGeometry();
+                const pts = [
+                    new THREE.Vector3(ox + (h!==0?1/h:50), oy, oz),
+                    new THREE.Vector3(ox, oy + (k!==0?1/k:50), oz),
+                    new THREE.Vector3(ox, oy, oz + (l!==0?1/l:50))
+                ];
+                geo.setFromPoints(pts);
+                const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.4}));
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color: 0xff00ff})));
+                vizGroup.add(mesh);
             }
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            if(controls) controls.update();
-            renderer.render(scene, camera);
-        }
-
-        window.onresize = function() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        };
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        window.onresize = () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
     </script>
 </body>
 </html>
