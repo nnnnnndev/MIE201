@@ -1,1 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIE 201 - Miller Indices Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #ui-header { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+        
+        #control-panel { 
+            position: absolute; top: 20px; right: 20px; 
+            width: 280px; background: rgba(255,255,255,0.05); 
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; backdrop-filter: blur(10px);
+            padding: 20px; z-index: 20;
+        }
 
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.7rem; text-transform: uppercase; opacity: 0.6; margin-bottom: 5px; }
+        
+        .mode-toggle { display: flex; gap: 5px; margin-bottom: 20px; }
+        .mode-btn { 
+            flex: 1; height: 35px; background: rgba(0,0,0,0.5); border: 1px solid #444; 
+            color: white; cursor: pointer; font-size: 0.7rem; font-weight: bold; border-radius: 4px;
+        }
+        .mode-btn.active { border-color: #00ffff; box-shadow: 0 0 10px #00ffff; color: #00ffff; }
+
+        input[type=range] { width: 100%; accent-color: #ff00ff; }
+        .val-display { float: right; font-weight: bold; color: #ff00ff; }
+        
+        #notation { font-size: 1.8rem; text-align: center; margin: 20px 0; font-weight: bold; letter-spacing: 5px; }
+        .bar { text-decoration: overline; }
+
+        #legend { font-size: 0.7rem; opacity: 0.8; line-height: 1.5; }
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-header">
+        <h1>Miller Indices</h1>
+        <div id="notation">(1 1 1)</div>
+    </div>
+
+    <div id="control-panel">
+        <div class="mode-toggle">
+            <button id="btn-plane" class="mode-btn active" onclick="setMode('plane')">PLANE (hkl)</button>
+            <button id="btn-dir" class="mode-btn" onclick="setMode('dir')">DIRECTION [uvw]</button>
+        </div>
+
+        <div class="input-group">
+            <label>Index H / U <span class="val-display" id="val-h">1</span></label>
+            <input type="range" id="input-h" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
+        </div>
+        <div class="input-group">
+            <label>Index K / V <span class="val-display" id="val-k">1</span></label>
+            <input type="range" id="input-k" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
+        </div>
+        <div class="input-group">
+            <label>Index L / W <span class="val-display" id="val-l">1</span></label>
+            <input type="range" id="input-l" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
+        </div>
+
+        <div id="legend">
+            <div><span class="dot" style="background: #888;"></span> (0,0,0) Default Origin</div>
+            <div><span class="dot" style="background: #ffaa00;"></span> Active Origin</div>
+            <div><span class="dot" style="background: #ff00ff;"></span> Plane (Magenta)</div>
+            <div><span class="dot" style="background: #00ffff;"></span> Direction (Cyan)</div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        let scene, camera, renderer, controls, cube, grid;
+        let mode = 'plane';
+        let h = 1, k = 1, l = 1;
+        let planeMesh, arrowHelper, originMarker;
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050508);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(2.5, 2.5, 4);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 1);
+            pointLight.position.set(5, 5, 5);
+            scene.add(pointLight);
+
+            // Unit Cube Wireframe
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x444444 }));
+            line.position.set(0.5, 0.5, 0.5); // Center in (0,1) space
+            scene.add(line);
+
+            // Origin Marker (Default 0,0,0)
+            const oGeo = new THREE.SphereGeometry(0.02);
+            const oMat = new THREE.MeshBasicMaterial({ color: 0x888888 });
+            const oSph = new THREE.Mesh(oGeo, oMat);
+            scene.add(oSph);
+
+            // Working Origin Marker
+            originMarker = new THREE.Mesh(new THREE.SphereGeometry(0.04), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+            scene.add(originMarker);
+
+            // Grid markers (faint 1/4 marks)
+            addTickMarks();
+
+            updateIndices();
+        }
+
+        function addTickMarks() {
+            const material = new THREE.LineBasicMaterial({ color: 0x222222 });
+            for(let i=0; i<=1; i+=0.25) {
+                // Simplified grid helper logic for edges
+                // We'll just leave them as subtle background hints for now
+            }
+        }
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('btn-plane').classList.toggle('active', mode === 'plane');
+            document.getElementById('btn-dir').classList.toggle('active', mode === 'dir');
+            updateIndices();
+        }
+
+        function updateIndices() {
+            h = parseInt(document.getElementById('input-h').value);
+            k = parseInt(document.getElementById('input-k').value);
+            l = parseInt(document.getElementById('input-l').value);
+
+            document.getElementById('val-h').innerText = h;
+            document.getElementById('val-k').innerText = k;
+            document.getElementById('val-l').innerText = l;
+
+            updateNotation();
+            renderVisualization();
+        }
+
+        function updateNotation() {
+            const wrap = (val) => val < 0 ? `<span class="bar">${Math.abs(val)}</span>` : val;
+            const open = mode === 'plane' ? '(' : '[';
+            const close = mode === 'plane' ? ')' : ']';
+            document.getElementById('notation').innerHTML = `${open}${wrap(h)} ${wrap(k)} ${wrap(l)}${close}`;
+        }
+
+        function renderVisualization() {
+            if (planeMesh) scene.remove(planeMesh);
+            if (arrowHelper) scene.remove(arrowHelper);
+
+            // Origin Logic: Move to 1 if index is negative
+            let offX = h < 0 ? 1 : 0;
+            let offY = k < 0 ? 1 : 0;
+            let offZ = l < 0 ? 1 : 0;
+            originMarker.position.set(offX, offY, offZ);
+
+            if (mode === 'plane') {
+                createMillerPlane(offX, offY, offZ);
+            } else {
+                createDirection(offX, offY, offZ);
+            }
+        }
+
+        function createDirection(ox, oy, oz) {
+            const dir = new THREE.Vector3(h, k, l).normalize();
+            arrowHelper = new THREE.ArrowHelper(dir, new THREE.Vector3(ox, oy, oz), 0.8, 0x00ffff, 0.1, 0.05);
+            scene.add(arrowHelper);
+        }
+
+        function createMillerPlane(ox, oy, oz) {
+            // Plane Intercepts relative to active origin
+            // Intercept = 1/index
+            let intercepts = [
+                h !== 0 ? 1/h : Infinity,
+                k !== 0 ? 1/k : Infinity,
+                l !== 0 ? 1/l : Infinity
+            ];
+
+            // This is a simplified triangle visualization for basic hkl
+            // A robust version handles the clipping for all intercepts
+            const geometry = new THREE.BufferGeometry();
+            const points = [];
+
+            // Simple Intercept calculation
+            let p1 = new THREE.Vector3(ox + (h !== 0 ? 1/h : 10), oy, oz);
+            let p2 = new THREE.Vector3(ox, oy + (k !== 0 ? 1/k : 10), oz);
+            let p3 = new THREE.Vector3(ox, oy, oz + (l !== 0 ? 1/l : 10));
+
+            // Note: For a true 1x1x1 clipping, a much more complex algorithm is needed.
+            // For this version, we will visualize the primary triangle.
+            const vertices = new Float32Array([
+                ox + (h !== 0 ? 1/h : 0), oy, oz,
+                ox, oy + (k !== 0 ? 1/k : 0), oz,
+                ox, oy, oz + (l !== 0 ? 1/l : 0)
+            ]);
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            const material = new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+            planeMesh = new THREE.Mesh(geometry, material);
+            
+            // Add Wireframe to plane
+            const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0xff00ff }));
+            planeMesh.add(wireframe);
+            
+            scene.add(planeMesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
