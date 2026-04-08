@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIE 201 - Miller Indices Viewer</title>
-    <script src="https://unpkg.com/three@0.157.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body { margin: 0; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #ui-header { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
@@ -35,8 +35,7 @@
         #notation { font-size: 1.8rem; text-align: center; margin: 15px 0; font-weight: bold; letter-spacing: 5px; }
         .bar { text-decoration: overline; }
 
-        #legend { font-size: 0.7rem; opacity: 0.8; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
-        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+        #error-log { position: absolute; bottom: 10px; left: 10px; color: red; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -64,28 +63,28 @@
             <label>Index L / W <span class="val-display" id="val-l">1</span></label>
             <input type="range" id="input-l" min="-4" max="4" step="1" value="1" oninput="updateIndices()">
         </div>
-
-        <div id="legend">
-            <div><span class="dot" style="background: #444;"></span> (0,0,0) Default Origin</div>
-            <div><span class="dot" style="background: #ffaa00; box-shadow: 0 0 5px #ffaa00;"></span> Active Origin</div>
-            <div><span class="dot" style="background: #ff00ff;"></span> Plane (hkl)</div>
-            <div><span class="dot" style="background: #00ffff;"></span> Direction [uvw]</div>
-        </div>
     </div>
 
     <div id="canvas-container"></div>
+    <div id="error-log"></div>
 
-    <script type="module">
-        // Using module script to handle OrbitControls correctly in 2026
-        import { OrbitControls } from 'https://unpkg.com/three@0.157.0/examples/jsm/controls/OrbitControls.js';
+    <script>
+        // Use a standard non-module script block
+        let scene, camera, renderer, controls, visualGroup, originMarker;
+        let mode = 'plane', h = 1, k = 1, l = 1;
 
-        let scene, camera, renderer, controls;
-        let mode = 'plane';
-        let h = 1, k = 1, l = 1;
-        let visualGroup, originMarker;
+        function logError(msg) {
+            document.getElementById('error-log').innerText += msg + "\n";
+        }
 
-        init();
-        animate();
+        window.onload = function() {
+            try {
+                init();
+                animate();
+            } catch (e) {
+                logError("Init Error: " + e.message);
+            }
+        };
 
         function init() {
             scene = new THREE.Scene();
@@ -96,97 +95,59 @@
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            controls = new OrbitControls(camera, renderer.domElement);
+            // Access OrbitControls via THREE namespace in this version
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            // Lights
             scene.add(new THREE.AmbientLight(0xffffff, 0.5));
             const pLight = new THREE.PointLight(0xffffff, 1);
             pLight.position.set(5, 5, 5);
             scene.add(pLight);
 
-            // Unit Cube Wireframe
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const edges = new THREE.EdgesGeometry(geometry);
-            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x666666 }));
+            // Unit Cube
+            const geo = new THREE.BoxGeometry(1, 1, 1);
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x444444 }));
             line.position.set(0.5, 0.5, 0.5);
             scene.add(line);
 
-            // X Y Z Labels
-            createLabel("X", 1.2, 0, 0, "#ff4444");
-            createLabel("Y", 0, 1.2, 0, "#44ff44");
-            createLabel("Z", 0, 0, 1.2, "#4444ff");
+            // 1/4 tick marks
+            for(let i=0.25; i<1; i+=0.25) {
+                const s = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({color: 0x222222}));
+                s.position.set(i, 0, 0); scene.add(s.clone()); s.position.set(0, i, 0); scene.add(s.clone()); s.position.set(0,0,i); scene.add(s);
+            }
 
-            // Fixed Origin (0,0,0)
-            const oBase = new THREE.Mesh(new THREE.SphereGeometry(0.02), new THREE.MeshBasicMaterial({color: 0x444444}));
-            scene.add(oBase);
-
-            // Active Origin
-            originMarker = new THREE.Mesh(
-                new THREE.SphereGeometry(0.04), 
-                new THREE.MeshBasicMaterial({ color: 0xffaa00 })
-            );
+            originMarker = new THREE.Mesh(new THREE.SphereGeometry(0.04), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
             scene.add(originMarker);
 
             visualGroup = new THREE.Group();
             scene.add(visualGroup);
 
-            // Tick Marks (1/4 intervals)
-            addTickMarks();
-
-            // Setup Globals for UI
-            window.setMode = (m) => {
-                mode = m;
-                document.getElementById('btn-plane').classList.toggle('active', mode === 'plane');
-                document.getElementById('btn-dir').classList.toggle('active', mode === 'dir');
-                updateIndices();
-            };
-
-            window.updateIndices = () => {
-                h = parseInt(document.getElementById('input-h').value);
-                k = parseInt(document.getElementById('input-k').value);
-                l = parseInt(document.getElementById('input-l').value);
-                document.getElementById('val-h').innerText = h;
-                document.getElementById('val-k').innerText = k;
-                document.getElementById('val-l').innerText = l;
-                updateNotation();
-                renderViz();
-            };
-
             updateIndices();
         }
 
-        function addTickMarks() {
-            const mat = new THREE.LineBasicMaterial({ color: 0x333333 });
-            for (let i = 0.25; i < 1; i += 0.25) {
-                // Faint grid hints on axes
-                createTick(i, 0, 0); createTick(0, i, 0); createTick(0, 0, i);
-            }
+        window.setMode = function(m) {
+            mode = m;
+            document.getElementById('btn-plane').className = (mode === 'plane' ? 'mode-btn active' : 'mode-btn');
+            document.getElementById('btn-dir').className = (mode === 'dir' ? 'mode-btn active' : 'mode-btn');
+            updateIndices();
         }
 
-        function createTick(x, y, z) {
-            const g = new THREE.SphereGeometry(0.01);
-            const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color: 0x333333}));
-            m.position.set(x, y, z);
-            scene.add(m);
-        }
+        window.updateIndices = function() {
+            h = parseInt(document.getElementById('input-h').value);
+            k = parseInt(document.getElementById('input-k').value);
+            l = parseInt(document.getElementById('input-l').value);
+            
+            document.getElementById('val-h').innerText = h;
+            document.getElementById('val-k').innerText = k;
+            document.getElementById('val-l').innerText = l;
 
-        function createLabel(text, x, y, z, color) {
-            // Simple visualization for axes labels
-            const g = new THREE.BoxGeometry(0.05, 0.05, 0.05);
-            const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({color: color}));
-            m.position.set(x, y, z);
-            scene.add(m);
-        }
-
-        function updateNotation() {
             const wrap = (val) => val < 0 ? `<span class="bar">${Math.abs(val)}</span>` : val;
-            const open = mode === 'plane' ? '(' : '[';
-            const close = mode === 'plane' ? ')' : ']';
-            document.getElementById('notation').innerHTML = `${open}${wrap(h)} ${wrap(k)} ${wrap(l)}${close}`;
+            document.getElementById('notation').innerHTML = (mode === 'plane' ? '(' : '[') + `${wrap(h)} ${wrap(k)} ${wrap(l)}` + (mode === 'plane' ? ')' : ']');
+
+            renderViz();
         }
 
         function renderViz() {
@@ -197,60 +158,35 @@
             let oz = l < 0 ? 1 : 0;
             originMarker.position.set(ox, oy, oz);
 
-            if (mode === 'plane') {
-                drawPlane(ox, oy, oz);
+            if (mode === 'dir') {
+                if (h === 0 && k === 0 && l === 0) return;
+                const dir = new THREE.Vector3(h, k, l).normalize();
+                visualGroup.add(new THREE.ArrowHelper(dir, new THREE.Vector3(ox, oy, oz), 1, 0x00ffff, 0.2, 0.1));
             } else {
-                drawDirection(ox, oy, oz);
+                if (h === 0 && k === 0 && l === 0) return;
+                const geometry = new THREE.BufferGeometry();
+                const v1 = new THREE.Vector3(ox + (h !== 0 ? 1/h : 100), oy, oz);
+                const v2 = new THREE.Vector3(ox, oy + (k !== 0 ? 1/k : 100), oz);
+                const v3 = new THREE.Vector3(ox, oy, oz + (l !== 0 ? 1/l : 100));
+                const vertices = new Float32Array([v1.x,v1.y,v1.z, v2.x,v2.y,v2.z, v3.x,v3.y,v3.z]);
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
+                mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0xff00ff })));
+                visualGroup.add(mesh);
             }
-        }
-
-        function drawDirection(ox, oy, oz) {
-            if (h === 0 && k === 0 && l === 0) return;
-            const dir = new THREE.Vector3(h, k, l).normalize();
-            const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(ox, oy, oz), 1, 0x00ffff, 0.2, 0.1);
-            visualGroup.add(arrow);
-        }
-
-        function drawPlane(ox, oy, oz) {
-            if (h === 0 && k === 0 && l === 0) return;
-
-            const geometry = new THREE.BufferGeometry();
-            // Basic Intercept logic for the triangle
-            // Robust plane clipping is omitted for clarity, showing the fundamental triangle
-            const v1 = new THREE.Vector3(ox + (h !== 0 ? 1/h : 100), oy, oz);
-            const v2 = new THREE.Vector3(ox, oy + (k !== 0 ? 1/k : 100), oz);
-            const v3 = new THREE.Vector3(ox, oy, oz + (l !== 0 ? 1/l : 100));
-
-            const vertices = new Float32Array([
-                v1.x, v1.y, v1.z,
-                v2.x, v2.y, v2.z,
-                v3.x, v3.y, v3.z
-            ]);
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-            const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-                color: 0xff00ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5
-            }));
-            
-            const wireframe = new THREE.LineSegments(
-                new THREE.EdgesGeometry(geometry),
-                new THREE.LineBasicMaterial({ color: 0xff00ff, linewidth: 2 })
-            );
-            mesh.add(wireframe);
-            visualGroup.add(mesh);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
+            if(controls) controls.update();
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
+        window.onresize = function() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        };
     </script>
 </body>
 </html>
