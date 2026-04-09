@@ -3,259 +3,267 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stacking Sequences: HCP vs FCC</title>
+    <title>Crystallography Master: UC & Stacking</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; }
-        
         #main-container { display: flex; width: 100%; height: 100%; }
-        #canvas-container { flex: 1; position: relative; border-right: 1px solid #333; }
-        #side-panel { width: clamp(250px, 20vw, 350px); background: #0a0a14; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        #canvas-container { flex: 1; position: relative; border-right: 1px solid #1a1a2e; }
+        #side-panel { width: 350px; background: #0a0a14; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; border-left: 2px solid #1a1a2e; }
 
-        #ui-layer { position: absolute; top: 20px; left: 20px; pointer-events: none; z-index: 10; }
-        .ui-card { pointer-events: auto; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px); margin-bottom: 15px; }
+        .ui-card { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px); width: 280px; pointer-events: auto; }
         
-        .header-title { font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 5px; }
+        .header-title { font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
         
-        .btn-group { display: flex; gap: 8px; margin-bottom: 15px; }
-        .t-btn { flex: 1; padding: 12px; border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; }
-        .t-btn.active { border-color: #00ffff; color: #00ffff; background: #002222; }
-        .t-btn.active.fcc { border-color: #ff00ff; color: #ff00ff; background: #220022; }
+        .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        .t-btn { padding: 10px; border: 1px solid #333; background: #111; color: #888; cursor: pointer; font-size: 0.8rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .t-btn.active { border-color: #00ffff; color: #00ffff; background: #002222; box-shadow: 0 0 10px rgba(0,255,255,0.2); }
 
-        .slider-row { margin-bottom: 20px; }
-        .slider-label { display: flex; justify-content: space-between; color: #aaa; margin-bottom: 8px; font-size: 0.9rem; }
-        input[type=range] { width: 100%; accent-color: #00ffff; }
+        /* Metrics Display */
+        #metrics-panel { margin-top: 15px; padding: 12px; background: #000; border-radius: 6px; border-left: 3px solid #ffaa00; }
+        .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .metric-val { color: #ffaa00; font-weight: bold; font-family: monospace; }
 
-        /* 2D Side View Styles */
-        #stack-map-container { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-        .stack-label { position: absolute; left: 0; font-family: monospace; font-weight: bold; font-size: 1.2rem; }
-        .layer-dot { width: 60px; height: 20px; border-radius: 10px; margin: 5px 0; transition: 0.3s; border: 2px solid transparent; }
-        .dot-a { background: #00ffff; box-shadow: 0 0 15px rgba(0,255,255,0.3); }
-        .dot-b { background: #ff00ff; box-shadow: 0 0 15px rgba(255,0,255,0.3); }
-        .dot-c { background: #ffff00; box-shadow: 0 0 15px rgba(255,255,0,0.3); }
-        
-        #info-box { font-size: 0.85rem; color: #aaa; line-height: 1.4; border-top: 1px solid #333; padding-top: 15px; }
+        /* 2D Raft / Side View */
+        #view-2d-container { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+        .raft-canvas { background: #050508; border-radius: 8px; border: 1px solid #222; }
+        .layer-label { font-size: 0.8rem; color: #666; font-weight: bold; margin-bottom: 5px; }
+
+        .desc-text { font-size: 0.85rem; color: #aaa; margin-top: 20px; line-height: 1.5; }
         b { color: #fff; }
-        .orange-text { color: #ffaa00; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="main-container">
     <div id="canvas-container">
-        <div id="ui-layer">
-            <div class="ui-card">
-                <div class="header-title">STACKING LOGIC</div>
-                <div class="btn-group">
-                    <button id="mode-hcp" class="t-btn active" onclick="setMode('hcp')">HCP (ABAB)</button>
-                    <button id="mode-fcc" class="t-btn" onclick="setMode('fcc')">FCC (ABCABC)</button>
-                </div>
-                
-                <div class="slider-row">
-                    <div class="slider-label">Vertical Spacing <span id="val-spacing">1.0x</span></div>
-                    <input type="range" id="in-spacing" min="0.8" max="3.0" step="0.1" value="1.0" oninput="updateVisuals()">
-                </div>
+        <div class="ui-card">
+            <div class="header-title">Crystal Structures</div>
+            <div class="mode-grid">
+                <button id="btn-sc" class="t-btn" onclick="setMode('sc')">Simple Cubic</button>
+                <button id="btn-bcc" class="t-btn" onclick="setMode('bcc')">BCC</button>
+                <button id="btn-fcc" class="t-btn" onclick="setMode('fcc')">FCC</button>
+                <button id="btn-hcp" class="t-btn" onclick="setMode('hcp')">HCP</button>
+            </div>
+            
+            <div class="header-title" style="margin-top:10px;">Stacking</div>
+            <div class="mode-grid">
+                <button id="btn-stack-hcp" class="t-btn" onclick="setMode('stack-hcp')">HCP (ABAB)</button>
+                <button id="btn-stack-fcc" class="t-btn" onclick="setMode('stack-fcc')">FCC (ABC)</button>
+            </div>
 
-                <div class="slider-row">
-                    <div class="slider-label">Layer Opacity <span id="val-opacity">0.9</span></div>
-                    <input type="range" id="in-opacity" min="0.1" max="1.0" step="0.1" value="0.9" oninput="updateVisuals()">
+            <div id="metrics-panel">
+                <div class="metric-row"><span>Coord. Number:</span> <span id="m-cn" class="metric-val">12</span></div>
+                <div class="metric-row"><span>Atoms / UC:</span> <span id="m-total" class="metric-val">4</span></div>
+                <div id="breakdown" style="font-size: 0.75rem; color: #666; border-top: 1px solid #222; padding-top: 5px; margin-top: 5px;">
+                    8 Corner (1/8) + 6 Face (1/2)
                 </div>
-
-                <button class="t-btn" style="width:100%; color:#fff;" onclick="resetCamera()">RESET VIEW (TOP-DOWN)</button>
             </div>
         </div>
     </div>
 
     <div id="side-panel">
-        <div class="header-title">2D PROFILE</div>
-        <div id="stack-map-container">
+        <div class="header-title">2D Structural Map</div>
+        <div id="view-2d-container">
             </div>
-        <div id="info-box">
-            In <b id="info-mode">HCP</b> stacking, the third layer aligns perfectly with <b style="color:#00ffff;">Layer A</b>.
-            <br><br>
-            Note the <span class="orange-text">Orange sites</span>: these are voids in B that do <b>not</b> sit over atoms in A. Placing atoms there creates <b style="color:#ffff00;">Layer C</b>.
+        <div class="desc-text" id="description">
+            FCC stacks on the <b>(111) plane</b>. Note how the atoms in Layer C sit in the voids of Layer B that aren't above Layer A.
         </div>
     </div>
 </div>
 
 <script>
     let scene, camera, renderer, controls;
-    let layerA = new THREE.Group(), layerB = new THREE.Group(), layerC = new THREE.Group();
-    let highlights = new THREE.Group();
-    let currentMode = 'hcp';
+    let mainGroup = new THREE.Group();
+    let ghostGroup = new THREE.Group();
+    let currentMode = 'stack-fcc';
     
-    const colors = { a: 0x00ffff, b: 0xff00ff, c: 0xffff00, highlight: 0xffaa00 };
-    const atomRadius = 0.5;
-    const layerDist = 0.816; // Ideal c/a ratio component
+    // Palette: Cyan, Magenta, Orange, Yellow
+    const colors = { a: 0x00ffff, b: 0xff00ff, c: 0xffff00, bccCenter: 0xffff00, face: 0xff00ff, corner: 0x00ffff, ghost: 0x333333 };
 
     init();
     animate();
 
     function init() {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(45, (window.innerWidth - 300) / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 0, 10); // Start top-down
+        camera = new THREE.PerspectiveCamera(45, (window.innerWidth - 350) / window.innerHeight, 0.1, 100);
+        camera.position.set(8, 8, 8);
         
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth - 300, window.innerHeight);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth - 350, window.innerHeight);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
         
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const pLight = new THREE.PointLight(0xffffff, 0.8); pLight.position.set(5, 5, 10); scene.add(pLight);
+        const pLight = new THREE.PointLight(0xffffff, 1); pLight.position.set(10, 10, 10); scene.add(pLight);
 
-        scene.add(layerA); scene.add(layerB); scene.add(layerC); scene.add(highlights);
+        scene.add(mainGroup);
+        scene.add(ghostGroup);
         
-        buildLayers();
-        updateVisuals();
+        setMode('fcc');
         window.addEventListener('resize', onWindowResize);
-    }
-
-    function buildLayers() {
-        layerA.clear(); layerB.clear(); layerC.clear(); highlights.clear();
-        const geo = new THREE.SphereGeometry(atomRadius, 32, 32);
-
-        // Layer A: Hexagonal Grid
-        for (let q = -2; q <= 2; q++) {
-            for (let r = -2; r <= 2; r++) {
-                const x = (q + r/2);
-                const y = (r * Math.sqrt(3)/2);
-                addAtom(layerA, x, y, 0, colors.a, geo);
-            }
-        }
-
-        // Layer B: Sits in "dimples" of A
-        // Dimple offset: (1/2, sqrt(3)/6)
-        const offBX = 0.5;
-        const offBY = Math.sqrt(3)/6;
-        for (let q = -2; q <= 1; q++) {
-            for (let r = -2; r <= 1; r++) {
-                const x = (q + r/2) + offBX;
-                const y = (r * Math.sqrt(3)/2) + offBY;
-                addAtom(layerB, x, y, layerDist, colors.b, geo);
-            }
-        }
-
-        // Layer C / Repeats
-        // C-site offset: (0, sqrt(3)/3)
-        const offCX = 0;
-        const offCY = Math.sqrt(3)/3;
-        
-        // Highlights for C-sites (Interstitials)
-        const highGeo = new THREE.RingGeometry(0.1, 0.15, 32);
-        const highMat = new THREE.MeshBasicMaterial({color: colors.highlight, side: 2});
-        
-        for (let q = -2; q <= 1; q++) {
-            for (let r = -2; r <= 1; r++) {
-                const x = (q + r/2) + offCX;
-                const y = (r * Math.sqrt(3)/2) + offCY;
-                
-                // Add the physical Layer C atoms
-                addAtom(layerC, x, y, layerDist * 2, colors.c, geo);
-                
-                // Add highlight marker between layers
-                const h = new THREE.Mesh(highGeo, highMat);
-                h.position.set(x, y, layerDist * 0.5);
-                highlights.add(h);
-            }
-        }
-    }
-
-    function addAtom(group, x, y, z, color, geo) {
-        const mat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.9, shininess: 80 });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(x, y, z);
-        group.add(mesh);
-    }
-
-    function updateVisuals() {
-        const spacing = parseFloat(document.getElementById('in-spacing').value);
-        const opacity = parseFloat(document.getElementById('in-opacity').value);
-        
-        document.getElementById('val-spacing').innerText = spacing.toFixed(1) + 'x';
-        document.getElementById('val-opacity').innerText = opacity.toFixed(1);
-
-        layerB.position.z = (spacing - 1) * layerDist;
-        
-        if (currentMode === 'fcc') {
-            layerC.visible = true;
-            layerC.position.z = (spacing - 1) * layerDist * 2;
-            // Update color of Layer C atoms to Yellow
-            layerC.children.forEach(c => {
-                c.material.color.setHex(colors.c);
-                c.material.opacity = opacity;
-            });
-        } else {
-            // In HCP, Layer 3 is identical to Layer 1 (Cyan)
-            layerC.visible = true;
-            layerC.position.z = (spacing - 1) * layerDist * 2;
-            layerC.children.forEach(c => {
-                c.material.color.setHex(colors.a);
-                c.material.opacity = opacity;
-            });
-        }
-
-        layerA.children.forEach(c => c.material.opacity = opacity);
-        layerB.children.forEach(c => c.material.opacity = opacity);
-        
-        update2DStack();
     }
 
     function setMode(mode) {
         currentMode = mode;
-        document.getElementById('mode-hcp').classList.toggle('active', mode==='hcp');
-        document.getElementById('mode-fcc').classList.toggle('active', mode==='fcc');
-        document.getElementById('mode-fcc').classList.toggle('fcc', mode==='fcc');
+        document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
+        const btn = document.getElementById('btn-' + mode) || document.getElementById('btn-stack-' + mode);
+        if(btn) btn.classList.add('active');
+
+        mainGroup.clear(); ghostGroup.clear();
         
-        document.getElementById('info-mode').innerText = mode.toUpperCase();
-        updateVisuals();
+        if (mode.startsWith('stack')) renderStacking(mode);
+        else renderUnitCell(mode);
+        
+        update2DView();
     }
 
-    function update2DStack() {
-        const container = document.getElementById('stack-map-container');
+    function renderUnitCell(type) {
+        const geo = new THREE.SphereGeometry(0.4, 32, 32);
+        const wireGeo = new THREE.BoxGeometry(2, 2, 2);
+        const wireMat = new THREE.MeshBasicMaterial({ color: 0x444444, wireframe: true, transparent: true, opacity: 0.3 });
+        
+        // Main Cell
+        const cell = new THREE.Mesh(wireGeo, wireMat);
+        mainGroup.add(cell);
+
+        // Neighbor Ghost
+        const ghost = new THREE.Mesh(wireGeo, wireMat);
+        ghost.position.x = 2;
+        ghostGroup.add(ghost);
+
+        const corners = [[-1,-1,-1],[1,-1,-1],[-1,1,-1],[1,1,-1],[-1,-1,1],[1,-1,1],[-1,1,1],[1,1,1]];
+        
+        corners.forEach(p => addAtom(mainGroup, p[0], p[1], p[2], colors.corner, 0.45));
+
+        if (type === 'bcc') {
+            addAtom(mainGroup, 0, 0, 0, colors.bccCenter, 0.45);
+            updateMetrics(8, 2, "8 Corner (1/8) + 1 Body Center");
+        } else if (type === 'fcc') {
+            const faces = [[0,1,1],[0,1,-1],[0,-1,1],[0,-1,-1],[1,1,0],[1,-1,0],[-1,1,0],[-1,-1,0],[1,0,1],[1,0,-1],[-1,0,1],[-1,0,-1]];
+            faces.forEach(p => addAtom(mainGroup, p[0], p[1], p[2], colors.face, 0.45));
+            updateMetrics(12, 4, "8 Corner (1/8) + 6 Faces (1/2)");
+        } else if (type === 'sc') {
+            updateMetrics(6, 1, "8 Corner (1/8)");
+        }
+    }
+
+    function renderStacking(type) {
+        const isFCC = type === 'stack-fcc';
+        const geo = new THREE.SphereGeometry(0.5, 32, 32);
+        const layerDist = 0.816;
+        
+        // Logic for [111] stacking in FCC
+        const renderLayer = (offset, color, z) => {
+            for(let q=-2; q<=2; q++) {
+                for(let r=-2; r<=2; r++) {
+                    const x = (q + r/2) + offset.x;
+                    const y = (r * Math.sqrt(3)/2) + offset.y;
+                    addAtom(mainGroup, x, y, z, color, 0.5);
+                }
+            }
+        };
+
+        renderLayer({x:0, y:0}, colors.a, 0);
+        renderLayer({x:0.5, y:Math.sqrt(3)/6}, colors.b, layerDist);
+        
+        if (isFCC) {
+            renderLayer({x:0, y:Math.sqrt(3)/3}, colors.c, layerDist * 2);
+            updateMetrics(12, 4, "ABCABC Stacking (Close Packed)");
+        } else {
+            renderLayer({x:0, y:0}, colors.a, layerDist * 2);
+            updateMetrics(12, 2, "ABAB Stacking (Close Packed)");
+        }
+        
+        camera.position.set(0, 0, 10); // Look top-down for stacking
+    }
+
+    function addAtom(group, x, y, z, color, size) {
+        const mat = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 32, 32), mat);
+        mesh.position.set(x, y, z);
+        group.add(mesh);
+    }
+
+    function updateMetrics(cn, total, breakdown) {
+        document.getElementById('m-cn').innerText = cn;
+        document.getElementById('m-total').innerText = total;
+        document.getElementById('breakdown').innerText = breakdown;
+    }
+
+    function update2DView() {
+        const container = document.getElementById('view-2d-container');
         container.innerHTML = '';
         
-        const layers = currentMode === 'fcc' ? ['C', 'B', 'A'] : ['A', 'B', 'A'];
-        const classMap = { 'A': 'dot-a', 'B': 'dot-b', 'C': 'dot-c' };
-
-        layers.forEach((l, i) => {
-            const wrapper = document.createElement('div');
-            wrapper.style.display = 'flex';
-            wrapper.style.alignItems = 'center';
-            wrapper.style.width = '100%';
-            wrapper.style.justifyContent = 'center';
-
-            const label = document.createElement('span');
-            label.innerText = l;
-            label.style.marginRight = '20px';
-            label.style.color = l === 'A' ? '#00ffff' : (l === 'B' ? '#ff00ff' : '#ffff00');
-            
-            const dot = document.createElement('div');
-            dot.className = `layer-dot ${classMap[l]}`;
-            
-            // Shift the dots horizontally to represent the physical stagger
-            if (l === 'B') dot.style.transform = 'translateX(20px)';
-            if (l === 'C') dot.style.transform = 'translateX(-20px)';
-
-            wrapper.appendChild(label);
-            wrapper.appendChild(dot);
-            container.appendChild(wrapper);
-        });
+        if (currentMode.startsWith('stack')) {
+            const layers = currentMode === 'stack-fcc' ? ['C', 'B', 'A'] : ['A', 'B', 'A'];
+            layers.forEach(l => {
+                const label = document.createElement('div');
+                label.className = 'layer-label';
+                label.innerText = 'LAYER ' + l;
+                const canvas = document.createElement('canvas');
+                canvas.width = 120; canvas.height = 60;
+                canvas.className = 'raft-canvas';
+                drawRaft(canvas, l);
+                container.appendChild(label);
+                container.appendChild(canvas);
+            });
+        } else {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200; canvas.height = 200;
+            canvas.className = 'raft-canvas';
+            drawUCSide(canvas, currentMode);
+            container.appendChild(canvas);
+        }
     }
 
-    function resetCamera() {
-        camera.position.set(0, 0, 10);
-        camera.lookAt(0,0,0);
-        controls.target.set(0,0,0);
+    function drawRaft(canvas, type) {
+        const ctx = canvas.getContext('2d');
+        const colorMap = { 'A': '#00ffff', 'B': '#ff00ff', 'C': '#ffff00' };
+        ctx.fillStyle = colorMap[type];
+        const r = 8;
+        const xOff = type === 'B' ? 10 : (type === 'C' ? 20 : 0);
+        for(let i=0; i<6; i++) {
+            for(let j=0; j<3; j++) {
+                ctx.beginPath();
+                ctx.arc(20 + i*18 + (j%2)*9 + xOff, 15 + j*15, r, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+    }
+
+    function drawUCSide(canvas, type) {
+        const ctx = canvas.getContext('2d');
+        const r = 25;
+        const center = 100;
+
+        // Draw Corners (Back)
+        ctx.fillStyle = '#006666';
+        [[50,50],[150,50]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+
+        if(type === 'bcc') {
+            ctx.fillStyle = '#ffff00'; // Center
+            ctx.beginPath(); ctx.arc(100, 100, r, 0, Math.PI*2); ctx.fill();
+        }
+        
+        if(type === 'fcc') {
+            ctx.fillStyle = '#ff00ff'; // Face center (Front/Back)
+            ctx.beginPath(); ctx.arc(100, 50, r, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(100, 150, r, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Draw Corners (Front)
+        ctx.fillStyle = '#00ffff';
+        [[50,150],[150,150]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
     }
 
     function onWindowResize() {
-        camera.aspect = (window.innerWidth - 300) / window.innerHeight;
+        camera.aspect = (window.innerWidth - 350) / window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth - 300, window.innerHeight);
+        renderer.setSize(window.innerWidth - 350, window.innerHeight);
     }
 
     function animate() {
