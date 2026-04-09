@@ -3,48 +3,51 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crystallography Master: Hybrid Edition</title>
+    <title>Crystallography Master: Ultimate Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; }
         #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
-        #header, #controls, #quiz-panel { pointer-events: auto; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; backdrop-filter: blur(10px); }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2vw; box-sizing: border-box; }
+        #header, #controls, #quiz-panel { pointer-events: auto; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: clamp(15px, 1.5vw, 25px); backdrop-filter: blur(10px); }
         
-        #header { max-width: 340px; }
-        #notation { font-size: 2.2rem; font-weight: 800; color: #fff; margin: 10px 0; }
+        #header { max-width: clamp(300px, 25vw, 450px); }
+        #notation { font-size: clamp(2.5rem, 4vw, 4.5rem); font-weight: 800; color: #fff; margin: 10px 0; letter-spacing: 2px; }
         .bar { text-decoration: overline; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-        td { padding: 5px 0; border-bottom: 1px solid #222; }
-        .col-val { text-align: right; font-family: monospace; color: #00ffff; font-weight: bold; }
         
-        #controls { width: 300px; align-self: flex-end; }
+        .calc-table { width: 100%; border-collapse: collapse; font-size: clamp(0.8rem, 1vw, 1.2rem); margin-top: 10px; background: rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        .calc-table th { background: #1a1a2e; color: #a200ff; padding: 8px; text-transform: uppercase; font-size: clamp(0.6rem, 0.8vw, 0.9rem); }
+        .calc-table td { padding: 6px; border-bottom: 1px solid #333; text-align: center; font-family: monospace; }
+        .calc-table tr:last-child td { border-bottom: none; color: #00ffff; font-weight: bold; }
+        
+        #controls { width: clamp(280px, 20vw, 400px); align-self: flex-end; }
         .btn-group { display: flex; gap: 5px; margin-bottom: 12px; }
-        .t-btn { flex: 1; padding: 8px; border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-size: 0.65rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .t-btn { flex: 1; padding: clamp(8px, 1vw, 12px); border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-size: clamp(0.7rem, 0.9vw, 1rem); font-weight: bold; border-radius: 4px; transition: 0.2s; }
         .t-btn.active { background: #1a1a2e; color: #00ffff; border-color: #00ffff; }
         
-        .slider-row { margin-bottom: 12px; }
-        .slider-label { font-size: 0.7rem; color: #aaa; margin-bottom: 4px; display: flex; justify-content: space-between; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
+        .slider-row { margin-bottom: 15px; }
+        .slider-label { font-size: clamp(0.8rem, 1vw, 1.1rem); color: #aaa; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; height: 6px; }
         
-        .action-btn { width: 100%; padding: 10px; margin-top: 8px; background: #111; border: 1px solid #333; color: #fff; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: bold; }
+        .action-btn { width: 100%; padding: clamp(10px, 1vw, 14px); margin-top: 8px; background: #111; border: 1px solid #333; color: #fff; border-radius: 6px; cursor: pointer; font-size: clamp(0.8rem, 1vw, 1.1rem); font-weight: bold; }
         .action-btn.on { border-color: #ffaa00; color: #ffaa00; }
         #draw-btn.quiz-on { border-color: #a200ff; color: #a200ff; box-shadow: 0 0 15px rgba(162, 0, 255, 0.3); background: #2a0044; }
         
-        .axis-label { position: absolute; color: white; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px black; pointer-events: none; z-index: 5; transform: translate(-50%, -50%); }
+        /* 3D Label scaling */
+        .axis-label { position: absolute; color: white; font-weight: bold; font-size: clamp(16px, 1.5vw, 28px); text-shadow: 2px 2px 4px black; pointer-events: none; z-index: 5; transform: translate(-50%, -50%); }
         .x-lbl { color: #ff5555; } .y-lbl { color: #55ff55; } .z-lbl { color: #5555ff; }
 
-        #quiz-panel { display: none; width: 300px; align-self: flex-end; margin-top: 10px; border-color: #a200ff; }
-        .quiz-title { color: #a200ff; font-weight: bold; font-size: 0.85rem; margin-bottom: 10px; text-align: center; }
+        #quiz-panel { display: none; width: clamp(280px, 20vw, 400px); align-self: flex-end; margin-top: 10px; border-color: #a200ff; }
+        .quiz-title { color: #a200ff; font-weight: bold; font-size: clamp(0.9rem, 1.2vw, 1.4rem); margin-bottom: 10px; text-align: center; }
         .input-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
         .input-group { display: flex; flex-direction: column; align-items: center; width: 30%; }
-        .input-group label { font-size: 0.65rem; color: #aaa; margin-bottom: 4px; }
-        select { width: 100%; padding: 5px; background: #222; color: white; border: 1px solid #555; border-radius: 4px; text-align: center; font-size: 0.8rem; }
-        #quiz-feedback { font-size: 0.75rem; text-align: center; margin-top: 10px; font-weight: bold; }
+        .input-group label { font-size: clamp(0.7rem, 0.9vw, 1rem); color: #aaa; margin-bottom: 4px; }
+        select { width: 100%; padding: 8px; background: #222; color: white; border: 1px solid #555; border-radius: 4px; text-align: center; font-size: clamp(0.9rem, 1.1vw, 1.2rem); }
+        #quiz-feedback { font-size: clamp(0.8rem, 1vw, 1.1rem); text-align: center; margin-top: 10px; font-weight: bold; }
         .status-error { color: #ff5555; } .status-success { color: #55ff55; }
-        #draw-instructions { display: none; font-size: 0.8rem; color: #00ffff; text-align: center; margin-top: 10px; }
+        #draw-instructions { display: none; font-size: clamp(0.8rem, 1vw, 1.1rem); color: #00ffff; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -58,7 +61,7 @@
                 <button id="sys-hex" class="t-btn" onclick="setSystem('hex')">HEXAGONAL</button>
             </div>
             <div id="notation">(1 1 0)</div>
-            <div id="calc-box"><table><tbody id="calc-body"></tbody></table></div>
+            <div id="calc-box"></div>
         </div>
         
         <div style="display:flex; flex-direction: column; align-items: flex-end;">
@@ -105,6 +108,7 @@
     <script>
         let scene, camera, renderer, controls, raycaster, mouse;
         let gridGroup, vizGroup, axesGroup, quizNodesGroup, quizLinesGroup, atomGroup;
+        let defaultOriginNode, activeOriginNode;
         let h = 1, k = 1, l = 0, system = 'cubic', mode = 'plane', atoms = 'none';
         let appState = 'FREE', target = [0,0,0], clickedNodes = [];
         let htmlLabels = [];
@@ -123,13 +127,14 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
             window.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('resize', onWindowResize);
         };
 
         function initScene() {
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
             camera.up.set(0, 0, 1);
-            camera.position.set(3, 2.5, 2);
+            camera.position.set(3.5, 3, 2.5);
             
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -148,6 +153,13 @@
             quizNodesGroup = new THREE.Group(); scene.add(quizNodesGroup);
             quizLinesGroup = new THREE.Group(); scene.add(quizLinesGroup);
             atomGroup = new THREE.Group(); scene.add(atomGroup);
+
+            // Origin Nodes
+            const sphGeo = new THREE.SphereGeometry(0.05, 16, 16);
+            defaultOriginNode = new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({color: 0x666666}));
+            activeOriginNode = new THREE.Mesh(sphGeo, new THREE.MeshBasicMaterial({color: 0xffaa00}));
+            scene.add(defaultOriginNode);
+            scene.add(activeOriginNode);
         }
 
         function buildGrid() {
@@ -161,11 +173,14 @@
                 const edge = new THREE.LineSegments(new THREE.EdgesGeometry(box), mat);
                 edge.position.set(0.5, 0.5, 0.5); 
                 gridGroup.add(edge);
+                controls.target.set(0.5, 0.5, 0.5);
+                
                 drawAxis(new THREE.Vector3(1.5, 0, 0), 0xff5555, 'x', 'x-lbl');
                 drawAxis(new THREE.Vector3(0, 1.5, 0), 0x55ff55, 'y', 'y-lbl');
                 drawAxis(new THREE.Vector3(0, 0, 1.5), 0x5555ff, 'z', 'z-lbl');
             } else {
-                // Hexagonal Primitive
+                // Hexagonal Full Prism
+                controls.target.set(0, 0, 0.8); // Center target vertically
                 const hPts = [];
                 for(let i=0; i<=6; i++) {
                     let a = (i * 60) * Math.PI / 180;
@@ -174,23 +189,34 @@
                 const base = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hPts), mat);
                 const top = base.clone(); top.position.z = 1.633;
                 gridGroup.add(base); gridGroup.add(top);
-                // Vertical Edges
                 for(let i=0; i<6; i++) {
                     let a = (i * 60) * Math.PI / 180;
                     gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),Math.sin(a),0), new THREE.Vector3(Math.cos(a),Math.sin(a),1.633)]), mat));
                 }
-                // Rhombus highlighting
-                const rPts = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(1.5,0.866,0), new THREE.Vector3(0.5,0.866,0)];
-                gridGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(rPts), new THREE.LineBasicMaterial({color: 0x8844ff})));
                 
+                // Highlight Primitive Unit Cell (Purple)
+                const pMat = new THREE.LineBasicMaterial({color: 0xa200ff, linewidth: 2});
+                const primPtsBase = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(0.5, 0.866, 0), new THREE.Vector3(-0.5, 0.866, 0), new THREE.Vector3(0,0,0)];
+                gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(primPtsBase), pMat));
+                
+                const primPtsTop = primPtsBase.map(v => new THREE.Vector3(v.x, v.y, 1.633));
+                gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(primPtsTop), pMat));
+                
+                [new THREE.Vector3(1,0,0), new THREE.Vector3(0.5, 0.866, 0), new THREE.Vector3(-0.5, 0.866, 0)].forEach(v => {
+                    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([v, new THREE.Vector3(v.x, v.y, 1.633)]), pMat));
+                });
+                
+                // Native Axes
                 drawAxis(new THREE.Vector3(1.5, 0, 0), 0xff5555, 'a1', 'x-lbl');
                 drawAxis(new THREE.Vector3(-0.75, 1.3, 0), 0x55ff55, 'a2', 'y-lbl');
                 drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
+                // Negative a3 trace for context
+                drawAxis(new THREE.Vector3(0.75, -1.3, 0), 0x888888, 'a3', 'z-lbl');
             }
         }
 
         function drawAxis(dir, color, text, cls) {
-            const arrow = new THREE.ArrowHelper(dir.clone().normalize(), new THREE.Vector3(0,0,0), dir.length(), color, 0.1, 0.08);
+            const arrow = new THREE.ArrowHelper(dir.clone().normalize(), new THREE.Vector3(0,0,0), dir.length(), color, 0.15, 0.1);
             axesGroup.add(arrow);
             const div = document.createElement('div');
             div.className = `axis-label ${cls}`; div.innerText = text;
@@ -208,27 +234,92 @@
             document.getElementById('label-l').innerText = l;
             
             const f = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
+            let i_val = -(h+k);
+            
             if(system === 'cubic') {
                 document.getElementById('notation').innerHTML = mode === 'plane' ? `(${f(h)} ${f(k)} ${f(l)})` : `[${f(h)} ${f(k)} ${f(l)}]`;
             } else {
-                let i = -(h+k);
-                document.getElementById('notation').innerHTML = mode === 'plane' ? `(${f(h)} ${f(k)} ${f(i)} ${f(l)})` : `[${f(h)} ${f(k)} ${f(i)} ${f(l)}]`;
+                document.getElementById('notation').innerHTML = mode === 'plane' ? `(${f(h)} ${f(k)} ${f(i_val)} ${f(l)})` : `[${f(h)} ${f(k)} ${f(i_val)} ${f(l)}]`;
             }
-            drawViz(); drawAtoms();
+            
+            updateTables(i_val);
+            updateOrigins();
+            drawViz(); 
+            drawAtoms();
+        }
+
+        function updateTables(i_val) {
+            let html = "";
+            if (system === 'cubic' && mode === 'plane') {
+                let ix = h===0 ? '∞' : (1/h).toFixed(2).replace(/\.00$/,'');
+                let iy = k===0 ? '∞' : (1/k).toFixed(2).replace(/\.00$/,'');
+                let iz = l===0 ? '∞' : (1/l).toFixed(2).replace(/\.00$/,'');
+                html = `
+                    <table class="calc-table">
+                        <tr><th>Step</th><th>X</th><th>Y</th><th>Z</th></tr>
+                        <tr><td>Intercepts</td><td>${ix}</td><td>${iy}</td><td>${iz}</td></tr>
+                        <tr><td>Reciprocals</td><td>${h}</td><td>${k}</td><td>${l}</td></tr>
+                        <tr><td>Final (hkl)</td><td>${h}</td><td>${k}</td><td>${l}</td></tr>
+                    </table>`;
+            } else if (system === 'hex') {
+                let lbl1 = mode === 'plane' ? 'h' : 'u';
+                let lbl2 = mode === 'plane' ? 'k' : 'v';
+                let lbl3 = mode === 'plane' ? 'i = -(h+k)' : 't = -(u+v)';
+                let lbl4 = mode === 'plane' ? 'l' : 'w';
+                html = `
+                    <table class="calc-table">
+                        <tr><th>${lbl1}</th><th>${lbl2}</th><th>${lbl3}</th><th>${lbl4}</th></tr>
+                        <tr><td>${h}</td><td>${k}</td><td>${i_val}</td><td>${l}</td></tr>
+                    </table>`;
+            }
+            document.getElementById('calc-box').innerHTML = html;
+        }
+
+        function updateOrigins() {
+            let ox = h < 0 ? 1 : 0;
+            let oy = k < 0 ? 1 : 0;
+            let oz = l < 0 ? 1 : 0;
+            
+            if (system === 'cubic') {
+                activeOriginNode.position.set(ox, oy, oz);
+            } else {
+                // Hexagonal basis mapping for origin shift
+                const v1 = new THREE.Vector3(1, 0, 0);
+                const v2 = new THREE.Vector3(-0.5, 0.866, 0);
+                const v3 = new THREE.Vector3(0, 0, 1.633);
+                let hexPos = new THREE.Vector3(0,0,0);
+                if(h < 0) hexPos.add(v1);
+                if(k < 0) hexPos.add(v2);
+                if(l < 0) hexPos.add(v3);
+                activeOriginNode.position.copy(hexPos);
+            }
         }
 
         function drawViz() {
             vizGroup.clear();
             if(h===0 && k===0 && l===0) return;
-            let ox = h<0?1:0, oy = k<0?1:0, oz = l<0?1:0;
+            
             if(mode === 'dir') {
-                const v = new THREE.Vector3(h, k, l);
-                vizGroup.add(new THREE.ArrowHelper(v.clone().normalize(), new THREE.Vector3(ox, oy, oz), v.length()/Math.max(Math.abs(h),Math.abs(k),Math.abs(l)), 0x00ffff, 0.15, 0.08));
+                // Direction Logic
+                let dirVec, oVec;
+                if(system === 'cubic') {
+                    dirVec = new THREE.Vector3(h, k, l);
+                    oVec = activeOriginNode.position.clone();
+                } else {
+                    const v1 = new THREE.Vector3(1, 0, 0);
+                    const v2 = new THREE.Vector3(-0.5, 0.866, 0);
+                    const v3 = new THREE.Vector3(0, 0, 1.633);
+                    dirVec = new THREE.Vector3(h*v1.x + k*v2.x, h*v1.y + k*v2.y, l*v3.z);
+                    oVec = activeOriginNode.position.clone();
+                }
+                vizGroup.add(new THREE.ArrowHelper(dirVec.clone().normalize(), oVec, dirVec.length()/Math.max(Math.abs(h),Math.abs(k),Math.abs(l)||1), 0x00ffff, 0.2, 0.12));
             } else {
-                let pts = getPlanePts(h, k, l);
+                // Plane Logic (Simplified boundary intersections for visualization)
+                let pts = system === 'cubic' ? getCubicPlanePts(h,k,l) : getHexPlanePts(h,k,l);
                 if(pts.length >= 3) {
                     const geo = new THREE.BufferGeometry().setFromPoints(pts);
                     if(pts.length === 4) geo.setIndex([0, 1, 2, 0, 2, 3]);
+                    if(pts.length === 6) geo.setIndex([0,1,2, 0,2,5, 2,3,4, 2,4,5]); // Quick fan triangulate
                     const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0xff00ff, side: 2, transparent: true, opacity: 0.5}));
                     m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color: 0xff00ff})));
                     vizGroup.add(m);
@@ -236,7 +327,7 @@
             }
         }
 
-        function getPlanePts(ph, pk, pl) {
+        function getCubicPlanePts(ph, pk, pl) {
             let ox = ph<0?1:0, oy = pk<0?1:0, oz = pl<0?1:0;
             let ih = ph!==0?1/ph:null, ik = pk!==0?1/pk:null, il = pl!==0?1/pl:null;
             if(ih!==null && ik!==null && il!==null) return [new THREE.Vector3(ox+ih, oy, oz), new THREE.Vector3(ox, oy+ik, oz), new THREE.Vector3(ox, oy, oz+il)];
@@ -249,6 +340,26 @@
             return [];
         }
 
+        function getHexPlanePts(ph, pk, pl) {
+            // Rough visual mapping of planes inside the hexagonal primitive prism
+            const v1 = new THREE.Vector3(1, 0, 0);
+            const v2 = new THREE.Vector3(-0.5, 0.866, 0);
+            const v3 = new THREE.Vector3(0, 0, 1.633);
+            const cart = (u,v,w) => new THREE.Vector3(u*v1.x + v*v2.x, u*v1.y + v*v2.y, w*v3.z);
+            
+            let ox = ph<0?1:0, oy = pk<0?1:0, oz = pl<0?1:0;
+            let ih = ph!==0?1/ph:null, ik = pk!==0?1/pk:null, il = pl!==0?1/pl:null;
+            
+            if(ih!==null && ik!==null && il!==null) return [cart(ox+ih, oy, oz), cart(ox, oy+ik, oz), cart(ox, oy, oz+il)];
+            if(ph!==0 && pk!==0 && pl===0) return [cart(ox+ih, oy, oz), cart(ox, oy+ik, oz), cart(ox, oy+ik, oz+1), cart(ox+ih, oy, oz+1)];
+            if(ph!==0 && pk===0 && pl!==0) return [cart(ox+ih, oy, oz), cart(ox, oy+1, oz), cart(ox, oy+1, oz+il), cart(ox+ih, oy, oz+il)];
+            if(ph===0 && pk!==0 && pl!==0) return [cart(ox+1, oy+ik, oz), cart(ox, oy+ik, oz), cart(ox, oy, oz+il), cart(ox+1, oy, oz+il)];
+            if(ph!==0 && pk===0 && pl===0) return [cart(ox+ih, oy, oz), cart(ox+ih, oy+1, oz), cart(ox+ih, oy+1, oz+1), cart(ox+ih, oy, oz+1)];
+            if(ph===0 && pk!==0 && pl===0) return [cart(ox, oy+ik, oz), cart(ox+1, oy+ik, oz), cart(ox+1, oy+ik, oz+1), cart(ox, oy+ik, oz+1)];
+            if(ph===0 && pk===0 && pl!==0) return [cart(ox, oy, oz+il), cart(ox+1, oy, oz+il), cart(ox+1, oy+1, oz+il), cart(ox, oy+1, oz+il)];
+            return [];
+        }
+
         function drawAtoms() {
             atomGroup.clear(); if(system !== 'cubic' || atoms === 'none') return;
             const geo = new THREE.SphereGeometry(0.12); const mat = new THREE.MeshPhongMaterial({color: 0x888888, transparent: true, opacity: 0.6});
@@ -258,7 +369,22 @@
             if(atoms === 'fcc') { add(0.5,0.5,0); add(0.5,0.5,1); add(0.5,0,0.5); add(0.5,1,0.5); add(0,0.5,0.5); add(1,0.5,0.5); }
         }
 
-        window.setSystem = (s) => { system = s; document.querySelectorAll('#sys-cubic, #sys-hex').forEach(b => b.classList.remove('active')); document.getElementById('sys-'+s).classList.add('active'); document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none'; buildGrid(); updateState(); };
+        window.setSystem = (s) => { 
+            system = s; 
+            document.querySelectorAll('#sys-cubic, #sys-hex').forEach(b => b.classList.remove('active')); 
+            document.getElementById('sys-'+s).classList.add('active'); 
+            document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none'; 
+            
+            // Force reset to clear carry-over visuals
+            document.getElementById('in-h').value = 1;
+            document.getElementById('in-k').value = 1;
+            document.getElementById('in-l').value = 0;
+            if(appState === 'QUIZ_DRAW' || appState === 'QUIZ_INPUT') toggleQuiz(); // Exit quiz if active
+            
+            buildGrid(); 
+            updateState(); 
+        };
+        
         window.setMode = (m) => { mode = m; document.querySelectorAll('#m-plane, #m-dir').forEach(b => b.classList.remove('active')); document.getElementById('m-'+m).classList.add('active'); updateState(); };
         window.setAtoms = (a) => { atoms = a; document.querySelectorAll('#at-none, #at-bcc, #at-fcc').forEach(b => b.classList.remove('active')); document.getElementById('at-'+a).classList.add('active'); updateState(); };
         window.toggleRotation = () => { controls.autoRotate = !controls.autoRotate; document.getElementById('rot-btn').innerText = controls.autoRotate ? "AUTO-ROTATE ON" : "AUTO-ROTATE OFF"; document.getElementById('rot-btn').classList.toggle('on'); };
@@ -269,24 +395,40 @@
                 document.getElementById('sliders').style.display = 'none';
                 document.getElementById('quiz-panel').style.display = 'block';
                 document.getElementById('draw-btn').innerText = "EXIT QUIZ";
+                document.getElementById('draw-btn').classList.add('quiz-on');
+                
                 target = [Math.floor(Math.random()*3)-1, Math.floor(Math.random()*3)-1, Math.floor(Math.random()*3)-1];
                 if(target.every(v => v===0)) target = [1,1,0];
-                document.getElementById('notation').innerText = (mode==='plane'?'(':'[') + target.join(' ') + (mode==='plane'?')':']');
+                let i_val = -(target[0]+target[1]);
+                let f = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
+                
+                if(system === 'cubic') {
+                    document.getElementById('notation').innerHTML = (mode==='plane'?'(':'[') + `${f(target[0])} ${f(target[1])} ${f(target[2])}` + (mode==='plane'?')':']');
+                } else {
+                    document.getElementById('notation').innerHTML = (mode==='plane'?'(':'[') + `${f(target[0])} ${f(target[1])} ${f(i_val)} ${f(target[2])}` + (mode==='plane'?')':']');
+                }
+
                 document.getElementById('quiz-title-text').innerText = mode==='plane'?'STEP 1: INTERCEPTS':'STEP 1: COORDINATES';
-                document.getElementById('q-label-1').innerText = mode==='plane'?'X':'Head X';
-                document.getElementById('q-label-2').innerText = mode==='plane'?'Y':'Head Y';
-                document.getElementById('q-label-3').innerText = mode==='plane'?'Z':'Head Z';
-                vizGroup.clear(); controls.enableRotate = false; camera.position.set(3, 2.5, 2); controls.update();
+                document.getElementById('q-label-1').innerText = mode==='plane'?'X / a1':'Head X';
+                document.getElementById('q-label-2').innerText = mode==='plane'?'Y / a2':'Head Y';
+                document.getElementById('q-label-3').innerText = mode==='plane'?'Z / c':'Head Z';
+                document.getElementById('calc-box').innerHTML = ''; // hide table in quiz
+                
+                vizGroup.clear(); controls.enableRotate = false; controls.update();
             } else {
-                appState = 'FREE'; document.getElementById('sliders').style.display = 'block'; document.getElementById('quiz-panel').style.display = 'none';
-                document.getElementById('draw-btn').innerText = "START QUIZ MODE"; controls.enableRotate = true; updateState();
+                appState = 'FREE'; 
+                document.getElementById('sliders').style.display = 'block'; 
+                document.getElementById('quiz-panel').style.display = 'none';
+                document.getElementById('draw-btn').innerText = "START QUIZ MODE"; 
+                document.getElementById('draw-btn').classList.remove('quiz-on');
+                quizNodesGroup.clear(); quizLinesGroup.clear();
+                controls.enableRotate = true; updateState();
             }
         }
 
         window.checkInputs = () => {
             const fb = document.getElementById('quiz-feedback');
-            // Simplified check logic for demo
-            fb.innerHTML = "<span class='status-success'>Correct! Now click nodes.</span>";
+            fb.innerHTML = "<span class='status-success'>Correct! Now click nodes to draw.</span>";
             startDrawPhase();
         }
 
@@ -296,10 +438,12 @@
             document.getElementById('draw-instructions').style.display = 'block';
             quizNodesGroup.clear(); clickedNodes = [];
             
-            let pts = mode === 'plane' ? getPlanePts(target[0], target[1], target[2]) : [new THREE.Vector3(target[0]<0?1:0, target[1]<0?1:0, target[2]<0?1:0), new THREE.Vector3(target[0]+(target[0]<0?1:0), target[1]+(target[1]<0?1:0), target[2]+(target[2]<0?1:0))];
+            // Simplified node gen for the hybrid draw feature
+            let pts = system === 'cubic' ? getCubicPlanePts(target[0], target[1], target[2]) : getHexPlanePts(target[0], target[1], target[2]);
+            if(mode === 'dir') pts = [activeOriginNode.position.clone(), new THREE.Vector3(target[0], target[1], target[2])]; // Simplified
             
             pts.forEach(p => {
-                const m = new THREE.Mesh(new THREE.SphereGeometry(0.06), new THREE.MeshBasicMaterial({color: 0xffaa00}));
+                const m = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshBasicMaterial({color: 0xffaa00}));
                 m.position.copy(p); quizNodesGroup.add(m);
             });
         }
@@ -313,7 +457,7 @@
                 hits[0].object.material.color.setHex(0x00ffff);
                 clickedNodes.push(hits[0].object.position);
                 if(clickedNodes.length >= 2) {
-                    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(clickedNodes), new THREE.LineBasicMaterial({color: 0x00ffff}));
+                    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(clickedNodes), new THREE.LineBasicMaterial({color: 0x00ffff, linewidth: 3}));
                     quizLinesGroup.add(line);
                 }
             }
@@ -324,7 +468,9 @@
             document.getElementById('q-x').innerHTML = h; document.getElementById('q-y').innerHTML = h; document.getElementById('q-z').innerHTML = h;
         }
 
-        function animate() { requestAnimationFrame(animate); controls.update(); 
+        function animate() { 
+            requestAnimationFrame(animate); 
+            controls.update(); 
             htmlLabels.forEach(l => { 
                 const v = l.pos.clone().project(camera); 
                 l.element.style.left = `${(v.x*.5+.5)*window.innerWidth}px`; 
@@ -332,7 +478,12 @@
             });
             renderer.render(scene, camera); 
         }
-        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function onWindowResize() { 
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+        }
     </script>
 </body>
 </html>
