@@ -3,16 +3,16 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crystallography: The Definitive Edition</title>
+    <title>Crystallography: The Masterpiece Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; }
         #main-container { display: flex; width: 100%; height: 100%; }
         #canvas-container { flex: 1; position: relative; border-right: 1px solid #1a1a2e; }
-        #side-panel { width: 350px; background: #0a0a14; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; border-left: 2px solid #1a1a2e; }
+        #side-panel { width: 380px; background: #0a0a14; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; border-left: 2px solid #1a1a2e; overflow-y: auto; }
 
-        .ui-card { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px); width: 280px; pointer-events: auto; }
+        .ui-card { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(10, 10, 20, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; backdrop-filter: blur(10px); width: 280px; }
         
         .header-title { font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 5px; }
         
@@ -20,13 +20,17 @@
         .t-btn { padding: 10px; border: 1px solid #333; background: #111; color: #888; cursor: pointer; font-size: 0.75rem; font-weight: bold; border-radius: 4px; transition: 0.2s; }
         .t-btn.active { border-color: #00ffff; color: #00ffff; background: #002222; box-shadow: 0 0 10px rgba(0,255,255,0.2); }
 
-        #metrics-panel { margin-top: 15px; padding: 12px; background: #000; border-radius: 6px; border-left: 3px solid #ffaa00; }
+        .slider-row { margin-bottom: 15px; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
+        input[type=range] { width: 100%; accent-color: #00ffff; }
+
+        #metrics-panel { padding: 12px; background: #000; border-radius: 6px; border-left: 3px solid #ffaa00; margin-bottom: 10px; }
         .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.85rem; }
         .metric-val { color: #ffaa00; font-weight: bold; font-family: monospace; }
 
-        #view-2d-container { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+        .view-2d-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .raft-canvas { background: #050508; border-radius: 8px; border: 1px solid #222; }
-        .layer-label { font-size: 0.75rem; color: #666; font-weight: bold; margin-top: 5px; text-transform: uppercase; }
+        .layer-label { font-size: 0.75rem; color: #666; font-weight: bold; text-transform: uppercase; align-self: flex-start; }
 
         .desc-text { font-size: 0.8rem; color: #aaa; margin-top: 20px; line-height: 1.4; border-top: 1px solid #222; padding-top: 15px; }
         b { color: #fff; }
@@ -42,38 +46,41 @@
                 <button id="btn-sc" class="t-btn" onclick="setMode('sc')">SC</button>
                 <button id="btn-bcc" class="t-btn" onclick="setMode('bcc')">BCC</button>
                 <button id="btn-fcc" class="t-btn" onclick="setMode('fcc')">FCC</button>
-                <button id="btn-hcp" class="t-btn" onclick="setMode('hcp')">HCP (Full)</button>
+                <button id="btn-hcp" class="t-btn" onclick="setMode('hcp')">HCP</button>
             </div>
             
-            <div class="header-title">Stacking Logic</div>
+            <div class="header-title">Stacking</div>
             <div class="mode-grid">
                 <button id="btn-stack-hcp" class="t-btn" onclick="setMode('stack-hcp')">HCP (ABAB)</button>
                 <button id="btn-stack-fcc" class="t-btn" onclick="setMode('stack-fcc')">FCC (ABC)</button>
             </div>
 
+            <div class="slider-row">
+                <div class="slider-label">Sphere Size <span id="val-rad">0.45</span></div>
+                <input type="range" id="in-rad" min="0.1" max="0.75" step="0.05" value="0.45" oninput="updateVisuals()">
+            </div>
+
             <div id="metrics-panel">
-                <div class="metric-row"><span>Coord. Number (CN):</span> <span id="m-cn" class="metric-val">12</span></div>
-                <div class="metric-row"><span>Atoms / Unit Cell:</span> <span id="m-total" class="metric-val">4</span></div>
+                <div class="metric-row"><span>Coord. Number:</span> <span id="m-cn" class="metric-val">12</span></div>
+                <div class="metric-row"><span>Atoms / UC:</span> <span id="m-total" class="metric-val">4</span></div>
                 <div id="m-extra" class="metric-row" style="display:none;"><span>c/a Ratio:</span> <span class="metric-val">1.633</span></div>
-                <div id="breakdown" style="font-size: 0.7rem; color: #666; border-top: 1px solid #222; padding-top: 5px; margin-top: 5px;"></div>
             </div>
         </div>
     </div>
 
     <div id="side-panel">
-        <div class="header-title">2D Structural Projections</div>
-        <div id="view-2d-container"></div>
-        <div class="desc-text" id="description"></div>
+        <div class="header-title">Structural Projections</div>
+        <div id="view-2d-container" class="view-2d-container"></div>
+        <div class="desc-text" id="description">
+            FCC stacks on <b>(111) planes</b>. Note how the atoms in Layer C sit in the voids of Layer B that aren't above Layer A.
+        </div>
     </div>
 </div>
 
 <script>
     let scene, camera, renderer, controls;
     let mainGroup = new THREE.Group();
-    let latticeGroup = new THREE.Group();
     let currentMode = 'fcc';
-    
-    // Theme: Cyan (A), Magenta (B), Yellow (C/Center), Orange (Highlights)
     const colors = { a: 0x00ffff, b: 0xff00ff, c: 0xffff00, orange: 0xffaa00, wire: 0x444466 };
 
     init();
@@ -81,11 +88,11 @@
 
     function init() {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(45, (window.innerWidth - 350) / window.innerHeight, 0.1, 100);
+        camera = new THREE.PerspectiveCamera(45, (window.innerWidth - 380) / window.innerHeight, 0.1, 100);
         camera.position.set(5, 5, 5);
         
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth - 350, window.innerHeight);
+        renderer.setSize(window.innerWidth - 380, window.innerHeight);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
         
         controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -93,9 +100,7 @@
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
         const pLight = new THREE.PointLight(0xffffff, 0.8); pLight.position.set(10, 10, 10); scene.add(pLight);
-
         scene.add(mainGroup);
-        scene.add(latticeGroup);
         
         setMode('fcc');
         window.addEventListener('resize', onWindowResize);
@@ -107,191 +112,196 @@
         const btn = document.getElementById('btn-' + mode) || document.getElementById('btn-stack-' + mode);
         if(btn) btn.classList.add('active');
 
-        mainGroup.clear(); latticeGroup.clear();
+        // Logic for default sphere sizes based on structure
+        const radIn = document.getElementById('in-rad');
+        if(mode.startsWith('stack')) radIn.value = 0.5;
+        else radIn.value = mode === 'sc' ? 0.7 : 0.45;
+
+        updateVisuals();
+    }
+
+    function updateVisuals() {
+        mainGroup.clear();
+        const rad = parseFloat(document.getElementById('in-rad').value);
+        document.getElementById('val-rad').innerText = rad.toFixed(2);
         document.getElementById('m-extra').style.display = 'none';
 
-        if (mode.startsWith('stack')) renderStacking(mode);
-        else if (mode === 'hcp') renderHCPFull();
-        else renderCubicUC(mode);
+        if (currentMode.startsWith('stack')) renderStacking(currentMode, rad);
+        else if (currentMode === 'hcp') renderHCPFull(rad);
+        else renderCubicUC(currentMode, rad);
         
         update2DView();
     }
 
-    function renderCubicUC(type) {
+    function renderCubicUC(type, rad) {
         const size = 2;
-        const rad = 0.45;
         const wireGeo = new THREE.BoxGeometry(size, size, size);
         const wireMat = new THREE.MeshBasicMaterial({ color: colors.wire, wireframe: true, transparent: true, opacity: 0.4 });
         mainGroup.add(new THREE.Mesh(wireGeo, wireMat));
 
-        // Corners
         const corners = [-1, 1];
-        corners.forEach(x => corners.forEach(y => corners.forEach(z => {
-            addAtom(mainGroup, x, y, z, colors.a, rad);
-        })));
+        corners.forEach(x => corners.forEach(y => corners.forEach(z => addAtom(mainGroup, x, y, z, colors.a, rad))));
 
         if (type === 'bcc') {
             addAtom(mainGroup, 0, 0, 0, colors.c, rad);
-            updateMetrics(8, 2, "8 corners (1/8) + 1 body-center (1)");
+            updateMetrics(8, 2, "8 Corner (1/8) + 1 Body-center");
         } else if (type === 'fcc') {
-            // Faces: Midpoints of each of the 6 faces
             const facePos = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
             facePos.forEach(p => addAtom(mainGroup, p[0], p[1], p[2], colors.b, rad));
-            updateMetrics(12, 4, "8 corners (1/8) + 6 face-centers (1/2)");
+            updateMetrics(12, 4, "8 Corner (1/8) + 6 Face-center (1/2)");
         } else {
-            updateMetrics(6, 1, "8 corners (1/8)");
+            updateMetrics(6, 1, "8 Corner (1/8)");
         }
     }
 
-    function renderHCPFull() {
+    function renderHCPFull(rad) {
         document.getElementById('m-extra').style.display = 'flex';
-        const a = 1.5;
-        const c = a * 1.633;
-        const rad = 0.4;
-
-        // Build Hexagonal Prism Wireframe
-        const pts = [];
-        for(let i=0; i<6; i++) {
-            const angle = (i/6) * Math.PI * 2;
-            pts.push(new THREE.Vector3(Math.cos(angle)*a, -c/2, Math.sin(angle)*a));
-        }
-        const hexGeo = new THREE.BufferGeometry().setFromPoints([...pts, pts[0]]);
-        const lineMat = new THREE.LineBasicMaterial({color: colors.wire});
+        const a = 1.5, c = a * 1.633;
         
-        // Top/Bottom Rings + Verticals
-        const topRing = new THREE.Line(hexGeo, lineMat); topRing.position.y = c; mainGroup.add(topRing);
-        const botRing = new THREE.Line(hexGeo, lineMat); mainGroup.add(botRing);
-        pts.forEach(p => {
-            const lGeo = new THREE.BufferGeometry().setFromPoints([p, p.clone().setY(c-c/2)]);
-            mainGroup.add(new THREE.Line(lGeo, lineMat));
-            addAtom(mainGroup, p.x, -c/2, p.z, colors.a, rad); // Bot Corners
-            addAtom(mainGroup, p.x, c/2, p.z, colors.a, rad); // Top Corners
-        });
-
-        // Basal Centers
-        addAtom(mainGroup, 0, -c/2, 0, colors.a, rad);
-        addAtom(mainGroup, 0, c/2, 0, colors.a, rad);
-
-        // Middle 3 atoms (Layer B)
-        const midDist = a * 0.577; // Distance to center of triangle
-        for(let i=0; i<3; i++) {
-            const angle = (i/3) * Math.PI * 2 + Math.PI/6;
-            addAtom(mainGroup, Math.cos(angle)*midDist, 0, Math.sin(angle)*midDist, colors.b, rad);
+        // Basal rings + centers
+        for(let j of [-c/2, c/2]) {
+            addAtom(mainGroup, 0, j, 0, colors.a, rad);
+            for(let i=0; i<6; i++) {
+                const ang = (i/6)*Math.PI*2;
+                addAtom(mainGroup, Math.cos(ang)*a, j, Math.sin(ang)*a, colors.a, rad);
+            }
         }
-
-        updateMetrics(12, 6, "12 corners (1/6) + 2 basal (1/2) + 3 interior (1)");
+        // Interior layer
+        const d = a * 0.577;
+        for(let i=0; i<3; i++) {
+            const ang = (i/3)*Math.PI*2 + Math.PI/6;
+            addAtom(mainGroup, Math.cos(ang)*d, 0, Math.sin(ang)*d, colors.b, rad);
+        }
+        updateMetrics(12, 6, "12 Corner (1/6) + 2 Basal (1/2) + 3 Interior");
     }
 
-    function renderStacking(type) {
+    function renderStacking(type, rad) {
         const isFCC = type === 'stack-fcc';
-        const layerDist = 1.2;
-        const rad = 0.5;
-        
+        const layerDist = 1.1;
         const renderLayer = (offX, offZ, color, y) => {
             for(let q=-1; q<=1; q++) {
                 for(let r=-1; r<=1; r++) {
-                    const x = (q + r/2) * 1.1 + offX;
-                    const z = (r * Math.sqrt(3)/2) * 1.1 + offZ;
-                    addAtom(mainGroup, x, y, z, color, rad);
+                    addAtom(mainGroup, (q + r/2)*1.1 + offX, y, (r*Math.sqrt(3)/2)*1.1 + offZ, color, rad);
                 }
             }
         };
-
-        renderLayer(0, 0, colors.a, -layerDist); // Layer A
-        renderLayer(0.5, 0.3, colors.b, 0);      // Layer B
+        renderLayer(0, 0, colors.a, -layerDist);
+        renderLayer(0.5, 0.3, colors.b, 0);
+        if (isFCC) renderLayer(0, 0.6, colors.c, layerDist);
+        else renderLayer(0, 0, colors.a, layerDist);
         
-        if (isFCC) {
-            renderLayer(0, 0.6, colors.c, layerDist); // Layer C
-            updateMetrics(12, 4, "ABC sequence creates the FCC [111] diagonal.");
-        } else {
-            renderLayer(0, 0, colors.a, layerDist);   // Layer A repeat
-            updateMetrics(12, 2, "ABA sequence creates the HCP structure.");
-        }
+        updateMetrics(12, isFCC ? 4 : 2, isFCC ? "ABC Sequence" : "ABA Sequence");
     }
 
     function addAtom(group, x, y, z, color, size) {
-        const mat = new THREE.MeshPhongMaterial({ color: color, shininess: 80 });
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 24), mat);
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 24), new THREE.MeshPhongMaterial({ color: color, shininess: 80 }));
         mesh.position.set(x, y, z);
         group.add(mesh);
     }
 
-    function updateMetrics(cn, total, breakdown) {
+    function updateMetrics(cn, total, text) {
         document.getElementById('m-cn').innerText = cn;
         document.getElementById('m-total').innerText = total;
-        document.getElementById('breakdown').innerText = breakdown;
+        document.getElementById('description').innerHTML = text;
     }
 
     function update2DView() {
         const container = document.getElementById('view-2d-container');
         container.innerHTML = '';
-        
+        const canvas = document.createElement('canvas');
+        canvas.width = 300; canvas.height = 300; canvas.className = 'raft-canvas';
+        const ctx = canvas.getContext('2d');
+
         if (currentMode.startsWith('stack')) {
-            const layers = currentMode === 'stack-fcc' ? ['C', 'B', 'A'] : ['A', 'B', 'A'];
-            layers.forEach(l => {
-                const label = document.createElement('div'); label.className = 'layer-label'; label.innerText = 'Layer ' + l;
-                const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 80; canvas.className = 'raft-canvas';
-                drawRaft(canvas, l);
-                container.appendChild(label); container.appendChild(canvas);
-            });
+            // Top View
+            drawTopView(ctx, currentMode === 'stack-fcc');
+            container.appendChild(createLabel("Top-Down View (Alignment)"));
+            container.appendChild(canvas);
+            
+            // Profile View
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 300; pCanvas.height = 150; pCanvas.className = 'raft-canvas';
+            drawProfileView(pCanvas.getContext('2d'), currentMode === 'stack-fcc');
+            container.appendChild(createLabel("Side Profile (Sequence)"));
+            container.appendChild(pCanvas);
         } else {
-            const canvas = document.createElement('canvas'); canvas.width = 240; canvas.height = 240; canvas.className = 'raft-canvas';
-            drawUCSide(canvas, currentMode);
+            drawUCSide(ctx, currentMode);
+            container.appendChild(createLabel("Side Projection (Depth Highlighted)"));
             container.appendChild(canvas);
         }
     }
 
-    function drawRaft(canvas, type) {
-        const ctx = canvas.getContext('2d');
-        const colorMap = { 'A': '#00ffff', 'B': '#ff00ff', 'C': '#ffff00' };
-        ctx.fillStyle = colorMap[type];
-        const r = 10;
-        const xOff = type === 'B' ? 12 : (type === 'C' ? 24 : 0);
-        for(let i=0; i<5; i++) {
-            for(let j=0; j<3; j++) {
-                ctx.beginPath();
-                ctx.arc(30 + i*22 + (j%2)*11 + xOff, 20 + j*20, r, 0, Math.PI*2);
-                ctx.fill();
-            }
-        }
+    function createLabel(text) {
+        const l = document.createElement('div'); l.className = 'layer-label'; l.innerText = text; return l;
     }
 
-    function drawUCSide(canvas, type) {
-        const ctx = canvas.getContext('2d');
-        const r = 30;
-        ctx.clearRect(0,0,240,240);
-        
-        if (type === 'hcp') {
-            // HCP Side projection
-            ctx.fillStyle = '#00ffff'; // Basal
-            [[60,200],[180,200],[120,200], [60,40],[180,40],[120,40]].forEach(p => {
-                ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill();
-            });
-            ctx.fillStyle = '#ff00ff'; // Mid-layer
-            [[90,120],[150,120]].forEach(p => {
-                ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill();
-            });
-        } else {
-            // Cubic Side projection
-            ctx.strokeStyle = '#333'; ctx.strokeRect(60, 60, 120, 120);
-            ctx.fillStyle = '#008888'; // Back corners
-            [[60,60],[180,60]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
-            
-            if(type === 'bcc') { ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(120, 120, r, 0, Math.PI*2); ctx.fill(); }
-            if(type === 'fcc') { 
-                ctx.fillStyle = '#ff00ff'; 
-                [[120,60],[60,120],[180,120],[120,180]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+    function drawTopView(ctx, isFCC) {
+        const r = 15;
+        const drawRaft = (offX, offY, color) => {
+            ctx.fillStyle = color;
+            for(let i=0; i<5; i++) for(let j=0; j<4; j++) {
+                ctx.beginPath(); ctx.arc(60 + i*35 + (j%2)*17.5 + offX, 60 + j*30 + offY, r, 0, Math.PI*2); ctx.fill();
             }
-            
-            ctx.fillStyle = '#00ffff'; // Front corners
-            [[60,180],[180,180]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+        };
+        ctx.globalAlpha = 0.3; drawRaft(0, 0, '#00ffff');
+        ctx.globalAlpha = 0.6; drawRaft(17.5, 10, '#ff00ff');
+        ctx.globalAlpha = 1.0;
+        if(isFCC) drawRaft(0, 20, '#ffff00');
+        else drawRaft(0, 0, '#00ffff');
+    }
+
+    function drawProfileView(ctx, isFCC) {
+        const r = 15;
+        const layers = isFCC ? ['#ffff00', '#ff00ff', '#00ffff'] : ['#00ffff', '#ff00ff', '#00ffff'];
+        const offsets = [0, 15, 0];
+        if(isFCC) offsets[0] = -15;
+
+        layers.reverse().forEach((col, i) => {
+            ctx.fillStyle = col;
+            for(let x=0; x<6; x++) {
+                ctx.beginPath(); ctx.arc(60 + x*35 + offsets[i], 110 - i*35, r, 0, Math.PI*2); ctx.fill();
+            }
+        });
+    }
+
+    function drawUCSide(ctx, type) {
+        const r = 35;
+        // Depth-based drawing order
+        // 1. Back atoms (Z = -1)
+        ctx.fillStyle = '#005555'; // Dark Cyan
+        [[80, 80], [220, 80], [80, 220], [220, 220]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r*0.8, 0, Math.PI*2); ctx.fill(); });
+
+        // 2. Center/Depth atoms
+        if (type === 'bcc') {
+            ctx.fillStyle = '#aaaa00'; // Dark Yellow
+            ctx.beginPath(); ctx.arc(150, 150, r, 0, Math.PI*2); ctx.fill();
         }
+        if (type === 'fcc') {
+            ctx.fillStyle = '#880088'; // Dark Magenta (Back/Top/Bottom faces)
+            [[150,80], [150,220]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+            // The Front/Back Faces (The missing ones!)
+            ctx.fillStyle = '#ff00ff';
+            ctx.beginPath(); ctx.arc(150, 150, r, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#880088'; // The one behind it
+            ctx.beginPath(); ctx.arc(150, 150, r*0.6, 0, Math.PI*2); ctx.fill();
+            
+            ctx.fillStyle = '#ff00ff'; // Side faces
+            [[80,150], [220,150]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+        }
+        if (type === 'hcp') {
+            ctx.fillStyle = '#ff00ff'; // Interior
+            [[110, 150], [190, 150]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
+        }
+
+        // 3. Front atoms (Z = 1)
+        ctx.fillStyle = '#00ffff'; // Bright Cyan
+        [[80, 220], [220, 220], [80, 80], [220, 80]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI*2); ctx.fill(); });
     }
 
     function onWindowResize() {
-        camera.aspect = (window.innerWidth - 350) / window.innerHeight;
+        camera.aspect = (window.innerWidth - 380) / window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth - 350, window.innerHeight);
+        renderer.setSize(window.innerWidth - 380, window.innerHeight);
     }
 
     function animate() {
