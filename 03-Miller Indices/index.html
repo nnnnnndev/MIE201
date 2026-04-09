@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -17,10 +17,10 @@
         #notation { font-size: clamp(2.5rem, 4vw, 4.5rem); font-weight: 800; color: #fff; margin: 10px 0; letter-spacing: 2px; }
         .bar { text-decoration: overline; }
         
-        .calc-table { width: 100%; border-collapse: collapse; font-size: clamp(0.8rem, 1vw, 1.2rem); margin-top: 10px; background: rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
-        .calc-table th { background: #1a1a2e; color: #a200ff; padding: 8px; text-transform: uppercase; font-size: clamp(0.6rem, 0.8vw, 0.9rem); }
-        .calc-table td { padding: 6px; border-bottom: 1px solid #333; text-align: center; font-family: monospace; }
-        .calc-table tr:last-child td { border-bottom: none; color: #00ffff; font-weight: bold; }
+        .calc-table { width: 100%; border-collapse: collapse; font-size: clamp(0.7rem, 0.9vw, 1rem); margin-top: 10px; background: rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; }
+        .calc-table td { padding: 6px; border-bottom: 1px solid #333; text-align: left; font-family: monospace; }
+        .calc-table .col-right { text-align: right; color: #00ffff; }
+        .calc-table tr:last-child td { border-bottom: none; font-weight: bold; }
         
         #controls { width: clamp(280px, 20vw, 400px); align-self: flex-end; }
         .btn-group { display: flex; gap: 5px; margin-bottom: 12px; }
@@ -72,9 +72,9 @@
                 </div>
                 
                 <div id="sliders">
-                    <div class="slider-row"><div class="slider-label">h / u <span id="label-h">1</span></div><input type="range" id="in-h" min="-4" max="4" value="1" oninput="updateState()"></div>
-                    <div class="slider-row"><div class="slider-label">k / v <span id="label-k">1</span></div><input type="range" id="in-k" min="-4" max="4" value="1" oninput="updateState()"></div>
-                    <div class="slider-row"><div class="slider-label">l / w <span id="label-l">0</span></div><input type="range" id="in-l" min="-4" max="4" value="0" oninput="updateState()"></div>
+                    <div class="slider-row"><div class="slider-label">H / U <span id="label-h">1</span></div><input type="range" id="in-h" min="-4" max="4" value="1" oninput="updateState()"></div>
+                    <div class="slider-row"><div class="slider-label">K / V <span id="label-k">1</span></div><input type="range" id="in-k" min="-4" max="4" value="1" oninput="updateState()"></div>
+                    <div class="slider-row"><div class="slider-label">L / W <span id="label-l">0</span></div><input type="range" id="in-l" min="-4" max="4" value="0" oninput="updateState()"></div>
                 </div>
 
                 <div id="cubic-only">
@@ -115,9 +115,12 @@
         let htmlLabels = [];
         const c_a_ratio = 1.633;
 
+        // Extended fractions up to ±4
         const fracOpts = [
-            {val: 'inf', label: '∞'}, {val: '1', label: '1'}, {val: '-1', label: '-1'},
-            {val: '1/2', label: '1/2'}, {val: '-1/2', label: '-1/2'}, {val: '0', label: '0'}
+            {val: 'inf', label: '∞'}, {val: '4', label: '4'}, {val: '3', label: '3'}, {val: '2', label: '2'}, 
+            {val: '1', label: '1'}, {val: '1/2', label: '1/2'}, {val: '1/3', label: '1/3'}, {val: '1/4', label: '1/4'},
+            {val: '0', label: '0'}, {val: '-1/4', label: '-1/4'}, {val: '-1/3', label: '-1/3'}, {val: '-1/2', label: '-1/2'}, 
+            {val: '-1', label: '-1'}, {val: '-2', label: '-2'}, {val: '-3', label: '-3'}, {val: '-4', label: '-4'}
         ];
 
         window.onload = function() {
@@ -139,7 +142,7 @@
             camera.position.set(3.5, 3, 2.5);
             
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.localClippingEnabled = true; // IMPORTANT for the hex fix
+            renderer.localClippingEnabled = true; // ESSENTIAL FOR BOUNDARY CUTOFF
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas-container').appendChild(renderer.domElement);
             
@@ -195,12 +198,21 @@
                     gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),Math.sin(a),0), new THREE.Vector3(Math.cos(a),Math.sin(a),c_a_ratio)]), mat));
                 }
                 
-                // Native Axes - Corrected a3 Color
-drawAxis(new THREE.Vector3(1.5, 0, 0), 0xff5555, 'a1', 'x-lbl');
-drawAxis(new THREE.Vector3(-0.75, 1.3, 0), 0x55ff55, 'a2', 'y-lbl');
-// a3 = -(a1 + a2). Swapped 0x00ffff for 0x5555ff to match labels.
-drawAxis(new THREE.Vector3(-0.75, -1.3, 0), 0x5555ff, 'a3', 'z-lbl'); 
-drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
+                // Aesthetic purple unit cell outline
+                const pMat = new THREE.LineBasicMaterial({color: 0xa200ff, linewidth: 2});
+                const primPtsBase = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(0.5, 0.866, 0), new THREE.Vector3(-0.5, 0.866, 0), new THREE.Vector3(0,0,0)];
+                gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(primPtsBase), pMat));
+                const primPtsTop = primPtsBase.map(v => new THREE.Vector3(v.x, v.y, c_a_ratio));
+                gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(primPtsTop), pMat));
+                [new THREE.Vector3(1,0,0), new THREE.Vector3(0.5, 0.866, 0), new THREE.Vector3(-0.5, 0.866, 0)].forEach(v => {
+                    gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([v, new THREE.Vector3(v.x, v.y, c_a_ratio)]), pMat));
+                });
+                
+                // Native Axes
+                drawAxis(new THREE.Vector3(1.5, 0, 0), 0xff5555, 'a1', 'x-lbl');
+                drawAxis(new THREE.Vector3(-0.75, 1.3, 0), 0x55ff55, 'a2', 'y-lbl');
+                drawAxis(new THREE.Vector3(-0.75, -1.3, 0), 0x5555ff, 'a3', 'z-lbl'); // FIXED: Matches C-Axis color
+                drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             }
         }
 
@@ -239,17 +251,35 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
 
         function updateTables(i_val) {
             let html = "";
-            if (system === 'cubic' && mode === 'plane') {
+            let f = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
+            
+            if (mode === 'plane') {
+                // Plane Table Format
                 let ix = h===0 ? '∞' : (1/h).toFixed(2).replace(/\.00$/,'');
                 let iy = k===0 ? '∞' : (1/k).toFixed(2).replace(/\.00$/,'');
                 let iz = l===0 ? '∞' : (1/l).toFixed(2).replace(/\.00$/,'');
-                html = `<table class="calc-table"><tr><th>Step</th><th>X</th><th>Y</th><th>Z</th></tr><tr><td>Intercepts</td><td>${ix}</td><td>${iy}</td><td>${iz}</td></tr><tr><td>Reciprocals</td><td>${h}</td><td>${k}</td><td>${l}</td></tr><tr><td>Final (hkl)</td><td>${h}</td><td>${k}</td><td>${l}</td></tr></table>`;
-            } else if (system === 'hex') {
-                let lbl1 = mode === 'plane' ? 'h' : 'u';
-                let lbl2 = mode === 'plane' ? 'k' : 'v';
-                let lbl3 = mode === 'plane' ? 'i = -(h+k)' : 't = -(u+v)';
-                let lbl4 = mode === 'plane' ? 'l' : 'w';
-                html = `<table class="calc-table"><tr><th>${lbl1}</th><th>${lbl2}</th><th>${lbl3}</th><th>${lbl4}</th></tr><tr><td>${h}</td><td>${k}</td><td>${i_val}</td><td>${l}</td></tr></table>`;
+                let finalNotation = system === 'cubic' ? `(${f(h)}${f(k)}${f(l)})` : `(${f(h)} ${f(k)} ${f(i_val)} ${f(l)})`;
+                
+                html = `<table class="calc-table">
+                            <tr><td>Intercepts</td><td class="col-right">${ix}, ${iy}, ${iz}</td></tr>
+                            <tr><td>Reciprocals</td><td class="col-right">${h}, ${k}, ${l}</td></tr>
+                            <tr><td>Reduce</td><td class="col-right">${h}, ${k}, ${l}</td></tr>
+                            <tr><td style="color:#a200ff;">Final</td><td class="col-right" style="color:#a200ff;">${finalNotation}</td></tr>
+                        </table>`;
+            } else {
+                // Direction Table Format
+                let head = `${h}, ${k}, ${l}`;
+                let tail = `0, 0, 0`; // Assuming standard origin vector
+                let diff = `${h}, ${k}, ${l}`;
+                let finalNotation = system === 'cubic' ? `[${f(h)}${f(k)}${f(l)}]` : `[${f(h)} ${f(k)} ${f(i_val)} ${f(l)}]`;
+                
+                html = `<table class="calc-table">
+                            <tr><td>Head coord</td><td class="col-right">${head}</td></tr>
+                            <tr><td>Tail coord</td><td class="col-right">${tail}</td></tr>
+                            <tr><td>Difference</td><td class="col-right">${diff}</td></tr>
+                            <tr><td>Reduce</td><td class="col-right">${h}, ${k}, ${l}</td></tr>
+                            <tr><td style="color:#a200ff;">Final</td><td class="col-right" style="color:#a200ff;">${finalNotation}</td></tr>
+                        </table>`;
             }
             document.getElementById('calc-box').innerHTML = html;
         }
@@ -262,7 +292,7 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
                 activeOriginNode.position.set(ox, oy, oz);
             } else {
                 const v1 = new THREE.Vector3(1, 0, 0);
-                const v2 = new THREE.Vector3(-0.5, 0.866, 0);
+                const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
                 const v3 = new THREE.Vector3(0, 0, c_a_ratio);
                 let hexPos = new THREE.Vector3(0,0,0);
                 if(h < 0) hexPos.add(v1);
@@ -272,7 +302,37 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             }
         }
 
-        // Updated Clipping logic for Hexagonal
+        // PERFECT CSG MASSIVE PLANE GENERATOR
+        function getLargePlaneQuad(ph, pk, pl) {
+            let ox = ph < 0 ? 1 : 0; let oy = pk < 0 ? 1 : 0; let oz = pl < 0 ? 1 : 0;
+            let pts = [];
+            const SIZE = 20; // Massive expansion to guarantee coverage before clipping
+            
+            const cart = (u, v, w) => {
+                if (system === 'hex') {
+                    const v1 = new THREE.Vector3(1, 0, 0);
+                    const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
+                    const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                    return new THREE.Vector3(u*v1.x + v*v2.x, u*v1.y + v*v2.y, w*v3.z);
+                }
+                return new THREE.Vector3(u, v, w);
+            };
+
+            let D = 1 + ph*ox + pk*oy + pl*oz;
+
+            if (pl !== 0) {
+                let getW = (u, v) => (D - ph*u - pk*v) / pl;
+                pts.push(cart(-SIZE, -SIZE, getW(-SIZE, -SIZE)), cart(SIZE, -SIZE, getW(SIZE, -SIZE)), cart(SIZE, SIZE, getW(SIZE, SIZE)), cart(-SIZE, SIZE, getW(-SIZE, SIZE)));
+            } else if (pk !== 0) {
+                let getV = (u, w) => (D - ph*u - pl*w) / pk;
+                pts.push(cart(-SIZE, getV(-SIZE, -SIZE), -SIZE), cart(SIZE, getV(SIZE, -SIZE), -SIZE), cart(SIZE, getV(SIZE, SIZE), SIZE), cart(-SIZE, getV(-SIZE, SIZE), SIZE));
+            } else if (ph !== 0) {
+                let getU = (v, w) => (D - pk*v - pl*w) / ph;
+                pts.push(cart(getU(-SIZE, -SIZE), -SIZE, -SIZE), cart(getU(SIZE, -SIZE), SIZE, -SIZE), cart(getU(SIZE, SIZE), SIZE, SIZE), cart(getU(-SIZE, SIZE), -SIZE, SIZE));
+            }
+            return pts;
+        }
+
         function drawViz() {
             vizGroup.clear();
             if(h===0 && k===0 && l===0) return;
@@ -284,77 +344,49 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
                     oVec = activeOriginNode.position.clone();
                 } else {
                     const v1 = new THREE.Vector3(1, 0, 0);
-                    const v2 = new THREE.Vector3(-0.5, 0.866, 0);
+                    const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
                     const v3 = new THREE.Vector3(0, 0, c_a_ratio);
                     dirVec = new THREE.Vector3(h*v1.x + k*v2.x, h*v1.y + k*v2.y, l*v3.z);
                     oVec = activeOriginNode.position.clone();
                 }
                 vizGroup.add(new THREE.ArrowHelper(dirVec.clone().normalize(), oVec, dirVec.length()/Math.max(Math.abs(h),Math.abs(k),Math.abs(l)||1), 0x00ffff, 0.2, 0.12));
             } else {
-                // Plane Drawing logic with enhanced Hex coverage
-                let pts = system === 'cubic' ? getCubicPlanePts(h,k,l) : getHexPlanePts(h,k,l);
+                let pts = getLargePlaneQuad(h, k, l);
                 if(pts.length >= 3) {
                     const geo = new THREE.BufferGeometry().setFromPoints(pts);
-                    if(pts.length === 3) geo.setIndex([0, 1, 2]);
                     if(pts.length === 4) geo.setIndex([0, 1, 2, 0, 2, 3]);
                     
                     const mat = new THREE.MeshBasicMaterial({color: 0xff00ff, side: 2, transparent: true, opacity: 0.5});
+                    const clips = [];
                     
-                    // RELAXED CUTOFF LOGIC: Use Clipping Planes for Hex
+                    // GLOBAL CLIPPING BOUNDARIES
                     if (system === 'hex') {
-                        const clips = [];
-                        // Top/Bottom
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0));
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), c_a_ratio));
-                        // 6 Side Walls
+                        const hexApothem = 0.866025;
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0));           // Bottom
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), c_a_ratio));  // Top
                         for(let i=0; i<6; i++) {
                             let angle = (i * 60 + 30) * Math.PI / 180;
-                            let norm = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
-                            clips.push(new THREE.Plane(norm, -0.866)); // dist to flat face
+                            // Inward facing normals for Three.js clipping
+                            clips.push(new THREE.Plane(new THREE.Vector3(-Math.cos(angle), -Math.sin(angle), 0), hexApothem));
                         }
-                        mat.clippingPlanes = clips;
+                    } else {
+                        // Cubic boundaries (0 to 1)
+                        clips.push(new THREE.Plane(new THREE.Vector3(1,0,0), 0));   // x > 0
+                        clips.push(new THREE.Plane(new THREE.Vector3(-1,0,0), 1));  // x < 1
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,1,0), 0));
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,-1,0), 1));
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0));
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), 1));
                     }
-
+                    
+                    mat.clippingPlanes = clips;
                     const m = new THREE.Mesh(geo, mat);
-                    const wire = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color: 0xff00ff}));
+                    
+                    // Note: LineSegments don't clip as cleanly natively, keeping material simple for aesthetics
                     vizGroup.add(m);
-                    vizGroup.add(wire);
                 }
             }
         }
-
-        function getCubicPlanePts(ph, pk, pl) {
-            let ox = ph<0?1:0, oy = pk<0?1:0, oz = pl<0?1:0;
-            let ih = ph!==0?1/ph:null, ik = pk!==0?1/pk:null, il = pl!==0?1/pl:null;
-            if(ih!==null && ik!==null && il!==null) return [new THREE.Vector3(ox+ih, oy, oz), new THREE.Vector3(ox, oy+ik, oz), new THREE.Vector3(ox, oy, oz+il)];
-            if(ph!==0 && pk!==0 && pl===0) return [new THREE.Vector3(ox+ih, oy, oz), new THREE.Vector3(ox, oy+ik, oz), new THREE.Vector3(ox, oy+ik, oz+1), new THREE.Vector3(ox+ih, oy, oz+1)];
-            if(ph!==0 && pk===0 && pl!==0) return [new THREE.Vector3(ox+ih, oy, oz), new THREE.Vector3(ox, oy+1, oz), new THREE.Vector3(ox, oy+1, oz+il), new THREE.Vector3(ox+ih, oy, oz+il)];
-            if(ph===0 && pk!==0 && pl!==0) return [new THREE.Vector3(ox+1, oy+ik, oz), new THREE.Vector3(ox, oy+ik, oz), new THREE.Vector3(ox, oy, oz+il), new THREE.Vector3(ox+1, oy, oz+il)];
-            if(ph!==0 && pk===0 && pl===0) return [new THREE.Vector3(ox+ih, oy, oz), new THREE.Vector3(ox+ih, oy+1, oz), new THREE.Vector3(ox+ih, oy+1, oz+1), new THREE.Vector3(ox+ih, oy, oz+1)];
-            if(ph===0 && pk!==0 && pl===0) return [new THREE.Vector3(ox, oy+ik, oz), new THREE.Vector3(ox+1, oy+ik, oz), new THREE.Vector3(ox+1, oy+ik, oz+1), new THREE.Vector3(ox, oy+ik, oz+1)];
-            if(ph===0 && pk===0 && pl!==0) return [new THREE.Vector3(ox, oy, oz+il), new THREE.Vector3(ox+1, oy, oz+il), new THREE.Vector3(ox+1, oy+1, oz+il), new THREE.Vector3(ox, oy+1, oz+il)];
-            return [];
-        }
-
-      function getHexPlanePts(ph, pk, pl) {
-    // Enlarged quad/triangle to allow clipping logic to work
-    const v1 = new THREE.Vector3(1, 0, 0);
-    const v2 = new THREE.Vector3(-0.5, 0.866, 0);
-    const v3 = new THREE.Vector3(0, 0, c_a_ratio);
-    const cart = (u,v,w) => new THREE.Vector3(u*v1.x + v*v2.x, u*v1.y + v*v2.y, w*v3.z);
-    let ox = ph<0?1:0, oy = pk<0?1:0, oz = pl<0?1:0;
-    let ih = ph!==0?1/ph:null, ik = pk!==0?1/pk:null, il = pl!==0?1/pl:null;
-    
-    // Reduced expansion from 5 to 1.5 to keep the plane within view
-    if(ih!==null && ik!==null && il!==null) return [cart(ox+ih, oy, oz), cart(ox, oy+ik, oz), cart(ox, oy, oz+il)];
-    if(ph!==0 && pk!==0 && pl===0) return [cart(ox+ih, oy-1.5, oz), cart(ox-1.5, oy+ik, oz), cart(ox-1.5, oy+ik, oz+1.5), cart(ox+ih, oy-1.5, oz+1.5)];
-    if(ph!==0 && pk===0 && pl!==0) return [cart(ox+ih, oy-1.5, oz), cart(ox+ih, oy+1.5, oz), cart(ox+ih, oy+1.5, oz+il), cart(ox+ih, oy-1.5, oz+il)];
-    if(ph===0 && pk!==0 && pl!==0) return [cart(ox-1.5, oy+ik, oz), cart(ox+1.5, oy+ik, oz), cart(ox+1.5, oy+ik, oz+il), cart(ox-1.5, oy+ik, oz+il)];
-    if(ph!==0 && pk===0 && pl===0) return [cart(ox+ih, oy-1.5, oz-1.5), cart(ox+ih, oy+1.5, oz-1.5), cart(ox+ih, oy+1.5, oz+1.5), cart(ox+ih, oy-1.5, oz+1.5)];
-    if(ph===0 && pk!==0 && pl===0) return [cart(ox-1.5, oy+ik, oz-1.5), cart(ox+1.5, oy+ik, oz-1.5), cart(ox+1.5, oy+ik, oz+1.5), cart(ox-1.5, oy+ik, oz+1.5)];
-    if(ph===0 && pk===0 && pl!==0) return [cart(-1.5, -1.5, oz+il), cart(1.5, -1.5, oz+il), cart(1.5, 1.5, oz+il), cart(-1.5, 1.5, oz+il)];
-    return [];
-}
 
         function drawAtoms() {
             atomGroup.clear(); if(system !== 'cubic' || atoms === 'none') return;
@@ -370,7 +402,13 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             document.querySelectorAll('#sys-cubic, #sys-hex').forEach(b => b.classList.remove('active')); 
             document.getElementById('sys-'+s).classList.add('active'); 
             document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none'; 
+            
+            // Force values to 1,1,0 to prevent carryover distortion
+            document.getElementById('in-h').value = 1;
+            document.getElementById('in-k').value = 1;
+            document.getElementById('in-l').value = 0;
             if(appState !== 'FREE') toggleQuiz(); 
+            
             buildGrid(); 
             updateState(); 
         };
@@ -403,7 +441,7 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
         }
 
         function generateNewTarget() {
-            target = [Math.floor(Math.random()*3)-1, Math.floor(Math.random()*3)-1, Math.floor(Math.random()*3)-1];
+            target = [Math.floor(Math.random()*5)-2, Math.floor(Math.random()*5)-2, Math.floor(Math.random()*5)-2];
             if(target.every(v => v===0)) target = [1,1,0];
             let i_val = -(target[0]+target[1]);
             let f = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
@@ -414,7 +452,6 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             }
         }
 
-        // NEW REFRESH FUNCTION
         window.resetQuiz = () => {
             quizNodesGroup.clear();
             quizLinesGroup.clear();
@@ -439,8 +476,9 @@ drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             document.getElementById('quiz-inputs').style.display = 'none';
             document.getElementById('draw-instructions').style.display = 'block';
             quizNodesGroup.clear(); clickedNodes = [];
-            let pts = system === 'cubic' ? getCubicPlanePts(target[0], target[1], target[2]) : getHexPlanePts(target[0], target[1], target[2]);
-            if(mode === 'dir') pts = [activeOriginNode.position.clone(), new THREE.Vector3(target[0], target[1], target[2])];
+            
+            // Simplified node gen for quiz interaction (keeps it within the local space)
+            let pts = [activeOriginNode.position.clone(), new THREE.Vector3(target[0], target[1], target[2])];
             pts.forEach(p => {
                 const m = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshBasicMaterial({color: 0xffaa00}));
                 m.position.copy(p); quizNodesGroup.add(m);
