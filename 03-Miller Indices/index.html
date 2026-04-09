@@ -22,6 +22,11 @@
         .calc-table .col-right { text-align: right; color: #00ffff; }
         .calc-table tr:last-child td { border-bottom: none; font-weight: bold; }
         
+        .conversion-box { background: rgba(162,0,255,0.1); border: 1px solid rgba(162,0,255,0.3); border-radius: 6px; padding: 8px; margin-top: 10px; font-size: clamp(0.65rem, 0.8vw, 0.9rem); font-family: monospace; }
+        .conv-title { text-align: center; color: #a200ff; font-weight: bold; margin-bottom: 6px; font-family: 'Segoe UI', sans-serif;}
+        .conv-row { display: flex; justify-content: space-between; color: #ccc; margin-top: 3px; }
+        .conv-row b { color: #fff; }
+
         #controls { width: clamp(280px, 20vw, 400px); align-self: flex-end; }
         .btn-group { display: flex; gap: 5px; margin-bottom: 12px; }
         .t-btn { flex: 1; padding: clamp(8px, 1vw, 12px); border: 1px solid #444; background: #000; color: #666; cursor: pointer; font-size: clamp(0.7rem, 0.9vw, 1rem); font-weight: bold; border-radius: 4px; transition: 0.2s; }
@@ -115,7 +120,6 @@
         let htmlLabels = [];
         const c_a_ratio = 1.633;
 
-        // Extended fractions up to ±4
         const fracOpts = [
             {val: 'inf', label: '∞'}, {val: '4', label: '4'}, {val: '3', label: '3'}, {val: '2', label: '2'}, 
             {val: '1', label: '1'}, {val: '1/2', label: '1/2'}, {val: '1/3', label: '1/3'}, {val: '1/4', label: '1/4'},
@@ -142,7 +146,7 @@
             camera.position.set(3.5, 3, 2.5);
             
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.localClippingEnabled = true; // ESSENTIAL FOR BOUNDARY CUTOFF
+            renderer.localClippingEnabled = true;
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('canvas-container').appendChild(renderer.domElement);
             
@@ -198,7 +202,6 @@
                     gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(a),Math.sin(a),0), new THREE.Vector3(Math.cos(a),Math.sin(a),c_a_ratio)]), mat));
                 }
                 
-                // Aesthetic purple unit cell outline
                 const pMat = new THREE.LineBasicMaterial({color: 0xa200ff, linewidth: 2});
                 const primPtsBase = [new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0), new THREE.Vector3(0.5, 0.866, 0), new THREE.Vector3(-0.5, 0.866, 0), new THREE.Vector3(0,0,0)];
                 gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(primPtsBase), pMat));
@@ -208,10 +211,9 @@
                     gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([v, new THREE.Vector3(v.x, v.y, c_a_ratio)]), pMat));
                 });
                 
-                // Native Axes
                 drawAxis(new THREE.Vector3(1.5, 0, 0), 0xff5555, 'a1', 'x-lbl');
                 drawAxis(new THREE.Vector3(-0.75, 1.3, 0), 0x55ff55, 'a2', 'y-lbl');
-                drawAxis(new THREE.Vector3(-0.75, -1.3, 0), 0x5555ff, 'a3', 'z-lbl'); // FIXED: Matches C-Axis color
+                drawAxis(new THREE.Vector3(-0.75, -1.3, 0), 0x5555ff, 'a3', 'z-lbl');
                 drawAxis(new THREE.Vector3(0, 0, 2.1), 0x5555ff, 'c', 'z-lbl');
             }
         }
@@ -254,7 +256,6 @@
             let f = (n) => n < 0 ? `<span class="bar">${Math.abs(n)}</span>` : n;
             
             if (mode === 'plane') {
-                // Plane Table Format
                 let ix = h===0 ? '∞' : (1/h).toFixed(2).replace(/\.00$/,'');
                 let iy = k===0 ? '∞' : (1/k).toFixed(2).replace(/\.00$/,'');
                 let iz = l===0 ? '∞' : (1/l).toFixed(2).replace(/\.00$/,'');
@@ -266,10 +267,16 @@
                             <tr><td>Reduce</td><td class="col-right">${h}, ${k}, ${l}</td></tr>
                             <tr><td style="color:#a200ff;">Final</td><td class="col-right" style="color:#a200ff;">${finalNotation}</td></tr>
                         </table>`;
+
+                if (system === 'hex') {
+                    html += `<div class="conversion-box" style="text-align: center; color: #aaa;">
+                                <span style="color:#a200ff; font-weight:bold; font-size:1.1em;">i = -(h + k)</span> 
+                                &nbsp;|&nbsp; 3-Axis $h,k,l$ &rarr; 4-Axis $h,k,i,l$
+                             </div>`;
+                }
             } else {
-                // Direction Table Format
                 let head = `${h}, ${k}, ${l}`;
-                let tail = `0, 0, 0`; // Assuming standard origin vector
+                let tail = `0, 0, 0`;
                 let diff = `${h}, ${k}, ${l}`;
                 let finalNotation = system === 'cubic' ? `[${f(h)}${f(k)}${f(l)}]` : `[${f(h)} ${f(k)} ${f(i_val)} ${f(l)}]`;
                 
@@ -280,46 +287,50 @@
                             <tr><td>Reduce</td><td class="col-right">${h}, ${k}, ${l}</td></tr>
                             <tr><td style="color:#a200ff;">Final</td><td class="col-right" style="color:#a200ff;">${finalNotation}</td></tr>
                         </table>`;
+
+                if (system === 'hex') {
+                    let u = Number(((2*h - k)/3).toFixed(3));
+                    let v = Number(((2*k - h)/3).toFixed(3));
+                    let t = Number((-(u + v)).toFixed(3));
+                    html += `<div class="conversion-box">
+                               <div class="conv-title">Direction Conversion: [U V W] &rarr; [u v t w]</div>
+                               <div class="conv-row">
+                                   <span>u = 1/3(2U - V) = <b>${u}</b></span>
+                                   <span>v = 1/3(2V - U) = <b>${v}</b></span>
+                               </div>
+                               <div class="conv-row">
+                                   <span>t = -(u + v) = <b>${t}</b></span>
+                                   <span>w = W = <b>${l}</b></span>
+                               </div>
+                            </div>`;
+                }
             }
             document.getElementById('calc-box').innerHTML = html;
         }
 
         function updateOrigins() {
-            let ox = h < 0 ? 1 : 0;
-            let oy = k < 0 ? 1 : 0;
-            let oz = l < 0 ? 1 : 0;
+            let ox = h < 0 ? 1 : 0; let oy = k < 0 ? 1 : 0; let oz = l < 0 ? 1 : 0;
             if (system === 'cubic') {
                 activeOriginNode.position.set(ox, oy, oz);
             } else {
-                const v1 = new THREE.Vector3(1, 0, 0);
-                const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
-                const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                const v1 = new THREE.Vector3(1, 0, 0); const v2 = new THREE.Vector3(-0.5, 0.866025, 0); const v3 = new THREE.Vector3(0, 0, c_a_ratio);
                 let hexPos = new THREE.Vector3(0,0,0);
-                if(h < 0) hexPos.add(v1);
-                if(k < 0) hexPos.add(v2);
-                if(l < 0) hexPos.add(v3);
+                if(h < 0) hexPos.add(v1); if(k < 0) hexPos.add(v2); if(l < 0) hexPos.add(v3);
                 activeOriginNode.position.copy(hexPos);
             }
         }
 
-        // PERFECT CSG MASSIVE PLANE GENERATOR
         function getLargePlaneQuad(ph, pk, pl) {
             let ox = ph < 0 ? 1 : 0; let oy = pk < 0 ? 1 : 0; let oz = pl < 0 ? 1 : 0;
-            let pts = [];
-            const SIZE = 20; // Massive expansion to guarantee coverage before clipping
-            
+            let pts = []; const SIZE = 20; 
             const cart = (u, v, w) => {
                 if (system === 'hex') {
-                    const v1 = new THREE.Vector3(1, 0, 0);
-                    const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
-                    const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                    const v1 = new THREE.Vector3(1, 0, 0); const v2 = new THREE.Vector3(-0.5, 0.866025, 0); const v3 = new THREE.Vector3(0, 0, c_a_ratio);
                     return new THREE.Vector3(u*v1.x + v*v2.x, u*v1.y + v*v2.y, w*v3.z);
                 }
                 return new THREE.Vector3(u, v, w);
             };
-
             let D = 1 + ph*ox + pk*oy + pl*oz;
-
             if (pl !== 0) {
                 let getW = (u, v) => (D - ph*u - pk*v) / pl;
                 pts.push(cart(-SIZE, -SIZE, getW(-SIZE, -SIZE)), cart(SIZE, -SIZE, getW(SIZE, -SIZE)), cart(SIZE, SIZE, getW(SIZE, SIZE)), cart(-SIZE, SIZE, getW(-SIZE, SIZE)));
@@ -336,18 +347,13 @@
         function drawViz() {
             vizGroup.clear();
             if(h===0 && k===0 && l===0) return;
-            
             if(mode === 'dir') {
                 let dirVec, oVec;
                 if(system === 'cubic') {
-                    dirVec = new THREE.Vector3(h, k, l);
-                    oVec = activeOriginNode.position.clone();
+                    dirVec = new THREE.Vector3(h, k, l); oVec = activeOriginNode.position.clone();
                 } else {
-                    const v1 = new THREE.Vector3(1, 0, 0);
-                    const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
-                    const v3 = new THREE.Vector3(0, 0, c_a_ratio);
-                    dirVec = new THREE.Vector3(h*v1.x + k*v2.x, h*v1.y + k*v2.y, l*v3.z);
-                    oVec = activeOriginNode.position.clone();
+                    const v1 = new THREE.Vector3(1, 0, 0); const v2 = new THREE.Vector3(-0.5, 0.866025, 0); const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                    dirVec = new THREE.Vector3(h*v1.x + k*v2.x, h*v1.y + k*v2.y, l*v3.z); oVec = activeOriginNode.position.clone();
                 }
                 vizGroup.add(new THREE.ArrowHelper(dirVec.clone().normalize(), oVec, dirVec.length()/Math.max(Math.abs(h),Math.abs(k),Math.abs(l)||1), 0x00ffff, 0.2, 0.12));
             } else {
@@ -355,35 +361,21 @@
                 if(pts.length >= 3) {
                     const geo = new THREE.BufferGeometry().setFromPoints(pts);
                     if(pts.length === 4) geo.setIndex([0, 1, 2, 0, 2, 3]);
-                    
                     const mat = new THREE.MeshBasicMaterial({color: 0xff00ff, side: 2, transparent: true, opacity: 0.5});
                     const clips = [];
-                    
-                    // GLOBAL CLIPPING BOUNDARIES
                     if (system === 'hex') {
                         const hexApothem = 0.866025;
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0));           // Bottom
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), c_a_ratio));  // Top
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0)); clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), c_a_ratio)); 
                         for(let i=0; i<6; i++) {
                             let angle = (i * 60 + 30) * Math.PI / 180;
-                            // Inward facing normals for Three.js clipping
                             clips.push(new THREE.Plane(new THREE.Vector3(-Math.cos(angle), -Math.sin(angle), 0), hexApothem));
                         }
                     } else {
-                        // Cubic boundaries (0 to 1)
-                        clips.push(new THREE.Plane(new THREE.Vector3(1,0,0), 0));   // x > 0
-                        clips.push(new THREE.Plane(new THREE.Vector3(-1,0,0), 1));  // x < 1
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,1,0), 0));
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,-1,0), 1));
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0));
-                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), 1));
+                        clips.push(new THREE.Plane(new THREE.Vector3(1,0,0), 0)); clips.push(new THREE.Plane(new THREE.Vector3(-1,0,0), 1));
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,1,0), 0)); clips.push(new THREE.Plane(new THREE.Vector3(0,-1,0), 1));
+                        clips.push(new THREE.Plane(new THREE.Vector3(0,0,1), 0)); clips.push(new THREE.Plane(new THREE.Vector3(0,0,-1), 1));
                     }
-                    
-                    mat.clippingPlanes = clips;
-                    const m = new THREE.Mesh(geo, mat);
-                    
-                    // Note: LineSegments don't clip as cleanly natively, keeping material simple for aesthetics
-                    vizGroup.add(m);
+                    mat.clippingPlanes = clips; vizGroup.add(new THREE.Mesh(geo, mat));
                 }
             }
         }
@@ -398,19 +390,11 @@
         }
 
         window.setSystem = (s) => { 
-            system = s; 
-            document.querySelectorAll('#sys-cubic, #sys-hex').forEach(b => b.classList.remove('active')); 
-            document.getElementById('sys-'+s).classList.add('active'); 
-            document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none'; 
-            
-            // Force values to 1,1,0 to prevent carryover distortion
-            document.getElementById('in-h').value = 1;
-            document.getElementById('in-k').value = 1;
-            document.getElementById('in-l').value = 0;
+            system = s; document.querySelectorAll('#sys-cubic, #sys-hex').forEach(b => b.classList.remove('active')); 
+            document.getElementById('sys-'+s).classList.add('active'); document.getElementById('cubic-only').style.display = s==='cubic'?'block':'none'; 
+            document.getElementById('in-h').value = 1; document.getElementById('in-k').value = 1; document.getElementById('in-l').value = 0;
             if(appState !== 'FREE') toggleQuiz(); 
-            
-            buildGrid(); 
-            updateState(); 
+            buildGrid(); updateState(); 
         };
         
         window.setMode = (m) => { mode = m; document.querySelectorAll('#m-plane, #m-dir').forEach(b => b.classList.remove('active')); document.getElementById('m-'+m).classList.add('active'); updateState(); };
@@ -419,23 +403,14 @@
 
         window.toggleQuiz = () => {
             if(appState === 'FREE') {
-                appState = 'QUIZ_INPUT';
-                document.getElementById('sliders').style.display = 'none';
-                document.getElementById('quiz-panel').style.display = 'block';
-                document.getElementById('draw-btn').innerText = "EXIT QUIZ";
-                document.getElementById('draw-btn').classList.add('quiz-on');
-                generateNewTarget();
-                document.getElementById('quiz-title-text').innerText = mode==='plane'?'STEP 1: DEFINE INTERCEPTS':'STEP 1: COORDINATES';
-                document.getElementById('calc-box').innerHTML = '';
-                vizGroup.clear(); controls.enableRotate = false;
+                appState = 'QUIZ_INPUT'; document.getElementById('sliders').style.display = 'none'; document.getElementById('quiz-panel').style.display = 'block';
+                document.getElementById('draw-btn').innerText = "EXIT QUIZ"; document.getElementById('draw-btn').classList.add('quiz-on');
+                generateNewTarget(); document.getElementById('quiz-title-text').innerText = mode==='plane'?'STEP 1: DEFINE INTERCEPTS':'STEP 1: COORDINATES';
+                document.getElementById('calc-box').innerHTML = ''; vizGroup.clear(); controls.enableRotate = false;
             } else {
-                appState = 'FREE'; 
-                document.getElementById('sliders').style.display = 'block'; 
-                document.getElementById('quiz-panel').style.display = 'none';
-                document.getElementById('next-quiz-btn').style.display = 'none';
-                document.getElementById('draw-btn').innerText = "START QUIZ MODE"; 
-                document.getElementById('draw-btn').classList.remove('quiz-on');
-                quizNodesGroup.clear(); quizLinesGroup.clear();
+                appState = 'FREE'; document.getElementById('sliders').style.display = 'block'; document.getElementById('quiz-panel').style.display = 'none';
+                document.getElementById('next-quiz-btn').style.display = 'none'; document.getElementById('draw-btn').innerText = "START QUIZ MODE"; 
+                document.getElementById('draw-btn').classList.remove('quiz-on'); quizNodesGroup.clear(); quizLinesGroup.clear();
                 controls.enableRotate = true; updateState();
             }
         }
@@ -450,25 +425,28 @@
             } else {
                 document.getElementById('notation').innerHTML = (mode==='plane'?'(':'[') + `${f(target[0])} ${f(target[1])} ${f(i_val)} ${f(target[2])}` + (mode==='plane'?')':']');
             }
+            
+            let ox = target[0] < 0 ? 1 : 0; let oy = target[1] < 0 ? 1 : 0; let oz = target[2] < 0 ? 1 : 0;
+            if (system === 'cubic') {
+                activeOriginNode.position.set(ox, oy, oz);
+            } else {
+                const v1 = new THREE.Vector3(1, 0, 0); const v2 = new THREE.Vector3(-0.5, 0.866025, 0); const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                let hexPos = new THREE.Vector3(0,0,0);
+                if(target[0] < 0) hexPos.add(v1); if(target[1] < 0) hexPos.add(v2); if(target[2] < 0) hexPos.add(v3);
+                activeOriginNode.position.copy(hexPos);
+            }
         }
 
         window.resetQuiz = () => {
-            quizNodesGroup.clear();
-            quizLinesGroup.clear();
-            clickedNodes = [];
-            document.getElementById('quiz-inputs').style.display = 'block';
-            document.getElementById('draw-instructions').style.display = 'none';
-            document.getElementById('next-quiz-btn').style.display = 'none';
-            document.getElementById('quiz-feedback').innerHTML = '';
-            appState = 'QUIZ_INPUT';
-            generateNewTarget();
+            quizNodesGroup.clear(); quizLinesGroup.clear(); clickedNodes = [];
+            document.getElementById('quiz-inputs').style.display = 'block'; document.getElementById('draw-instructions').style.display = 'none';
+            document.getElementById('next-quiz-btn').style.display = 'none'; document.getElementById('quiz-feedback').innerHTML = '';
+            appState = 'QUIZ_INPUT'; generateNewTarget();
         }
 
         window.checkInputs = () => {
-            const fb = document.getElementById('quiz-feedback');
-            fb.innerHTML = "<span class='status-success'>Correct! Now click nodes to draw.</span>";
-            document.getElementById('next-quiz-btn').style.display = 'block';
-            startDrawPhase();
+            document.getElementById('quiz-feedback').innerHTML = "<span class='status-success'>Correct! Now click nodes to draw.</span>";
+            document.getElementById('next-quiz-btn').style.display = 'block'; startDrawPhase();
         }
 
         function startDrawPhase() {
@@ -477,8 +455,42 @@
             document.getElementById('draw-instructions').style.display = 'block';
             quizNodesGroup.clear(); clickedNodes = [];
             
-            // Simplified node gen for quiz interaction (keeps it within the local space)
-            let pts = [activeOriginNode.position.clone(), new THREE.Vector3(target[0], target[1], target[2])];
+            let pts = [];
+            let origin = activeOriginNode.position.clone();
+
+            const getPos = (u, v, w) => {
+                if (system === 'hex') {
+                    const v1 = new THREE.Vector3(1, 0, 0);
+                    const v2 = new THREE.Vector3(-0.5, 0.866025, 0);
+                    const v3 = new THREE.Vector3(0, 0, c_a_ratio);
+                    return new THREE.Vector3(u*v1.x + v*v2.x, u*v1.y + v*v2.y, w*v3.z);
+                }
+                return new THREE.Vector3(u, v, w);
+            };
+
+            if (mode === 'plane') {
+                // FIXED logic: Spawn nodes based on INTERCEPTS (1/target), not indices (target)
+                if (target[0] !== 0) pts.push(origin.clone().add(getPos(1/target[0], 0, 0)));
+                if (target[1] !== 0) pts.push(origin.clone().add(getPos(0, 1/target[1], 0)));
+                if (target[2] !== 0) pts.push(origin.clone().add(getPos(0, 0, 1/target[2])));
+
+                // Add parallel corner nodes to construct physical planes
+                if (pts.length === 1) {
+                    let axis = target[0] !== 0 ? 0 : (target[1] !== 0 ? 1 : 2);
+                    let p1 = pts[0].clone();
+                    if (axis === 0) { pts.push(p1.clone().add(getPos(0,1,0)), p1.clone().add(getPos(0,1,1)), p1.clone().add(getPos(0,0,1))); }
+                    if (axis === 1) { pts.push(p1.clone().add(getPos(1,0,0)), p1.clone().add(getPos(1,0,1)), p1.clone().add(getPos(0,0,1))); }
+                    if (axis === 2) { pts.push(p1.clone().add(getPos(1,0,0)), p1.clone().add(getPos(1,1,0)), p1.clone().add(getPos(0,1,0))); }
+                } else if (pts.length === 2) {
+                    let missingAxis = target[0] === 0 ? 0 : (target[1] === 0 ? 1 : 2);
+                    let ext = getPos(missingAxis===0?1:0, missingAxis===1?1:0, missingAxis===2?1:0);
+                    pts.push(pts[1].clone().add(ext), pts[0].clone().add(ext));
+                }
+            } else {
+                pts.push(origin);
+                pts.push(origin.clone().add(getPos(target[0], target[1], target[2])));
+            }
+
             pts.forEach(p => {
                 const m = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshBasicMaterial({color: 0xffaa00}));
                 m.position.copy(p); quizNodesGroup.add(m);
@@ -510,16 +522,13 @@
             controls.update(); 
             htmlLabels.forEach(l => { 
                 const v = l.pos.clone().project(camera); 
-                l.element.style.left = `${(v.x*.5+.5)*window.innerWidth}px`; 
-                l.element.style.top = `${(v.y*-.5+.5)*window.innerHeight}px`; 
+                l.element.style.left = `${(v.x*.5+.5)*window.innerWidth}px`; l.element.style.top = `${(v.y*-.5+.5)*window.innerHeight}px`; 
             });
             renderer.render(scene, camera); 
         }
 
         function onWindowResize() { 
-            camera.aspect = window.innerWidth / window.innerHeight; 
-            camera.updateProjectionMatrix(); 
-            renderer.setSize(window.innerWidth, window.innerHeight); 
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); 
         }
     </script>
 </body>
