@@ -6,293 +6,174 @@
     <title>Arrhenius Temperature Dependence</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; }
-        
         #controls-panel { width: clamp(320px, 25vw, 400px); background: rgba(10, 10, 20, 0.95); border-right: 2px solid #1a1a2e; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 10; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
         #simulation-panel { flex-grow: 1; position: relative; background: #020204; }
-        
         .header-title { font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 8px; }
-        
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .t-btn { padding: 12px; border: 1px solid #333; background: #111; color: #666; cursor: pointer; font-size: 0.85rem; font-weight: bold; border-radius: 6px; transition: all 0.2s; }
-        
-        /* UI Color Synchronization */
         #mat-cu.active { border-color: #ffaa00; color: #ffaa00; background: #221100; box-shadow: 0 0 10px rgba(255, 170, 0, 0.2); }
         #mat-al.active { border-color: #aaaaaa; color: #ffffff; background: #222222; box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
         #def-vac.active { border-color: #ff00ff; color: #ff00ff; background: #220022; box-shadow: 0 0 10px rgba(255, 0, 255, 0.2); }
         #def-int.active { border-color: #00ffff; color: #00ffff; background: #002222; box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); }
-
         .slider-row { margin-bottom: 25px; }
         .slider-label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
         input[type=range] { width: 100%; accent-color: #777; height: 6px; cursor: pointer; }
-
         .math-box { background: #000; border: 1px solid #222; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
         .equation { font-family: 'Courier New', Courier, monospace; font-size: 1.2rem; text-align: center; margin-bottom: 15px; color: #fff; }
         .temp-var { font-weight: bold; transition: color 0.1s; }
-        
         .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; border-bottom: 1px dashed #222; padding-bottom: 4px; }
         .data-val { font-weight: bold; font-family: monospace; font-size: 0.95rem; }
-        
         .metric-highlight { color: #fff; font-weight: bold; font-size: 0.9rem; margin-top: 15px; border: none; }
-
         #lattice-canvas { display: block; width: 100%; height: 100%; }
-        
         .overlay-text { position: absolute; bottom: 20px; right: 20px; font-size: 0.85rem; color: #555; text-align: right; pointer-events: none; }
-        .overlay-text b { color: #888; transition: color 0.3s; }
     </style>
 </head>
 <body>
 
 <div id="controls-panel">
     <div class="header-title">Arrhenius Temp. Dependence</div>
-    
     <div class="mode-grid">
         <button id="mat-cu" class="t-btn active" onclick="setMaterial('cu')">Copper (Cu)</button>
         <button id="mat-al" class="t-btn" onclick="setMaterial('al')">Aluminum (Al)</button>
     </div>
-
     <div class="mode-grid">
         <button id="def-vac" class="t-btn active" onclick="setDefect('vac')">Vacancies</button>
         <button id="def-int" class="t-btn" onclick="setDefect('int')">Interstitials</button>
     </div>
-
     <div class="slider-row">
         <div class="slider-label">Temperature (K) <span id="val-temp" style="color:#fff;">300 K</span></div>
         <input type="range" id="in-temp" min="300" max="1350" step="10" value="300" oninput="updateSimulation()">
     </div>
-
     <div class="math-box">
         <div class="equation">N<sub>d</sub> = N &middot; exp(-Q / k<span id="eq-T" class="temp-var">T</span>)</div>
-        <div class="data-row"><span>Activation Energy (Q):</span> <span id="out-q" class="data-val" style="color:#aaa;">0.90 eV</span></div>
+        <div class="data-row"><span>Activation Energy (Q):</span> <span id="out-q" class="data-val">0.90 eV</span></div>
         <div class="data-row"><span>Boltzmann const (k):</span> <span class="data-val" style="color:#aaa;">8.62e-5 eV/K</span></div>
         <div class="data-row metric-highlight">
-            <span>True Fraction (N<sub>d</sub>/N):</span> 
-            <span id="out-frac" class="data-val">0.00e+0</span>
+            <span>True Fraction (N<sub>d</sub>/N):</span> <span id="out-frac" class="data-val">0.00e+0</span>
         </div>
         <div class="data-row" style="border:none; margin-bottom: 0;">
-            <span>Atoms in Viewport (N):</span> 
-            <span id="out-n" class="data-val" style="color:#888;">0</span>
+            <span>Atoms in Viewport (N):</span> <span id="out-n" class="data-val" style="color:#888;">0</span>
         </div>
     </div>
 </div>
 
 <div id="simulation-panel">
     <canvas id="lattice-canvas"></canvas>
-    <div class="overlay-text" id="structure-label">
+    <div class="overlay-text">
         FCC (111) Plane Side Profile<br>
-        Showing <b id="abc-label">ABC</b> Stacking Sequence
+        Showing <b id="abc-label" style="color:#ffaa00;">ABC</b> Stacking Sequence
     </div>
 </div>
 
 <script>
     const canvas = document.getElementById('lattice-canvas');
     const ctx = canvas.getContext('2d');
-    
-    // Physics Constants
     const k = 8.617e-5; 
     const materials = {
-        cu: { name: "Copper", Q_vac: 0.90, Q_int: 3.00, hex: '#dd7700', ui: '#ffaa00' },
-        al: { name: "Aluminum", Q_vac: 0.67, Q_int: 2.20, hex: '#777788', ui: '#ffffff' }
+        cu: { hex: '#dd7700', ui: '#ffaa00', Q_vac: 0.90, Q_int: 3.00 },
+        al: { hex: '#888899', ui: '#ffffff', Q_vac: 0.67, Q_int: 2.20 }
     };
-    const defectColors = { vac: '#ff00ff', int: '#00ffff' };
     
-    // State
-    let currentMat = 'cu';
-    let currentDef = 'vac';
-    let T = 300;
-    
-    // High-Density Grid Setup
-    const R = 4.5; // Much smaller radius
-    let latticeSites = [];
-    let interstitialSites = [];
-    let defectList = []; // Array of active defect site objects for fast distance checking
-    let defectMap = new Set(); // Fast lookup for rendering
-    
+    let currentMat = 'cu', currentDef = 'vac', T = 300;
+    const R = 4.5, spacingX = R * 2.2, spacingY = R * 1.9;
+    let latticeSites = [], interstitialSites = [], defectList = [], defectMap = new Set();
     let lastUpdate = 0;
-    const shimmerRate = 120; // Slightly faster shimmer 
 
     function init() {
-        window.addEventListener('resize', debounceResize);
-        resizeCanvas(); // Will trigger generateSites
+        window.addEventListener('resize', () => { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; generateSites(); });
+        canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight;
+        generateSites();
         updateSimulation();
         requestAnimationFrame(animate);
     }
 
-    let resizeTimeout;
-    function debounceResize() {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(resizeCanvas, 150);
-    }
-
-    function resizeCanvas() {
-        const panel = document.getElementById('simulation-panel');
-        canvas.width = panel.clientWidth;
-        canvas.height = panel.clientHeight;
-        generateSites();
-    }
-
-    function setMaterial(mat) {
-        currentMat = mat;
-        document.querySelectorAll('#mat-cu, #mat-al').forEach(b => b.classList.remove('active'));
-        document.getElementById('mat-' + mat).classList.add('active');
-        
-        document.getElementById('abc-label').style.color = materials[mat].ui;
-        document.getElementById('in-temp').style.accentColor = materials[mat].ui;
-        
-        updateSimulation();
-    }
-
-    function setDefect(def) {
-        currentDef = def;
-        document.querySelectorAll('#def-vac, #def-int').forEach(b => b.classList.remove('active'));
-        document.getElementById('def-' + def).classList.add('active');
-        updateSimulation();
-    }
+    function setMaterial(m) { currentMat = m; document.querySelectorAll('#mat-cu, #mat-al').forEach(b => b.classList.toggle('active', b.id === 'mat-'+m)); document.getElementById('abc-label').style.color = materials[m].ui; updateSimulation(); }
+    function setDefect(d) { currentDef = d; document.querySelectorAll('#def-vac, #def-int').forEach(b => b.classList.toggle('active', b.id === 'def-'+d)); updateSimulation(); }
 
     function updateSimulation() {
         T = parseInt(document.getElementById('in-temp').value);
         document.getElementById('val-temp').innerText = T + " K";
-        
-        const ratio = (T - 300) / (1350 - 300);
-        const rColor = Math.floor(ratio * 255);
-        const bColor = Math.floor((1 - ratio) * 255);
-        document.getElementById('eq-T').style.color = `rgb(${rColor}, 100, ${bColor})`;
-
         const Q = materials[currentMat][currentDef === 'vac' ? 'Q_vac' : 'Q_int'];
         document.getElementById('out-q').innerText = Q.toFixed(2) + " eV";
-        document.getElementById('out-q').style.color = defectColors[currentDef];
-        
-        const trueFraction = Math.exp(-Q / (k * T));
-        document.getElementById('out-frac').innerText = trueFraction.toExponential(2);
-        document.getElementById('out-frac').style.color = defectColors[currentDef];
-
-        lastUpdate = 0; // Force redraw
+        document.getElementById('out-q').style.color = currentDef === 'vac' ? '#ff00ff' : '#00ffff';
+        document.getElementById('out-frac').innerText = Math.exp(-Q/(k*T)).toExponential(2);
+        document.getElementById('out-frac').style.color = currentDef === 'vac' ? '#ff00ff' : '#00ffff';
+        lastUpdate = 0;
     }
 
     function generateSites() {
-        latticeSites = [];
-        interstitialSites = [];
-        
-        const spacingX = R * 2.2; 
-        const spacingY = R * 1.9; 
-        
-        // Calculate needed rows/cols to bleed off the edges of the canvas
-        const cols = Math.ceil(canvas.width / spacingX) + 2;
-        const rows = Math.ceil(canvas.height / spacingY) + 2;
-
-        const startX = -spacingX;
-        const startY = -spacingY;
-
-        for (let row = 0; row < rows; row++) {
-            const stackShift = (row % 3) * (spacingX / 3);
-            
-            for (let col = 0; col < cols; col++) {
-                const x = startX + col * spacingX + stackShift;
-                const y = startY + row * spacingY;
-                latticeSites.push({x, y, id: row + "-" + col});
-                
-                if (row < rows - 1 && col < cols - 1) {
-                    interstitialSites.push({ x: x + spacingX * 0.5, y: y + spacingY * 0.5, id: "i-" + row + "-" + col });
-                }
+        latticeSites = []; interstitialSites = [];
+        const cols = Math.ceil(canvas.width / spacingX) + 2, rows = Math.ceil(canvas.height / spacingY) + 2;
+        for (let r = 0; r < rows; r++) {
+            const shift = (r % 3) * (spacingX / 3);
+            for (let c = 0; c < cols; c++) {
+                const x = -spacingX + c * spacingX + shift, y = -spacingY + r * spacingY;
+                latticeSites.push({x, y, origX: x, origY: y, id: r + "-" + c});
+                if (r < rows - 1 && c < cols - 1) interstitialSites.push({x: x + spacingX*0.5, y: y + spacingY*0.5, id: "i-"+r+"-"+c});
             }
         }
         document.getElementById('out-n').innerText = latticeSites.length.toLocaleString();
     }
 
-    function animate(timestamp) {
+    function animate(ts) {
         requestAnimationFrame(animate);
-
-        if (timestamp - lastUpdate > shimmerRate) {
-            recalculateDefects();
-            lastUpdate = timestamp;
-        }
-
-        drawLattice();
-    }
-
-    function recalculateDefects() {
-        defectMap.clear();
-        defectList = [];
-        
-        // Capped pedagogical scaling: max ~2% defects at 1350K for Al Vacancies
-        const Q_true = materials[currentMat][currentDef === 'vac' ? 'Q_vac' : 'Q_int'];
-        const visualQ = Q_true * 0.45; 
-        let pVis = Math.exp(-visualQ / (k * T));
-        pVis = Math.min(pVis, 0.02); // Hard cap at 2% density
-
-        const targetArray = currentDef === 'vac' ? latticeSites : interstitialSites;
-        const collisionDistSq = (R * 2.5) * (R * 2.5); // Rule: No nearest neighbors
-
-        // Randomly attempt to place defects
-        for (let i = 0; i < targetArray.length; i++) {
-            if (Math.random() < pVis) {
-                const site = targetArray[i];
-                
-                // Anti-Clumping Check
-                let clumping = false;
-                for (let d = 0; d < defectList.length; d++) {
-                    const dx = site.x - defectList[d].x;
-                    const dy = site.y - defectList[d].y;
-                    if ((dx*dx + dy*dy) < collisionDistSq) {
-                        clumping = true;
-                        break;
-                    }
-                }
-
-                if (!clumping) {
-                    defectMap.add(site.id);
-                    defectList.push(site);
-                }
-            }
-        }
-    }
-
-    function drawLattice() {
-        // High-Performance Batched Rendering
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        const matColor = materials[currentMat].hex;
-
-        // 1. Batch Draw All Standard Atoms
-        ctx.fillStyle = matColor;
-        ctx.beginPath();
-        for (let i = 0; i < latticeSites.length; i++) {
-            const site = latticeSites[i];
-            if (currentDef === 'vac' && defectMap.has(site.id)) continue;
+        if (ts - lastUpdate > 120) {
+            defectMap.clear(); defectList = [];
+            const Q_vis = materials[currentMat][currentDef==='vac'?'Q_vac':'Q_int'] * 0.45;
+            let p = Math.min(Math.exp(-Q_vis/(k*T)), 0.015);
+            const targets = currentDef === 'vac' ? latticeSites : interstitialSites;
             
-            ctx.moveTo(site.x + R, site.y);
-            ctx.arc(site.x, site.y, R, 0, Math.PI * 2);
+            targets.forEach(s => {
+                if (Math.random() < p) {
+                    let clump = defectList.some(d => Math.hypot(s.x - d.x, s.y - d.y) < R * 5);
+                    if (!clump) { defectMap.add(s.id); defectList.push(s); }
+                }
+            });
+            
+            // Apply Dilation logic: Reset all sites first
+            latticeSites.forEach(s => { s.x = s.origX; s.y = s.origY; });
+            if (currentDef === 'int') {
+                defectList.forEach(d => {
+                    latticeSites.forEach(s => {
+                        let dist = Math.hypot(s.x - d.x, s.y - d.y);
+                        if (dist < R * 2.5) { // Immediate neighbors
+                            let ang = Math.atan2(s.y - d.y, s.x - d.x);
+                            s.x += Math.cos(ang) * (R * 0.5);
+                            s.y += Math.sin(ang) * (R * 0.5);
+                        }
+                    });
+                });
+            }
+            lastUpdate = ts;
         }
+        draw();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Batch draw lattice
+        ctx.fillStyle = materials[currentMat].hex;
+        ctx.beginPath();
+        latticeSites.forEach(s => {
+            if (currentDef === 'vac' && defectMap.has(s.id)) return;
+            ctx.moveTo(s.x + R, s.y); ctx.arc(s.x, s.y, R, 0, Math.PI*2);
+        });
         ctx.fill();
 
-        // 2. Draw Defects (Un-batched or smaller batch due to low count)
-        if (currentDef === 'vac') {
-            ctx.fillStyle = 'rgba(255, 0, 255, 0.3)'; // 30% magenta core
-            ctx.strokeStyle = '#ff00ff';
-            ctx.lineWidth = 1;
-            
+        // Draw Defects
+        defectList.forEach(s => {
             ctx.beginPath();
-            for (let i = 0; i < defectList.length; i++) {
-                const site = defectList[i];
-                ctx.moveTo(site.x + R, site.y);
-                ctx.arc(site.x, site.y, R, 0, Math.PI * 2);
+            if (currentDef === 'vac') {
+                ctx.fillStyle = 'rgba(255, 0, 255, 0.3)'; ctx.arc(s.x, s.y, R, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#ff00ff'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
+            } else {
+                // White flash for interstitial tracking
+                let grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, R * 0.8);
+                grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.4, '#00ffff'); grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                ctx.fillStyle = grad; ctx.arc(s.x, s.y, R * 0.8, 0, Math.PI*2); ctx.fill();
             }
-            ctx.fill();
-            
-            ctx.setLineDash([2, 2]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        } else if (currentDef === 'int') {
-            ctx.fillStyle = defectColors.int;
-            ctx.beginPath();
-            for (let i = 0; i < defectList.length; i++) {
-                const site = defectList[i];
-                ctx.moveTo(site.x + R*0.7, site.y);
-                ctx.arc(site.x, site.y, R * 0.7, 0, Math.PI * 2);
-            }
-            ctx.fill();
-        }
+        });
     }
-
     window.onload = init;
 </script>
 </body>
