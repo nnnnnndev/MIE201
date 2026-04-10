@@ -1,52 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>3D Screw Dislocation - Studio Edition</title>
+    <title>3D Screw Dislocation - Neon Industrial</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TrackballControls.js"></script>
     <style>
-        body { margin: 0; background: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(15, 15, 25, 0.95); padding: 25px; border-radius: 12px; border: 1px solid #445; width: 280px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(5, 5, 15, 0.95); padding: 25px; border-radius: 12px; border: 1px solid #00ffff; width: 280px; z-index: 100; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); }
         .slider-wrap { margin: 20px 0; }
-        label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #bbb; margin-bottom: 10px; font-weight: 600; }
-        label b { color: #00ffff; font-family: 'Courier New', monospace; font-size: 1.1rem; }
-        input { width: 100%; cursor: pointer; accent-color: #00ffff; height: 6px; }
+        label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #00ffff; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        label b { color: #fff; font-family: 'Courier New', monospace; }
+        input { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 6px; }
         .btn-group { display: flex; gap: 8px; margin-top: 15px; }
-        button { flex: 1; padding: 12px; background: #1a1a2e; border: 1px solid #334; color: #888; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.3s; }
-        button.active { background: #00ffff; border-color: #fff; color: #000; box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); }
-        .instruction { font-size: 0.75rem; color: #667; margin-top: 15px; font-style: italic; border-top: 1px solid #223; padding-top: 10px; }
+        button { flex: 1; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.3s; }
+        button.active { background: #ff00ff; border-color: #fff; color: #fff; box-shadow: 0 0 15px rgba(255, 0, 255, 0.5); }
+        .legend { font-size: 0.75rem; color: #667; margin-top: 20px; border-top: 1px solid #1a1a3a; padding-top: 15px; }
+        .legend-row { display: flex; align-items: center; margin-bottom: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-weight: 900; font-size: 1.2rem; margin-bottom: 5px; color: #fff;">SCREW DISLOCATION</div>
-    <div style="font-size: 0.8rem; color: #667; margin-bottom: 20px;">8x8x8 Lattice Model</div>
+    <div style="font-weight: 900; font-size: 1.4rem; margin-bottom: 5px; color: #fff; letter-spacing: -0.5px;">CORE DYNAMICS</div>
+    <div style="font-size: 0.75rem; color: #00ffff; margin-bottom: 20px; opacity: 0.8;">NEON-INDUSTRIAL LATTICE</div>
     
     <div class="btn-group">
-        <button id="mode-plane" onclick="setMode('plane')" class="active">2D Plane</button>
-        <button id="mode-cube" onclick="setMode('cube')">3D Cube</button>
+        <button id="mode-plane" onclick="setMode('plane')" class="active">2D</button>
+        <button id="mode-cube" onclick="setMode('cube')">8x8x8</button>
     </div>
 
     <div class="slider-wrap">
-        <label>Burgers Vector (b) <b id="b-val">0.50</b></label>
+        <label>Displacement (b) <b id="b-val">0.50</b></label>
         <input type="range" id="b-slider" min="0" max="2" step="0.01" value="0.5">
     </div>
 
     <div class="slider-wrap">
-        <label>Core Opacity <b id="o-val">1.0</b></label>
-        <input type="range" id="o-slider" min="0.05" max="1" step="0.01" value="1">
+        <label>Bulk Opacity <b id="o-val">0.60</b></label>
+        <input type="range" id="o-slider" min="0.05" max="1" step="0.01" value="0.6">
     </div>
 
-    <div class="instruction">
-        Left Click: Free Rotate (3-DOF)<br>
-        Right Click: Pan | Scroll: Zoom
+    <div class="legend">
+        <div class="legend-row"><div class="dot" style="background: #00ffff; box-shadow: 0 0 10px #00ffff;"></div> Strained Core (Cyan)</div>
+        <div class="legend-row"><div class="dot" style="background: #ff00ff;"></div> Transitory (Magenta)</div>
+        <div class="legend-row"><div class="dot" style="background: rgba(255, 200, 0, 0.4);"></div> Relaxed Bulk (Yellow)</div>
     </div>
 </div>
 
 <script>
     let scene, camera, renderer, controls, instancedMesh, headlamp;
-    let b = 0.5, opacityFocus = 1.0, mode = 'plane';
+    let b = 0.5, bulkOpacity = 0.6, mode = 'plane';
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
 
@@ -60,30 +63,31 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // TrackballControls = True 3D freedom (No Y-axis lock)
         controls = new THREE.TrackballControls(camera, renderer.domElement);
-        controls.rotateSpeed = 2.5;
-        controls.zoomSpeed = 1.2;
-        controls.panSpeed = 0.8;
-        controls.staticMoving = false;
-        controls.dynamicDampingFactor = 0.15;
+        controls.rotateSpeed = 3.0;
+        controls.dynamicDampingFactor = 0.1;
 
-        // --- LIGHTING OVERHAUL ---
-        // 1. Ambient Fill
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.6);
-        scene.add(hemiLight);
-
-        // 2. Headlamp (Camera-Attached Point Light)
-        headlamp = new THREE.PointLight(0xffffff, 1.2, 100);
+        // --- NEON LIGHTING ---
+        scene.add(new THREE.HemisphereLight(0x00ffff, 0xff00ff, 0.2));
+        headlamp = new THREE.PointLight(0xffffff, 1.5, 100);
         scene.add(headlamp);
 
-        // 3. Static Rim Light
-        const rimLight = new THREE.DirectionalLight(0x00ffff, 0.3);
-        rimLight.position.set(-10, 10, -10);
-        scene.add(rimLight);
+        // Core highlights
+        const spot = new THREE.SpotLight(0xffffff, 1);
+        spot.position.set(0, 20, 0);
+        scene.add(spot);
 
-        const geometry = new THREE.SphereGeometry(0.2, 32, 32);
-        const material = new THREE.MeshPhongMaterial({ transparent: true, shininess: 100 });
+        const geometry = new THREE.SphereGeometry(0.22, 32, 32);
+        
+        // We use a custom version of MeshPhongMaterial to support per-instance emissivity
+        // For simplicity in this script, we'll use Color and Shininess to simulate the glow
+        const material = new THREE.MeshPhongMaterial({ 
+            transparent: true, 
+            opacity: bulkOpacity,
+            shininess: 100,
+            specular: 0x555555
+        });
+
         instancedMesh = new THREE.InstancedMesh(geometry, material, 1024);
         scene.add(instancedMesh);
 
@@ -121,11 +125,19 @@
                     const rSq = posX*posX + posY*posY;
                     const strain = Math.abs(b) / (rSq + 0.5);
                     
-                    // High-contrast gradient
-                    const hue = 0.62 * (1 - Math.min(strain * 1.8, 1));
-                    color.setHSL(hue, 0.9, 0.5);
+                    // --- NEON-INDUSTRIAL COLOR MAPPING ---
+                    if (strain > 0.4) {
+                        // CORE: Electric Cyan
+                        color.setHSL(0.5, 1.0, 0.5 + (strain * 0.2)); 
+                    } else if (strain > 0.15) {
+                        // TRANSITION: Magenta
+                        color.setHSL(0.85, 1.0, 0.5);
+                    } else {
+                        // BULK: Industrial Orange/Yellow
+                        color.setHSL(0.12, 1.0, 0.4);
+                    }
+                    
                     instancedMesh.setColorAt(idx, color);
-
                     idx++;
                 }
             }
@@ -138,19 +150,17 @@
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
-        
-        // Sync headlamp to camera position
         headlamp.position.copy(camera.position);
 
         const bVal = parseFloat(document.getElementById('b-slider').value);
         const oVal = parseFloat(document.getElementById('o-slider').value);
         
-        if (b !== bVal || opacityFocus !== oVal) {
+        if (b !== bVal || bulkOpacity !== oVal) {
             b = bVal;
-            opacityFocus = oVal;
+            bulkOpacity = oVal;
             document.getElementById('b-val').innerText = b.toFixed(2);
-            document.getElementById('o-val').innerText = opacityFocus.toFixed(2);
-            instancedMesh.material.opacity = opacityFocus;
+            document.getElementById('o-val').innerText = bulkOpacity.toFixed(2);
+            instancedMesh.material.opacity = bulkOpacity;
             updateLattice();
         }
 
