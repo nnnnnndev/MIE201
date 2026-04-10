@@ -1,30 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>8x8x8 Screw Dislocation Simulator</title>
+    <title>3D Screw Dislocation - Studio Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TrackballControls.js"></script>
     <style>
         body { margin: 0; background: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(10, 10, 20, 0.9); padding: 20px; border-radius: 8px; border: 1px solid #334; width: 260px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .slider-wrap { margin: 18px 0; }
-        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #aaa; margin-bottom: 8px; }
-        label b { color: #fff; font-family: monospace; }
-        input { width: 100%; cursor: pointer; accent-color: #00ffff; }
-        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
-        button { flex: 1; padding: 10px; background: #1a1a2e; border: 1px solid #334; color: #888; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
-        button.active { background: #303050; border-color: #00ffff; color: #fff; }
-        .legend { font-size: 0.75rem; color: #666; margin-top: 15px; padding-top: 10px; border-top: 1px solid #222; line-height: 1.4; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(15, 15, 25, 0.95); padding: 25px; border-radius: 12px; border: 1px solid #445; width: 280px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        .slider-wrap { margin: 20px 0; }
+        label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #bbb; margin-bottom: 10px; font-weight: 600; }
+        label b { color: #00ffff; font-family: 'Courier New', monospace; font-size: 1.1rem; }
+        input { width: 100%; cursor: pointer; accent-color: #00ffff; height: 6px; }
+        .btn-group { display: flex; gap: 8px; margin-top: 15px; }
+        button { flex: 1; padding: 12px; background: #1a1a2e; border: 1px solid #334; color: #888; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.3s; }
+        button.active { background: #00ffff; border-color: #fff; color: #000; box-shadow: 0 0 15px rgba(0, 255, 255, 0.4); }
+        .instruction { font-size: 0.75rem; color: #667; margin-top: 15px; font-style: italic; border-top: 1px solid #223; padding-top: 10px; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-weight: 800; font-size: 1.1rem; margin-bottom: 15px; letter-spacing: 0.5px;">SCREW DISLOCATION</div>
+    <div style="font-weight: 900; font-size: 1.2rem; margin-bottom: 5px; color: #fff;">SCREW DISLOCATION</div>
+    <div style="font-size: 0.8rem; color: #667; margin-bottom: 20px;">8x8x8 Lattice Model</div>
     
     <div class="btn-group">
         <button id="mode-plane" onclick="setMode('plane')" class="active">2D Plane</button>
-        <button id="mode-cube" onclick="setMode('cube')">8x8x8 Cube</button>
+        <button id="mode-cube" onclick="setMode('cube')">3D Cube</button>
     </div>
 
     <div class="slider-wrap">
@@ -33,43 +34,56 @@
     </div>
 
     <div class="slider-wrap">
-        <label>Core Focus (Opacity) <b id="o-val">1.0</b></label>
+        <label>Core Opacity <b id="o-val">1.0</b></label>
         <input type="range" id="o-slider" min="0.05" max="1" step="0.01" value="1">
     </div>
 
-    <div class="legend">
-        <b>Strain Energy Visualization:</b><br>
-        <span style="color:#ff4444">■</span> Core High Strain ($1/r^2$)<br>
-        <span style="color:#4444ff">■</span> Bulk Low Strain
+    <div class="instruction">
+        Left Click: Free Rotate (3-DOF)<br>
+        Right Click: Pan | Scroll: Zoom
     </div>
 </div>
 
 <script>
-    let scene, camera, renderer, controls, instancedMesh;
+    let scene, camera, renderer, controls, instancedMesh, headlamp;
     let b = 0.5, opacityFocus = 1.0, mode = 'plane';
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
 
     function init() {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.set(12, 12, 12);
+        camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 15, 15);
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(5, 10, 7);
-        scene.add(light, new THREE.AmbientLight(0x202030));
+        // TrackballControls = True 3D freedom (No Y-axis lock)
+        controls = new THREE.TrackballControls(camera, renderer.domElement);
+        controls.rotateSpeed = 2.5;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.8;
+        controls.staticMoving = false;
+        controls.dynamicDampingFactor = 0.15;
 
-        const geometry = new THREE.SphereGeometry(0.18, 24, 24);
-        const material = new THREE.MeshPhongMaterial({ transparent: true, shininess: 80 });
-        // Max instances for 16x16 plane or 8x8x8 cube
+        // --- LIGHTING OVERHAUL ---
+        // 1. Ambient Fill
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.6);
+        scene.add(hemiLight);
+
+        // 2. Headlamp (Camera-Attached Point Light)
+        headlamp = new THREE.PointLight(0xffffff, 1.2, 100);
+        scene.add(headlamp);
+
+        // 3. Static Rim Light
+        const rimLight = new THREE.DirectionalLight(0x00ffff, 0.3);
+        rimLight.position.set(-10, 10, -10);
+        scene.add(rimLight);
+
+        const geometry = new THREE.SphereGeometry(0.2, 32, 32);
+        const material = new THREE.MeshPhongMaterial({ transparent: true, shininess: 100 });
         instancedMesh = new THREE.InstancedMesh(geometry, material, 1024);
         scene.add(instancedMesh);
 
@@ -97,7 +111,6 @@
                     const posY = y - offset;
                     const posZ = z - (mode === 'cube' ? offset : 0);
 
-                    // Screw Dislocation Solution: Displacement is in Z, proportional to angle
                     const theta = Math.atan2(posY, posX);
                     const uz = (b / (2 * Math.PI)) * theta;
                     
@@ -105,13 +118,12 @@
                     dummy.updateMatrix();
                     instancedMesh.setMatrixAt(idx, dummy.matrix);
 
-                    // Strain energy mapping (1/r^2 approximation)
                     const rSq = posX*posX + posY*posY;
-                    const strain = Math.abs(b) / (rSq + 0.6); // 0.6 dampens the singularity
+                    const strain = Math.abs(b) / (rSq + 0.5);
                     
-                    // Heatmap: Blue (0.66 HSL) to Red (0.0 HSL)
-                    const hue = 0.66 * (1 - Math.min(strain * 1.5, 1));
-                    color.setHSL(hue, 0.8, 0.5);
+                    // High-contrast gradient
+                    const hue = 0.62 * (1 - Math.min(strain * 1.8, 1));
+                    color.setHSL(hue, 0.9, 0.5);
                     instancedMesh.setColorAt(idx, color);
 
                     idx++;
@@ -127,6 +139,9 @@
         requestAnimationFrame(animate);
         controls.update();
         
+        // Sync headlamp to camera position
+        headlamp.position.copy(camera.position);
+
         const bVal = parseFloat(document.getElementById('b-slider').value);
         const oVal = parseFloat(document.getElementById('o-slider').value);
         
@@ -135,10 +150,6 @@
             opacityFocus = oVal;
             document.getElementById('b-val').innerText = b.toFixed(2);
             document.getElementById('o-val').innerText = opacityFocus.toFixed(2);
-            
-            // Dynamic transparency logic: high strain atoms stay visible longer
-            // We can't set individual instance opacity in basic Three.js InstancedMesh 
-            // without custom shaders, so we globalize it for now.
             instancedMesh.material.opacity = opacityFocus;
             updateLattice();
         }
@@ -150,6 +161,7 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        controls.handleResize();
     });
 
     init();
