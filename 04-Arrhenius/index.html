@@ -6,44 +6,60 @@
     <title>Arrhenius Temperature Dependence</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; }
-        #controls-panel { width: clamp(320px, 25vw, 400px); background: rgba(10, 10, 20, 0.95); border-right: 2px solid #1a1a2e; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 10; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
+        
+        #controls-panel { width: clamp(320px, 25vw, 400px); background: rgba(10, 10, 20, 0.98); border-right: 2px solid #1a1a2e; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 10; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
         #simulation-panel { flex-grow: 1; position: relative; background: #020204; }
+        
         .header-title { font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .t-btn { padding: 12px; border: 1px solid #333; background: #111; color: #666; cursor: pointer; font-size: 0.85rem; font-weight: bold; border-radius: 6px; transition: all 0.2s; }
+        
         #mat-cu.active { border-color: #ffaa00; color: #ffaa00; background: #221100; box-shadow: 0 0 10px rgba(255, 170, 0, 0.2); }
         #mat-al.active { border-color: #aaaaaa; color: #ffffff; background: #222222; box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
         #def-vac.active { border-color: #ff00ff; color: #ff00ff; background: #220022; box-shadow: 0 0 10px rgba(255, 0, 255, 0.2); }
         #def-int.active { border-color: #00ffff; color: #00ffff; background: #002222; box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); }
+        
+        #btn-pause { grid-column: span 2; margin-top: 5px; border-color: #444; color: #aaa; }
+        #btn-pause.paused { border-color: #00ff00; color: #00ff00; background: #002200; }
+
         .slider-row { margin-bottom: 25px; }
         .slider-label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #aaa; margin-bottom: 10px; font-weight: bold; }
         input[type=range] { width: 100%; accent-color: #777; height: 6px; cursor: pointer; }
+
         .math-box { background: #000; border: 1px solid #222; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
         .equation { font-family: 'Courier New', Courier, monospace; font-size: 1.2rem; text-align: center; margin-bottom: 15px; color: #fff; }
         .temp-var { font-weight: bold; transition: color 0.1s; }
+        
         .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; border-bottom: 1px dashed #222; padding-bottom: 4px; }
         .data-val { font-weight: bold; font-family: monospace; font-size: 0.95rem; }
         .metric-highlight { color: #fff; font-weight: bold; font-size: 0.9rem; margin-top: 15px; border: none; }
+
+        /* Relocated stacking text */
+        .info-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid #222; font-size: 0.8rem; color: #555; line-height: 1.5; }
+        .info-footer b { color: #888; transition: color 0.3s; }
+
         #lattice-canvas { display: block; width: 100%; height: 100%; }
-        .overlay-text { position: absolute; bottom: 20px; right: 20px; font-size: 0.85rem; color: #555; text-align: right; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="controls-panel">
     <div class="header-title">Arrhenius Temp. Dependence</div>
+    
     <div class="mode-grid">
         <button id="mat-cu" class="t-btn active" onclick="setMaterial('cu')">Copper (Cu)</button>
         <button id="mat-al" class="t-btn" onclick="setMaterial('al')">Aluminum (Al)</button>
-    </div>
-    <div class="mode-grid">
         <button id="def-vac" class="t-btn active" onclick="setDefect('vac')">Vacancies</button>
         <button id="def-int" class="t-btn" onclick="setDefect('int')">Interstitials</button>
+        <button id="btn-pause" class="t-btn" onclick="togglePause()"><span>||</span> Pause Simulation</button>
     </div>
+
     <div class="slider-row">
         <div class="slider-label">Temperature (K) <span id="val-temp" style="color:#fff;">300 K</span></div>
         <input type="range" id="in-temp" min="300" max="1350" step="10" value="300" oninput="updateSimulation()">
     </div>
+
     <div class="math-box">
         <div class="equation">N<sub>d</sub> = N &middot; exp(-Q / k<span id="eq-T" class="temp-var">T</span>)</div>
         <div class="data-row"><span>Activation Energy (Q):</span> <span id="out-q" class="data-val">0.90 eV</span></div>
@@ -55,14 +71,16 @@
             <span>Atoms in Viewport (N):</span> <span id="out-n" class="data-val" style="color:#888;">0</span>
         </div>
     </div>
+
+    <div class="info-footer">
+        Lattice Configuration:<br>
+        <b>FCC (111) Plane Side Profile</b><br>
+        Current Sequence: <b id="abc-label" style="color:#ffaa00;">ABC Stacking</b>
+    </div>
 </div>
 
 <div id="simulation-panel">
     <canvas id="lattice-canvas"></canvas>
-    <div class="overlay-text">
-        FCC (111) Plane Side Profile<br>
-        Showing <b id="abc-label" style="color:#ffaa00;">ABC</b> Stacking Sequence
-    </div>
 </div>
 
 <script>
@@ -74,7 +92,7 @@
         al: { hex: '#888899', ui: '#ffffff', Q_vac: 0.67, Q_int: 2.20 }
     };
     
-    let currentMat = 'cu', currentDef = 'vac', T = 300;
+    let currentMat = 'cu', currentDef = 'vac', T = 300, isPaused = false;
     const R = 4.5, spacingX = R * 2.2, spacingY = R * 1.9;
     let latticeSites = [], interstitialSites = [], defectList = [], defectMap = new Set();
     let lastUpdate = 0;
@@ -85,6 +103,14 @@
         generateSites();
         updateSimulation();
         requestAnimationFrame(animate);
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        const btn = document.getElementById('btn-pause');
+        btn.classList.toggle('paused', isPaused);
+        btn.querySelector('span').innerText = isPaused ? '▶' : '||';
+        btn.querySelector('span').nextSibling.textContent = isPaused ? ' Resume Simulation' : ' Pause Simulation';
     }
 
     function setMaterial(m) { currentMat = m; document.querySelectorAll('#mat-cu, #mat-al').forEach(b => b.classList.toggle('active', b.id === 'mat-'+m)); document.getElementById('abc-label').style.color = materials[m].ui; updateSimulation(); }
@@ -98,7 +124,7 @@
         document.getElementById('out-q').style.color = currentDef === 'vac' ? '#ff00ff' : '#00ffff';
         document.getElementById('out-frac').innerText = Math.exp(-Q/(k*T)).toExponential(2);
         document.getElementById('out-frac').style.color = currentDef === 'vac' ? '#ff00ff' : '#00ffff';
-        lastUpdate = 0;
+        if (!isPaused) lastUpdate = 0; // Trigger instant refresh on slider move
     }
 
     function generateSites() {
@@ -117,7 +143,9 @@
 
     function animate(ts) {
         requestAnimationFrame(animate);
-        if (ts - lastUpdate > 120) {
+        
+        // Only recalculate defects if not paused
+        if (!isPaused && (ts - lastUpdate > 120)) {
             defectMap.clear(); defectList = [];
             const Q_vis = materials[currentMat][currentDef==='vac'?'Q_vac':'Q_int'] * 0.45;
             let p = Math.min(Math.exp(-Q_vis/(k*T)), 0.015);
@@ -130,13 +158,13 @@
                 }
             });
             
-            // Apply Dilation logic: Reset all sites first
+            // Apply Local Dilation
             latticeSites.forEach(s => { s.x = s.origX; s.y = s.origY; });
             if (currentDef === 'int') {
                 defectList.forEach(d => {
                     latticeSites.forEach(s => {
                         let dist = Math.hypot(s.x - d.x, s.y - d.y);
-                        if (dist < R * 2.5) { // Immediate neighbors
+                        if (dist < R * 2.5) { 
                             let ang = Math.atan2(s.y - d.y, s.x - d.x);
                             s.x += Math.cos(ang) * (R * 0.5);
                             s.y += Math.sin(ang) * (R * 0.5);
@@ -151,7 +179,6 @@
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Batch draw lattice
         ctx.fillStyle = materials[currentMat].hex;
         ctx.beginPath();
         latticeSites.forEach(s => {
@@ -160,14 +187,12 @@
         });
         ctx.fill();
 
-        // Draw Defects
         defectList.forEach(s => {
             ctx.beginPath();
             if (currentDef === 'vac') {
                 ctx.fillStyle = 'rgba(255, 0, 255, 0.3)'; ctx.arc(s.x, s.y, R, 0, Math.PI*2); ctx.fill();
                 ctx.strokeStyle = '#ff00ff'; ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]);
             } else {
-                // White flash for interstitial tracking
                 let grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, R * 0.8);
                 grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.4, '#00ffff'); grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
                 ctx.fillStyle = grad; ctx.arc(s.x, s.y, R * 0.8, 0, Math.PI*2); ctx.fill();
