@@ -1,147 +1,288 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>3D Screw Dislocation - Neon Industrial</title>
+    <meta charset="utf-8">
+    <title>2D Defect Module</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TrackballControls.js"></script>
     <style>
         body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(5, 5, 15, 0.95); padding: 25px; border-radius: 12px; border: 1px solid #00ffff; width: 280px; z-index: 100; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); }
-        .slider-wrap { margin: 20px 0; }
-        label { display: flex; justify-content: space-between; font-size: 0.9rem; color: #00ffff; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(5, 5, 15, 0.95); padding: 25px; border-radius: 12px; border: 1px solid #00ffff; width: 300px; z-index: 100; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); display: flex; flex-direction: column; max-height: 90vh; overflow-y: auto; }
+        
+        .header { font-weight: 900; font-size: 1.4rem; margin-bottom: 5px; color: #fff; letter-spacing: -0.5px; text-transform: uppercase; }
+        .sub-header { font-size: 0.75rem; color: #00ffff; margin-bottom: 20px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a1a3a; padding-bottom: 10px;}
+        
+        .nav-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .mode-btn { padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.3s; text-align: left; font-size: 0.9rem; }
+        .mode-btn.active { background: #002222; border-color: #00ffff; color: #00ffff; box-shadow: 0 0 10px rgba(0, 255, 255, 0.3); }
+
+        .slider-wrap { margin: 15px 0; }
+        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #00ffff; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
         label b { color: #fff; font-family: 'Courier New', monospace; }
-        input { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 6px; }
-        .btn-group { display: flex; gap: 8px; margin-top: 15px; }
-        button { flex: 1; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.3s; }
-        button.active { background: #ff00ff; border-color: #fff; color: #fff; box-shadow: 0 0 15px rgba(255, 0, 255, 0.5); }
-        .legend { font-size: 0.75rem; color: #667; margin-top: 20px; border-top: 1px solid #1a1a3a; padding-top: 15px; }
-        .legend-row { display: flex; align-items: center; margin-bottom: 5px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 6px; }
+        
+        #btn-step { width: 100%; padding: 12px; background: #ff00ff; border: none; color: #fff; cursor: pointer; border-radius: 6px; font-weight: 900; transition: 0.2s; margin-bottom: 15px; letter-spacing: 1px; display: none; }
+        #btn-step:active { transform: scale(0.98); background: #cc00cc; }
+
+        .legend { font-size: 0.75rem; color: #667; margin-top: 10px; border-top: 1px solid #1a1a3a; padding-top: 15px; line-height: 1.6; }
+        .legend-row { display: flex; align-items: center; margin-bottom: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; flex-shrink: 0; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-weight: 900; font-size: 1.4rem; margin-bottom: 5px; color: #fff; letter-spacing: -0.5px;">Screw Dislocation Sim</div>
-    <div style="font-size: 0.75rem; color: #00ffff; margin-bottom: 20px; opacity: 0.8;">1-D Defects</div>
+    <div class="header">Crystalline Defects</div>
+    <div class="sub-header">Unified Visualizer</div>
     
-    <div class="btn-group">
-        <button id="mode-plane" onclick="setMode('plane')" class="active">2D</button>
-        <button id="mode-cube" onclick="setMode('cube')">8x8x8</button>
+    <div class="nav-group">
+        <button id="btn-screw" class="mode-btn active" onclick="setMode('screw')">1. Screw Dislocation (3D)</button>
+        <button id="btn-edge" class="mode-btn" onclick="setMode('edge')">2. Edge Slip (2D)</button>
+        <button id="btn-fault" class="mode-btn" onclick="setMode('fault')">3. Stacking Fault (Top)</button>
+    </div>
+
+    <button id="btn-step" onclick="stepSlip()">▶ STEP SLIP PLANE</button>
+
+    <div class="slider-wrap" id="wrap-screw">
+        <label>Displacement (b) <b id="val-b">0.50</b></label>
+        <input type="range" id="in-b" min="0" max="2" step="0.01" value="0.5" oninput="updateParams()">
+    </div>
+
+    <div class="slider-wrap" id="wrap-fault" style="display:none;">
+        <label>Ribbon Width <b id="val-w">3.0</b></label>
+        <input type="range" id="in-w" min="1" max="6" step="0.2" value="3.0" oninput="updateParams()">
     </div>
 
     <div class="slider-wrap">
-        <label>Displacement (b) <b id="b-val">0.50</b></label>
-        <input type="range" id="b-slider" min="0" max="2" step="0.01" value="0.5">
+        <label>Bulk Opacity <b id="val-o">0.60</b></label>
+        <input type="range" id="in-o" min="0.05" max="1" step="0.01" value="0.6" oninput="updateParams()">
     </div>
 
-    <div class="slider-wrap">
-        <label>Bulk Opacity <b id="o-val">0.60</b></label>
-        <input type="range" id="o-slider" min="0.05" max="1" step="0.01" value="0.6">
-    </div>
-
-    <div class="legend">
-        <div class="legend-row"><div class="dot" style="background: #00ffff; box-shadow: 0 0 10px #00ffff;"></div> Strained Core (Cyan)</div>
-        <div class="legend-row"><div class="dot" style="background: #ff00ff;"></div> Transitory (Magenta)</div>
-        <div class="legend-row"><div class="dot" style="background: rgba(255, 200, 0, 0.4);"></div> Relaxed Bulk (Yellow)</div>
+    <div class="legend" id="legend-text">
+        <div class="legend-row"><div class="dot" style="background: #00ffff; box-shadow: 0 0 8px #00ffff;"></div> <span id="leg-1">Strained Core (Cyan)</span></div>
+        <div class="legend-row"><div class="dot" style="background: #ff00ff;"></div> <span id="leg-2">Transitory (Magenta)</span></div>
+        <div class="legend-row"><div class="dot" style="background: rgba(255, 170, 0, 0.8);"></div> <span id="leg-3">Relaxed Bulk (Orange)</span></div>
     </div>
 </div>
 
 <script>
     let scene, camera, renderer, controls, instancedMesh, headlamp;
-    let b = 0.5, bulkOpacity = 0.6, mode = 'plane';
+    
+    // State Variables
+    let currentMode = 'screw';
+    let b = 0.5, bulkOpacity = 0.6, ribbonWidth = 3.0, slipPos = 0;
+    
+    // Performance Objects
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
+    const maxInstances = 2000;
 
     function init() {
+        // Scene Setup
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.set(15, 15, 15);
-
+        camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
+        // Trackball Controls
         controls = new THREE.TrackballControls(camera, renderer.domElement);
         controls.rotateSpeed = 3.0;
         controls.dynamicDampingFactor = 0.1;
 
-        // --- NEON LIGHTING ---
+        // Lighting (Neon Studio)
         scene.add(new THREE.HemisphereLight(0x00ffff, 0xff00ff, 0.2));
         headlamp = new THREE.PointLight(0xffffff, 1.5, 100);
         scene.add(headlamp);
-
-        // Core highlights
         const spot = new THREE.SpotLight(0xffffff, 1);
         spot.position.set(0, 20, 0);
         scene.add(spot);
 
+        // Instanced Mesh
         const geometry = new THREE.SphereGeometry(0.22, 32, 32);
-        
-        // We use a custom version of MeshPhongMaterial to support per-instance emissivity
-        // For simplicity in this script, we'll use Color and Shininess to simulate the glow
         const material = new THREE.MeshPhongMaterial({ 
             transparent: true, 
             opacity: bulkOpacity,
             shininess: 100,
             specular: 0x555555
         });
-
-        instancedMesh = new THREE.InstancedMesh(geometry, material, 1024);
+        instancedMesh = new THREE.InstancedMesh(geometry, material, maxInstances);
         scene.add(instancedMesh);
 
-        updateLattice();
+        setMode('screw');
         animate();
     }
 
     function setMode(m) {
-        mode = m;
-        document.getElementById('mode-plane').className = m === 'plane' ? 'active' : '';
-        document.getElementById('mode-cube').className = m === 'cube' ? 'active' : '';
+        currentMode = m;
+        
+        // Update UI Buttons
+        document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('btn-' + m).classList.add('active');
+        
+        // Show/Hide Contextual UI
+        document.getElementById('wrap-screw').style.display = (m === 'screw') ? 'block' : 'none';
+        document.getElementById('wrap-fault').style.display = (m === 'fault') ? 'block' : 'none';
+        document.getElementById('btn-step').style.display = (m === 'edge') ? 'block' : 'none';
+
+        // Camera Positioning & Legend Updates
+        if (m === 'screw') {
+            camera.position.set(15, 15, 15);
+            controls.target.set(0,0,0);
+            updateLegend('Strained Core (Cyan)', 'Transitory (Magenta)', 'Relaxed Bulk (Yellow)');
+        } else if (m === 'edge') {
+            camera.position.set(0, 0, 16);
+            controls.target.set(0,0,0);
+            updateLegend('Extra Half-Plane (Cyan)', 'Breaking Bonds (Magenta)', 'Stable Lattice (Yellow)');
+        } else if (m === 'fault') {
+            camera.position.set(0, 18, 0.1); // Top-down view
+            controls.target.set(0,0,0);
+            updateLegend('Layer A-Fault (Cyan)', 'Valid Layer C (Yellow)', '<span style="color:#ff0000">Red Pulse: Invalid Geometry</span>');
+        }
+        
+        updateLattice();
+    }
+
+    function updateLegend(l1, l2, l3) {
+        document.getElementById('leg-1').innerHTML = l1;
+        document.getElementById('leg-2').innerHTML = l2;
+        document.getElementById('leg-3').innerHTML = l3;
+    }
+
+    function updateParams() {
+        b = parseFloat(document.getElementById('in-b').value);
+        ribbonWidth = parseFloat(document.getElementById('in-w').value);
+        bulkOpacity = parseFloat(document.getElementById('in-o').value);
+        
+        document.getElementById('val-b').innerText = b.toFixed(2);
+        document.getElementById('val-w').innerText = ribbonWidth.toFixed(1);
+        document.getElementById('val-o').innerText = bulkOpacity.toFixed(2);
+        
+        instancedMesh.material.opacity = bulkOpacity;
+        updateLattice();
+    }
+
+    function stepSlip() {
+        slipPos = (slipPos + 1) % 12; // Wrap around after 12 steps
         updateLattice();
     }
 
     function updateLattice() {
         let idx = 0;
-        const size = mode === 'cube' ? 8 : 16;
-        const offset = (size - 1) / 2;
 
-        for (let x = 0; x < size; x++) {
-            for (let y = 0; y < size; y++) {
-                const zLayers = mode === 'cube' ? 8 : 1;
-                for (let z = 0; z < zLayers; z++) {
-                    const posX = x - offset;
-                    const posY = y - offset;
-                    const posZ = z - (mode === 'cube' ? offset : 0);
+        if (currentMode === 'screw') {
+            // --- 8x8x8 SCREW LATTICE ---
+            const size = 8;
+            const offset = (size - 1) / 2;
 
-                    const theta = Math.atan2(posY, posX);
-                    const uz = (b / (2 * Math.PI)) * theta;
+            for (let x = 0; x < size; x++) {
+                for (let y = 0; y < size; y++) {
+                    for (let z = 0; z < size; z++) {
+                        const posX = x - offset;
+                        const posY = y - offset;
+                        const posZ = z - offset;
+
+                        const theta = Math.atan2(posY, posX);
+                        const uz = (b / (2 * Math.PI)) * theta;
+                        
+                        dummy.position.set(posX, posY, posZ + uz);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(idx, dummy.matrix);
+
+                        const rSq = posX*posX + posY*posY;
+                        const strain = Math.abs(b) / (rSq + 0.5);
+                        
+                        // Neon Color Mapping
+                        if (strain > 0.4) color.setHSL(0.5, 1.0, 0.5 + (strain * 0.2)); // Cyan Core
+                        else if (strain > 0.15) color.setHSL(0.85, 1.0, 0.5); // Magenta Transition
+                        else color.setHSL(0.12, 1.0, 0.4); // Yellow/Orange Bulk
+                        
+                        instancedMesh.setColorAt(idx++, color);
+                    }
+                }
+            }
+
+        } else if (currentMode === 'edge') {
+            // --- 2D EDGE SLIP LATTICE ---
+            const rows = 10, cols = 14;
+            const offsetX = (cols-1)/2, offsetY = (rows-1)/2;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let pX = c - offsetX + (r % 2) * 0.5;
+                    let pY = r - offsetY;
                     
-                    dummy.position.set(posX, posY, posZ + uz);
+                    // Top half shears based on slipPos
+                    if (r >= 5 && c >= slipPos) pX += 0.5;
+
+                    dummy.position.set(pX, pY, 0);
                     dummy.updateMatrix();
                     instancedMesh.setMatrixAt(idx, dummy.matrix);
 
-                    const rSq = posX*posX + posY*posY;
-                    const strain = Math.abs(b) / (rSq + 0.5);
+                    const isExtra = (r >= 5 && c === slipPos);
+                    const isCore = (Math.abs(c - slipPos) < 1.5 && Math.abs(r - 5) < 1.5);
                     
-                    // --- NEON-INDUSTRIAL COLOR MAPPING ---
-                    if (strain > 0.4) {
-                        // CORE: Electric Cyan
-                        color.setHSL(0.5, 1.0, 0.5 + (strain * 0.2)); 
-                    } else if (strain > 0.15) {
-                        // TRANSITION: Magenta
-                        color.setHSL(0.85, 1.0, 0.5);
-                    } else {
-                        // BULK: Industrial Orange/Yellow
-                        color.setHSL(0.12, 1.0, 0.4);
+                    if (isExtra) color.setHex(0x00ffff); // Cyan Extra Plane
+                    else if (isCore) color.setHex(0xff00ff); // Magenta Breaking Bonds
+                    else color.setHex(0xffaa00); // Yellow/Orange Bulk
+                    
+                    instancedMesh.setColorAt(idx++, color);
+                }
+            }
+
+        } else if (currentMode === 'fault') {
+            // --- TOP-DOWN STACKING FAULT LATTICE ---
+            const rows = 12, cols = 12;
+            const offX = 0.5, offBX = 0.5, offBY = 0.288; 
+            const spacing = 1.0, spacingY = 0.866;
+            
+            // Build 3 Layers: A (Z=-1), B (Z=0), C/A_fault (Z=1)
+            for (let layer = 0; layer < 3; layer++) {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        let ax = c * spacing + (r % 2) * offX - 6;
+                        let ay = r * spacingY - 5;
+                        let zPos = layer - 1;
+
+                        if (layer === 0) {
+                            // Layer A
+                            dummy.position.set(ax, ay, zPos);
+                            color.setHex(0x008888); // Dim Cyan
+                        } else if (layer === 1) {
+                            // Layer B
+                            dummy.position.set(ax + offBX, ay + offBY, zPos);
+                            color.setHex(0x880088); // Dim Magenta
+                        } else if (layer === 2) {
+                            // Layer C (Top) -> Split into C and A_fault
+                            let cx = ax - offBX;
+                            let cy = ay - offBY;
+                            
+                            const isLeft = cx < -(ribbonWidth / 2);
+                            const isRight = cx > (ribbonWidth / 2);
+
+                            if (isLeft) {
+                                dummy.position.set(cx, cy, zPos);
+                                color.setHex(0xffff00); // Valid C Layer (Yellow)
+                            } else if (isRight) {
+                                dummy.position.set(ax, ay, zPos); // Faults back to A coordinates
+                                color.setHex(0x00ffff); // A-Fault Layer (Cyan)
+                            } else {
+                                // Ribbon Zone: Place placeholder geometry that we will pulse in animate()
+                                dummy.position.set((cx + ax)/2, (cy + ay)/2, zPos);
+                                color.setHex(0xff0000); // Ribbon Voids (Red)
+                            }
+                        }
+
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(idx, dummy.matrix);
+                        instancedMesh.setColorAt(idx++, color);
                     }
-                    
-                    instancedMesh.setColorAt(idx, color);
-                    idx++;
                 }
             }
         }
+
         instancedMesh.count = idx;
         instancedMesh.instanceMatrix.needsUpdate = true;
         if(instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
@@ -152,16 +293,33 @@
         controls.update();
         headlamp.position.copy(camera.position);
 
-        const bVal = parseFloat(document.getElementById('b-slider').value);
-        const oVal = parseFloat(document.getElementById('o-slider').value);
-        
-        if (b !== bVal || bulkOpacity !== oVal) {
-            b = bVal;
-            bulkOpacity = oVal;
-            document.getElementById('b-val').innerText = b.toFixed(2);
-            document.getElementById('o-val').innerText = bulkOpacity.toFixed(2);
-            instancedMesh.material.opacity = bulkOpacity;
-            updateLattice();
+        // Pulse the red ribbon voids in Fault Mode
+        if (currentMode === 'fault') {
+            const time = Date.now() * 0.005;
+            const pulse = 0.4 + Math.sin(time) * 0.4; // oscillates between 0.0 and 0.8
+            
+            // Re-apply colors to Layer 3 (indexes start after Layer A and B)
+            const rows = 12, cols = 12;
+            const startIdx = rows * cols * 2; 
+            
+            for (let i = 0; i < rows * cols; i++) {
+                const idx = startIdx + i;
+                const r = Math.floor(i / cols);
+                const c = i % cols;
+                
+                let ax = c * 1.0 + (r % 2) * 0.5 - 6;
+                let cx = ax - 0.5;
+
+                const isLeft = cx < -(ribbonWidth / 2);
+                const isRight = cx > (ribbonWidth / 2);
+
+                if (!isLeft && !isRight) {
+                    // It's a ribbon void, pulse it
+                    color.setRGB(1, pulse * 0.2, pulse * 0.2); 
+                    instancedMesh.setColorAt(idx, color);
+                }
+            }
+            instancedMesh.instanceColor.needsUpdate = true;
         }
 
         renderer.render(scene, camera);
