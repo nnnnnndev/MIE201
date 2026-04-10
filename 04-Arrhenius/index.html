@@ -10,7 +10,7 @@
         #controls-panel { width: clamp(300px, 25vw, 400px); background: rgba(10, 10, 20, 0.95); border-right: 2px solid #1a1a2e; display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 10; box-shadow: 2px 0 15px rgba(0,0,0,0.5); }
         #simulation-panel { flex-grow: 1; position: relative; display: flex; justify-content: center; align-items: center; }
         
-        .header-title { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .header-title { font-size: 1.2rem; font-weight: 800; color: #fff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 8px; }
         
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .t-btn { padding: 12px; border: 1px solid #333; background: #111; color: #888; cursor: pointer; font-size: 0.85rem; font-weight: bold; border-radius: 6px; transition: 0.2s; }
@@ -27,7 +27,7 @@
         
         .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; color: #aaa; border-bottom: 1px dashed #222; padding-bottom: 4px; }
         .data-val { color: #00ffff; font-weight: bold; font-family: monospace; font-size: 0.95rem; }
-        .data-val.fraction { color: #ff00ff; }
+        .data-val.fraction { color: #ffaa00; }
 
         #lattice-canvas { background: #050508; }
         
@@ -38,7 +38,7 @@
 <body>
 
 <div id="controls-panel">
-    <div class="header-title">Thermodynamics</div>
+    <div class="header-title">Arrhenius Temperature Dependence</div>
     
     <div class="mode-grid">
         <button id="mat-cu" class="t-btn material active" onclick="setMaterial('cu')">Copper (Cu)</button>
@@ -68,7 +68,7 @@
 
 <div id="simulation-panel">
     <canvas id="lattice-canvas"></canvas>
-    <div class="overlay-text">
+    <div class="overlay-text" id="structure-label">
         FCC (111) Plane Side Profile<br>
         Showing <b>ABC</b> Stacking Sequence
     </div>
@@ -81,8 +81,8 @@
     // Physics Constants
     const k = 8.617e-5; // eV/K
     const materials = {
-        cu: { name: "Copper", Q_vac: 0.90, Q_int: 3.00 },
-        al: { name: "Aluminum", Q_vac: 0.67, Q_int: 2.20 }
+        cu: { name: "Copper", Q_vac: 0.90, Q_int: 3.00, color: ['#ffcc55', '#aa5500'], stroke: '#ffaa00', glow: 'rgba(255, 170, 0, 0.4)' },
+        al: { name: "Aluminum", Q_vac: 0.67, Q_int: 2.20, color: ['#ffffff', '#888888'], stroke: '#dddddd', glow: 'rgba(200, 200, 255, 0.3)' }
     };
     
     // State
@@ -93,14 +93,14 @@
     // Grid Setup
     const rows = 18;
     const cols = 22;
-    const R = 14; // Atom radius
+    const R = 14; 
     let latticeSites = [];
     let interstitialSites = [];
     let defectMap = new Set();
     
     // Timer for dynamic shimmer
     let lastUpdate = 0;
-    const shimmerRate = 150; // ms between recalculating defect positions
+    const shimmerRate = 150; 
 
     function init() {
         resizeCanvas();
@@ -114,13 +114,18 @@
         const panel = document.getElementById('simulation-panel');
         canvas.width = panel.clientWidth;
         canvas.height = panel.clientHeight;
-        generateSites(); // Re-center on resize
+        generateSites();
     }
 
     function setMaterial(mat) {
         currentMat = mat;
         document.querySelectorAll('.t-btn.material').forEach(b => b.classList.remove('active'));
         document.getElementById('mat-' + mat).classList.add('active');
+        
+        // Update overlay text color to match material
+        const labelB = document.querySelector('#structure-label b');
+        labelB.style.color = mat === 'cu' ? '#ffaa00' : '#aaaaaa';
+        
         updateSimulation();
     }
 
@@ -135,7 +140,7 @@
         T = parseInt(document.getElementById('in-temp').value);
         document.getElementById('val-temp').innerText = T + " K";
         
-        // Update T color based on heat
+        // Interpolate T color from Blue (cold) to Red (hot)
         const ratio = (T - 300) / (1350 - 300);
         const rColor = Math.floor(ratio * 255);
         const bColor = Math.floor((1 - ratio) * 255);
@@ -147,18 +152,19 @@
         
         const trueFraction = Math.exp(-Q / (k * T));
         document.getElementById('out-frac').innerText = trueFraction.toExponential(2);
+        
+        // Update true fraction color based on material
+        document.getElementById('out-frac').style.color = currentMat === 'cu' ? '#ffaa00' : '#ffffff';
 
-        // Force an immediate refresh of defects
         lastUpdate = 0; 
     }
 
-    // Generate the geometric coordinates for the ABC Stacking
     function generateSites() {
         latticeSites = [];
         interstitialSites = [];
         
         const spacingX = R * 2.2; 
-        const spacingY = R * 1.9; // approx R * sqrt(3)
+        const spacingY = R * 1.9; 
         
         const totalW = cols * spacingX;
         const totalH = rows * spacingY;
@@ -166,7 +172,7 @@
         const startY = (canvas.height - totalH) / 2;
 
         for (let row = 0; row < rows; row++) {
-            // ABC Stacking horizontal offset logic (0, 0.33, 0.66 repeat)
+            // ABC Stacking horizontal shift
             const stackShift = (row % 3) * (spacingX / 3);
             
             for (let col = 0; col < cols; col++) {
@@ -174,7 +180,6 @@
                 const y = startY + row * spacingY;
                 latticeSites.push({x, y, id: row + "-" + col});
                 
-                // Add an interstitial void location (roughly between layers)
                 if (row < rows - 1 && col < cols - 1) {
                     interstitialSites.push({
                         x: x + spacingX * 0.5, 
@@ -187,22 +192,15 @@
     }
 
     function calculateVisualProbability() {
-        // Pedagogical Scaling: True math yields ~0% visually. 
-        // We use a scaled down "Visual Q" to guarantee ~15% defects at max temp.
         const Q_true = materials[currentMat][currentDef === 'vac' ? 'Q_vac' : 'Q_int'];
-        
-        // Base visual scalar so Q=0.67 reaches ~15% at 1350K
         const visualQ = Q_true * 0.25; 
         let pVis = Math.exp(-visualQ / (k * T));
-        
-        // Hard cap to prevent the lattice from completely dissolving
         return Math.min(pVis, 0.20); 
     }
 
     function animate(timestamp) {
         requestAnimationFrame(animate);
 
-        // Update the random distribution of defects based on the shimmer rate
         if (timestamp - lastUpdate > shimmerRate) {
             defectMap.clear();
             const pVis = calculateVisualProbability();
@@ -222,41 +220,63 @@
     function drawLattice() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        const matProps = materials[currentMat];
+
         // Draw main lattice
         latticeSites.forEach(site => {
-            // If it's a vacancy mode and this site is selected, skip drawing completely
-            if (currentDef === 'vac' && defectMap.has(site.id)) return;
+            const isDefect = defectMap.has(site.id);
 
-            // Draw standard Orange FCC atom
+            // Draw Vacancy (15% Magenta with Dashed Outline)
+            if (currentDef === 'vac' && isDefect) {
+                ctx.beginPath();
+                ctx.arc(site.x, site.y, R, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 0, 255, 0.15)';
+                ctx.fill();
+                
+                ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 3]);
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset dash
+                return;
+            }
+
+            // Draw Standard Atom
             ctx.beginPath();
             ctx.arc(site.x, site.y, R, 0, Math.PI * 2);
             
-            // Neon industrial shading
             const gradient = ctx.createRadialGradient(site.x - R*0.3, site.y - R*0.3, R*0.1, site.x, site.y, R);
-            gradient.addColorStop(0, '#ffcc55');
-            gradient.addColorStop(1, '#aa5500');
+            gradient.addColorStop(0, matProps.color[0]);
+            gradient.addColorStop(1, matProps.color[1]);
             
             ctx.fillStyle = gradient;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = matProps.glow;
             ctx.fill();
-            ctx.strokeStyle = '#ffaa00';
+            
+            ctx.shadowBlur = 0; // Reset shadow for stroke
+            ctx.strokeStyle = matProps.stroke;
             ctx.lineWidth = 1;
             ctx.stroke();
         });
 
-        // Draw Interstitials if active
+        // Draw Interstitials (Cyan)
         if (currentDef === 'int') {
             interstitialSites.forEach(site => {
                 if (defectMap.has(site.id)) {
                     ctx.beginPath();
-                    ctx.arc(site.x, site.y, R * 0.65, 0, Math.PI * 2); // Smaller squeezed atom
+                    ctx.arc(site.x, site.y, R * 0.65, 0, Math.PI * 2); 
                     
-                    // Cyan color to stand out as an interstitial impurity/self-interstitial
                     const gradient = ctx.createRadialGradient(site.x - R*0.2, site.y - R*0.2, R*0.05, site.x, site.y, R*0.65);
-                    gradient.addColorStop(0, '#55ffff');
-                    gradient.addColorStop(1, '#008888');
+                    gradient.addColorStop(0, '#aaffff');
+                    gradient.addColorStop(1, '#00aaaa');
                     
                     ctx.fillStyle = gradient;
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = '#00ffff';
                     ctx.fill();
+                    
+                    ctx.shadowBlur = 0;
                     ctx.strokeStyle = '#00ffff';
                     ctx.lineWidth = 1;
                     ctx.stroke();
@@ -264,6 +284,9 @@
             });
         }
     }
+
+    // THE MISSING TRIGGER!
+    window.onload = init;
 </script>
 </body>
 </html>
