@@ -44,11 +44,10 @@
         }
         .remember-box strong { color: #ff8c00; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; }
         .math-text { font-family: 'Courier New', monospace; color: #ff8c00; display: block; margin: 6px 0; font-weight: bold; background: #000; padding: 6px; border-radius: 4px; text-align: center; border: 1px solid #331a00;}
-        .highlight { color: #fff; font-weight: bold; }
         
         #main-content { flex-grow: 1; display: flex; flex-direction: column; background: #05050a; }
-        #canvas-wrap { flex: 3; position: relative; border-bottom: 1px solid #1a1a3a; }
-        #graph-wrap { flex: 2; padding: 20px; box-sizing: border-box; background: #020205; }
+        #canvas-wrap { flex: 4; position: relative; border-bottom: 1px solid #1a1a3a; }
+        #graph-wrap { flex: 1.5; padding: 15px 30px; box-sizing: border-box; background: #020205; }
         canvas { display: block; width: 100%; height: 100%; }
     </style>
 </head>
@@ -75,10 +74,10 @@
     <div class="slider-wrap">
         <label>Simulation Speed Scaling</label>
         <select id="boost-select">
-            <option value="2.5">2,500x Base</option>
-            <option value="25">25,000x Base</option>
-            <option value="125">125,000x Base</option>
-            <option value="250" selected>250,000x (Simulation Mode)</option>
+            <option value="1">2,500x Base</option>
+            <option value="4">25,000x Base</option>
+            <option value="12">125,000x Base</option>
+            <option value="25" selected>250,000x (Simulation Mode)</option>
         </select>
     </div>
 
@@ -90,16 +89,16 @@
         Vacancy concentration ($N_v$) increases exponentially with temperature:
         <span class="math-text">N<sub>v</sub> = N exp(-Q<sub>v</sub> / kT)</span>
         
-        Diffusion ($D$) also relies on $T$ for the atomic "jump" itself:
+        The overall Diffusion Coefficient ($D$):
         <span class="math-text">D = D₀ exp(-Q / RT)</span>
         
         <br>
-        <span class="highlight">Activation Energy (Q) Summary:</span><br>
-        For <b>Interstitials</b> (Cyan), sites are always available. It only needs energy to move:
-        <span class="math-text">Q<sub>total</sub> = Q<sub>migration</sub></span>
+        <strong>Activation Energy ($Q$):</strong><br>
+        <b>Interstitials:</b> Only migration energy.
+        <span class="math-text">Q<sub>total</sub> = Q<sub>m</sub></span>
         
-        For <b>Self-Diffusion</b> (Orange), you must first <i>form</i> the vacancy, then move into it:
-        <span class="math-text">Q<sub>total</sub> = Q<sub>vacancy</sub> + Q<sub>migration</sub></span>
+        <b>Self-Diffusion:</b> Formation + Migration.
+        <span class="math-text">Q<sub>total</sub> = Q<sub>v</sub> + Q<sub>m</sub></span>
     </div>
 </div>
 
@@ -136,7 +135,7 @@
         document.getElementById('in-t').oninput = (e) => {
             T = parseInt(e.target.value);
             document.getElementById('disp-t').innerText = T;
-            updateVacancyConcentration(); // Update count on slider move
+            updateVacancyConcentration(); 
         };
         resize();
         initChart();
@@ -158,22 +157,18 @@
     }
 
     function updateVacancyConcentration() {
-        // Simplified exponential scaling for N_v visualization
-        // At 600K ~ 4 vacancies, at 1600K ~ 35 vacancies
+        // Exponential scaling for visual vacancy count
         const baseN = 4;
         const targetN = Math.floor(baseN * Math.exp(0.0022 * (T - 600)));
         
         while (vacancies.length < targetN) {
             let nc = Math.floor(Math.random() * gridCols);
             let nr = Math.floor(Math.random() * gridRows);
-            // Ensure we don't place a vacancy on the tracer's spot or an existing vacancy
             if ((nc !== vacTracer.c || nr !== vacTracer.r) && !vacancies.find(v => v.c === nc && v.r === nr)) {
                 vacancies.push({ c: nc, r: nr });
             }
         }
-        while (vacancies.length > targetN) {
-            vacancies.pop();
-        }
+        while (vacancies.length > targetN) vacancies.pop();
     }
 
     function resetSim() {
@@ -198,7 +193,7 @@
         if (!isRunning) return;
         time += 0.05;
 
-        const vacMultiplier = parseFloat(document.getElementById('boost-select').value);
+        const vacPasses = parseInt(document.getElementById('boost-select').value);
         const tempFactor = Math.max(0.1, (T - 400) / 1200); 
 
         // --- INTERSTITIAL (Cyan) ---
@@ -213,17 +208,12 @@
         }
 
         // --- VACANCY/SELF-DIFFUSION (Orange) ---
-        // Using the 2.5x boosted multiplier for scrambling
-        for (let p = 0; p < vacMultiplier; p++) {
+        for (let p = 0; p < vacPasses; p++) {
             vacancies.forEach(v => {
                 if (Math.random() < 0.5 * tempFactor) {
                     let dc=0, dr=0;
                     const move = Math.random();
-                    // Bias leftward for vacancies to push atoms rightward
-                    if (move < 0.60) dc = -1; 
-                    else if (move < 0.70) dc = 1; 
-                    else if (move < 0.85) dr = 1; 
-                    else dr = -1;
+                    if (move < 0.60) dc = -1; else if (move < 0.70) dc = 1; else if (move < 0.85) dr = 1; else dr = -1;
 
                     let nc = v.c + dc, nr = v.r + dr;
                     if (nc < 0) nc = gridCols - 1;
@@ -242,8 +232,6 @@
         }
 
         if (vacTracer.c >= gridCols - 1) { vacTracer.c = 0; vacTracer.laps++; updateUI(); }
-        if (vacTracer.c < 0) vacTracer.c = 0;
-
         if (Math.floor(time * 10) % 5 === 0) updateChart();
         draw();
         animationId = requestAnimationFrame(animate);
@@ -253,7 +241,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        ctx.strokeStyle = "#222";
+        ctx.strokeStyle = "#111";
         ctx.setLineDash([5, 5]);
         ctx.beginPath(); ctx.moveTo(ox + (gridCols - 1) * spacing, 0); ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height); ctx.stroke();
 
@@ -263,19 +251,11 @@
                 let isT = vacTracer.c === c && vacTracer.r === r;
                 let x = ox + c * spacing, y = oy + r * spacing;
                 
-                if (isT) {
-                    // Tracer with Orange Glow
-                    drawAtom(x, y, atomRadius*1.3, "#ff8c00", true, true);
-                } else if (isV) {
-                    // Vacancy Site
-                    drawAtom(x, y, atomRadius, "#ff00ff", false, false);
-                } else {
-                    // Dark Bulk Atoms
-                    drawAtom(x, y, atomRadius, "#1a0d00", true, false); 
-                }
+                if (isT) drawAtom(x, y, atomRadius*1.3, "#ff8c00", true, true);
+                else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false, false);
+                else drawAtom(x, y, atomRadius, "#1a0d00", true, false); 
             }
         }
-        // Interstitial with Cyan Glow
         drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true, true);
     }
 
@@ -283,20 +263,10 @@
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
         if (fill) { 
             ctx.fillStyle = col; 
-            if (glow) {
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = col;
-            } else {
-                ctx.shadowBlur = 0;
-            }
+            if (glow) { ctx.shadowBlur = 20; ctx.shadowColor = col; } else { ctx.shadowBlur = 0; }
             ctx.fill(); 
         } else { 
-            ctx.strokeStyle = col; 
-            ctx.lineWidth = 1.5; 
-            ctx.setLineDash([3,2]); 
-            ctx.stroke(); 
-            ctx.setLineDash([]); 
-            ctx.shadowBlur = 0; 
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur = 0; 
         }
     }
 
@@ -304,8 +274,28 @@
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'Diffusion Profile', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' }]},
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } }, x: { grid: { display: false }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+            data: { 
+                labels: Array.from({length: 200}, (_, i) => i), 
+                datasets: [{ 
+                    label: 'C(x,t)', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' 
+                }]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { 
+                    y: { 
+                        min: 0, max: 1.1, grid: { color: '#111' }, 
+                        title: { display: true, text: 'Concentration (C)', color: '#888', font: { size: 10 } },
+                        ticks: { display: false }
+                    }, 
+                    x: { 
+                        grid: { display: false }, 
+                        title: { display: true, text: 'Distance (x)', color: '#888', font: { size: 10 } },
+                        ticks: { display: false } 
+                    } 
+                }, 
+                plugins: { legend: { display: false } } 
+            }
         });
     }
 
@@ -324,8 +314,8 @@
         const D = 1e-4 * Math.exp(-85000 / (8.314 * T));
         const effectiveTime = time * 5000;
         const newData = [];
-        for (let x = 0; x < 60; x++) {
-            const val = Cs - (Cs - C0) * erf(x / (2 * Math.sqrt(D * effectiveTime + 0.1)));
+        for (let x = 0; x < 200; x++) {
+            const val = Cs - (Cs - C0) * erf(x / (2 * Math.sqrt(D * effectiveTime + 0.1) * 2));
             newData.push(val);
         }
         chart.data.datasets[0].data = newData;
