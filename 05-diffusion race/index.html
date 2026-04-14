@@ -1,40 +1,43 @@
+Understood. I have tuned the movement logic to hit that ~10:1 ratio more consistently at the 100,000x setting and overhauled the visuals to reflect **self-diffusion** by using a darkened bulk lattice and a bright orange glowing tracer. The pedagogical box now explicitly ties the vacancy concentration $N_v$ to the overall diffusion coefficient $D$.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Kinetic Explorer: The Time-Scale Lab</title>
+    <title>Kinetic Explorer: Self-Diffusion vs Interstitial</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
         #ui { 
-            width: 420px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #00ffff; 
+            width: 420px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #ff8c00; 
             display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 100;
             overflow-y: auto;
         }
 
         .header { font-weight: 900; font-size: 1.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
-        .sub-header { font-size: 0.7rem; color: #00ffff; margin-bottom: 20px; opacity: 0.8; border-bottom: 1px solid #1a1a3a; padding-bottom: 10px; }
+        .sub-header { font-size: 0.7rem; color: #ff8c00; margin-bottom: 20px; opacity: 0.8; border-bottom: 1px solid #331a00; padding-bottom: 10px; }
         
-        .stat-card { background: #000; border: 1px solid #223; padding: 12px; border-radius: 8px; margin-bottom: 10px; position: relative; }
+        .stat-card { background: #000; border: 1px solid #331a00; padding: 12px; border-radius: 8px; margin-bottom: 10px; position: relative; }
         .stat-label { font-size: 0.6rem; color: #888; text-transform: uppercase; }
         .stat-val { font-size: 1.4rem; font-weight: 900; font-family: 'Courier New', monospace; }
 
         .slider-wrap { margin: 18px 0; }
-        label { display: flex; justify-content: space-between; font-size: 0.75rem; color: #00ffff; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 4px; }
+        label { display: flex; justify-content: space-between; font-size: 0.75rem; color: #ff8c00; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff8c00; height: 4px; }
         
-        select { width: 100%; padding: 10px; background: #0a0a1a; border: 1px solid #445; color: #00ffff; border-radius: 6px; font-weight: bold; margin-bottom: 20px; outline: none; }
+        select { width: 100%; padding: 10px; background: #0a0500; border: 1px solid #442200; color: #ff8c00; border-radius: 6px; font-weight: bold; margin-bottom: 20px; outline: none; }
 
         button { 
             width: 100%; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #fff; 
             cursor: pointer; border-radius: 6px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; transition: 0.2s;
         }
-        #btn-start { background: #00ffff; color: #000; border: none; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
+        #btn-start { background: #ff8c00; color: #000; border: none; box-shadow: 0 0 15px rgba(255, 140, 0, 0.3); }
 
         .remember-box {
-            background: rgba(255, 0, 255, 0.05);
-            border-left: 3px solid #ff00ff;
+            background: rgba(255, 140, 0, 0.05);
+            border-left: 3px solid #ff8c00;
             padding: 15px;
             margin-top: 10px;
             font-size: 0.75rem;
@@ -42,8 +45,8 @@
             color: #ccc;
             border-radius: 0 6px 6px 0;
         }
-        .remember-box strong { color: #ff00ff; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; }
-        .math-text { font-family: 'Courier New', monospace; color: #00ffff; display: block; margin: 6px 0; font-weight: bold; background: #000; padding: 6px; border-radius: 4px; text-align: center; border: 1px solid #1a1a3a;}
+        .remember-box strong { color: #ff8c00; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; }
+        .math-text { font-family: 'Courier New', monospace; color: #ff8c00; display: block; margin: 6px 0; font-weight: bold; background: #000; padding: 6px; border-radius: 4px; text-align: center; border: 1px solid #331a00;}
         .highlight { color: #fff; font-weight: bold; }
         
         #main-content { flex-grow: 1; display: flex; flex-direction: column; background: #05050a; }
@@ -56,15 +59,15 @@
 
 <div id="ui">
     <div class="header">Kinetic Explorer</div>
-    <div class="sub-header">The "Double Exponential" Penalty</div>
+    <div class="sub-header">Self-Diffusion & Activation Barriers</div>
     
     <div class="stat-card">
         <div class="stat-label">Interstitial (Cyan) Laps</div>
         <div class="stat-val" id="int-val" style="color: #00ffff;">0</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Vacancy (Magenta) Laps</div>
-        <div class="stat-val" id="vac-val" style="color: #ff00ff;">0</div>
+        <div class="stat-label">Self-Diffusion (Orange) Laps</div>
+        <div class="stat-val" id="vac-val" style="color: #ff8c00;">0</div>
     </div>
 
     <div class="slider-wrap">
@@ -76,8 +79,9 @@
         <label>Simulation Speed Scaling</label>
         <select id="boost-select">
             <option value="1">1,000x Base</option>
-            <option value="3">10,000x Base</option>
-            <option value="12" selected>100,000x (Atomic Scale)</option>
+            <option value="5">10,000x Base</option>
+            <option value="15">50,000x Base</option>
+            <option value="45" selected>100,000x (Simulation Mode)</option>
         </select>
     </div>
 
@@ -86,19 +90,19 @@
 
     <div class="remember-box">
         <strong>The Arrhenius Barrier</strong>
-        Vacancy Formation relies on an exponential temperature dependence:
+        The concentration of required vacancies follows:
         <span class="math-text">N<sub>v</sub> = N exp(-Q<sub>v</sub> / kT)</span>
         
-        The overall Diffusion Coefficient (D) also follows an exponential dependence to drive motion:
+        The overall Diffusion Coefficient (D) scales with temperature:
         <span class="math-text">D = D₀ exp(-Q / RT)</span>
         
         <br>
-        <span class="highlight">Why is self-diffusion so slow?</span><br>
-        For <b>Interstitials</b>, the atom is already present in the void. It only needs the energy to move (migration):
-        <span class="math-text">Q<sub>total</sub> = Q<sub>m</sub></span>
+        <span class="highlight">Activation Energy (Q) Summary:</span><br>
+        For <b>Interstitials</b> (Cyan), the atom is already in the void; it only needs energy to move:
+        <span class="math-text">Q<sub>total</sub> = Q<sub>migration</sub></span>
         
-        For <b>Vacancy/Self-Diffusion</b>, you must first CREATE the site, then MOVE into it. This double exponential penalty is the massive barrier:
-        <span class="math-text">Q<sub>total</sub> = Q<sub>v</sub> + Q<sub>m</sub></span>
+        For <b>Self-Diffusion</b> (Orange), you face a "double penalty" to form the site then hop:
+        <span class="math-text">Q<sub>total</sub> = Q<sub>vacancy</sub> + Q<sub>migration</sub></span>
     </div>
 </div>
 
@@ -162,7 +166,8 @@
         intAtom = { c: 0, r: 3, laps: 0 };
         vacTracer = { c: 0, r: 4, laps: 0 };
         vacancies = [];
-        for(let i=0; i<15; i++) {
+        // Populate vacancies
+        for(let i=0; i<18; i++) {
             vacancies.push({ c: Math.floor(Math.random() * gridCols), r: Math.floor(Math.random() * gridRows) });
         }
         updateUI();
@@ -183,7 +188,8 @@
         const tempFactor = Math.max(0.1, (T - 400) / 1200); 
 
         // --- INTERSTITIAL (Fast Path) ---
-        for(let i=0; i<15; i++) {
+        // Runs ~20 checks per frame to maintain high visible speed
+        for(let i=0; i<20; i++) {
             if (Math.random() < 0.25 * tempFactor) {
                 let nc = intAtom.c, nr = intAtom.r;
                 const move = Math.random();
@@ -193,25 +199,25 @@
             }
         }
 
-        // --- VACANCY (Slow Path - Scrambling based on Speed Scaling) ---
-        // Multiple passes per frame at higher boosts to simulate rapid atomic vibration
+        // --- VACANCY/SELF-DIFFUSION (Slow Path - Scrambling) ---
+        // Uses the high vacPasses to force a ~10:1 ratio relative to interstitials
         for (let p = 0; p < vacPasses; p++) {
             vacancies.forEach(v => {
                 if (Math.random() < 0.5 * tempFactor) {
                     let dc=0, dr=0;
                     const move = Math.random();
-                    // Vacancies drift left to pull the tracer right
-                    if (move < 0.58) dc = -1; 
+                    // Biased diffusion: Vacancies move left to move Tracer right
+                    if (move < 0.60) dc = -1; 
                     else if (move < 0.70) dc = 1; 
                     else if (move < 0.85) dr = 1; 
                     else dr = -1;
 
                     let nc = v.c + dc, nr = v.r + dr;
-                    
                     if (nc < 0) nc = gridCols - 1;
                     if (nc >= gridCols) nc = 0;
 
                     if (nr >= 0 && nr < gridRows) {
+                        // If vacancy hits tracer, swap them (The hopping event)
                         if (nc === vacTracer.c && nr === vacTracer.r) {
                             vacTracer.c = v.c; vacTracer.r = v.r;
                             v.c = nc; v.r = nr;
@@ -235,7 +241,8 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        ctx.strokeStyle = "#00ffff";
+        // Draw Finish Line
+        ctx.strokeStyle = "#444";
         ctx.setLineDash([5, 5]);
         ctx.beginPath(); ctx.moveTo(ox + (gridCols - 1) * spacing, 0); ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height); ctx.stroke();
 
@@ -244,25 +251,49 @@
                 let isV = vacancies.find(v => v.c === c && v.r === r);
                 let isT = vacTracer.c === c && vacTracer.r === r;
                 let x = ox + c * spacing, y = oy + r * spacing;
-                if (isT) drawAtom(x, y, atomRadius*1.3, "#ff00ff", true);
-                else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false);
-                else drawAtom(x, y, atomRadius, "#ff4e00", true); 
+                
+                if (isT) {
+                    // Self-Diffusion tracer (Bright Orange Glow)
+                    drawAtom(x, y, atomRadius*1.3, "#ff8c00", true, true);
+                } else if (isV) {
+                    // Vacancy Site (Dashed)
+                    drawAtom(x, y, atomRadius, "#ff00ff", false, false);
+                } else {
+                    // Bulk Atoms (Darker Orange/Brown)
+                    drawAtom(x, y, atomRadius, "#331a00", true, false); 
+                }
             }
         }
-        drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true);
+        // Interstitial Atom (Cyan Glow)
+        drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true, true);
     }
 
-    function drawAtom(x, y, r, col, fill) {
+    function drawAtom(x, y, r, col, fill, glow) {
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
-        if (fill) { ctx.fillStyle = col; ctx.fill(); if(col !== "#ff4e00") { ctx.shadowBlur=12; ctx.shadowColor=col; } }
-        else { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0; }
+        if (fill) { 
+            ctx.fillStyle = col; 
+            if (glow) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = col;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+            ctx.fill(); 
+        } else { 
+            ctx.strokeStyle = col; 
+            ctx.lineWidth = 1; 
+            ctx.setLineDash([3,2]); 
+            ctx.stroke(); 
+            ctx.setLineDash([]); 
+            ctx.shadowBlur = 0; 
+        }
     }
 
     function initChart() {
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }]},
+            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'Concentration', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' }]},
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } }, x: { grid: { display: false }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
         });
     }
@@ -294,3 +325,4 @@
 </script>
 </body>
 </html>
+```
