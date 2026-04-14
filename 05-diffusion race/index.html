@@ -2,138 +2,135 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Diffusion Race: 8-Lane Lattice</title>
+    <title>Diffusion Kinetics: The Professor's Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; height: 100vh; }
+        body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
         #ui { 
-            width: 320px; 
-            background: rgba(5, 5, 15, 0.98); 
-            border-right: 1px solid #00ffff; 
-            display: flex; 
-            flex-direction: column; 
-            padding: 25px; 
-            box-sizing: border-box; 
-            z-index: 100; 
-            box-shadow: 2px 0 20px rgba(0, 255, 255, 0.2); 
+            width: 340px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #00ffff; 
+            display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 100;
         }
 
-        .header { font-weight: 900; font-size: 1.3rem; margin-bottom: 5px; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
-        .sub-header { font-size: 0.75rem; color: #00ffff; margin-bottom: 25px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a1a3a; padding-bottom: 10px;}
+        .header { font-weight: 900; font-size: 1.2rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; border-bottom: 1px solid #1a1a3a; padding-bottom: 10px;}
         
-        .lap-counter {
-            background: #000; border: 1px solid #223; padding: 15px; border-radius: 8px; margin-bottom: 10px;
-        }
-        .lap-label { font-size: 0.7rem; color: #888; text-transform: uppercase; }
-        .lap-val { font-size: 1.8rem; font-weight: 900; font-family: 'Courier New', monospace; }
-        #int-val { color: #00ffff; }
-        #vac-val { color: #ff00ff; }
+        .stat-card { background: #000; border: 1px solid #223; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+        .stat-label { font-size: 0.65rem; color: #888; text-transform: uppercase; }
+        .stat-val { font-size: 1.4rem; font-weight: 900; font-family: 'Courier New', monospace; }
 
-        .slider-wrap { margin: 15px 0; }
-        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #00ffff; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; }
-        label b { color: #fff; font-family: 'Courier New', monospace; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 6px; }
+        .slider-wrap { margin: 20px 0; }
+        label { display: flex; justify-content: space-between; font-size: 0.8rem; color: #00ffff; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 4px; }
         
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; margin-bottom: 20px;}
         button { 
-            flex: 1; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; 
-            cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; text-transform: uppercase; font-size: 0.8rem;
+            width: 100%; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #fff; 
+            cursor: pointer; border-radius: 6px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase;
         }
-        #btn-start { background: #00ffff; border-color: #000; color: #000; box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
+        #btn-start { background: #00ffff; color: #000; border: none; }
 
-        #render-area { flex-grow: 1; position: relative; background: #05050a; }
+        #main-content { flex-grow: 1; display: flex; flex-direction: column; background: #05050a; position: relative; }
+        #canvas-wrap { flex: 3; position: relative; border-bottom: 1px solid #1a1a3a; }
+        #graph-wrap { flex: 2; padding: 20px; box-sizing: border-box; background: #020205; }
         canvas { display: block; width: 100%; height: 100%; }
-        
-        .finish-gate { position: absolute; right: 60px; top: 0; bottom: 0; width: 6px; background: repeating-linear-gradient(0deg, #222, #222 10px, #000 10px, #000 20px); border-left: 1px solid #444; opacity: 0.5; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <div class="header">Diffusion Race</div>
-    <div class="sub-header">8-Lane Lattice Simulation</div>
+    <div class="header">Kinetic Explorer</div>
     
-    <div class="lap-counter">
-        <div class="lap-label">Interstitial Laps</div>
-        <div class="lap-val" id="int-val">0</div>
+    <div class="stat-card">
+        <div class="stat-label">Interstitial (Cyan) Laps</div>
+        <div class="stat-val" id="int-val" style="color: #00ffff;">0</div>
     </div>
-    <div class="lap-counter">
-        <div class="lap-label">Vacancy Laps</div>
-        <div class="lap-val" id="vac-val">0</div>
+    <div class="stat-card">
+        <div class="stat-label">Vacancy (Magenta) Laps</div>
+        <div class="stat-val" id="vac-val" style="color: #ff00ff;">0</div>
     </div>
 
     <div class="slider-wrap">
-        <label>Temperature (K) <b id="val-t">1000</b></label>
-        <input type="range" id="in-t" min="400" max="1400" step="10" value="1000" oninput="updateTemp()">
+        <label>Temperature (K) <b id="disp-t">1000</b></label>
+        <input type="range" id="in-t" min="600" max="1600" step="10" value="1000">
     </div>
 
-    <div class="btn-group">
-        <button id="btn-start" onclick="toggleRace()">▶ Start Race</button>
-        <button id="btn-reset" onclick="resetRace()">Reset</button>
+    <button id="btn-start" onclick="toggleSim()">▶ Start Simulation</button>
+    <button onclick="resetSim()">Reset All</button>
+
+    <div style="font-size: 0.7rem; color: #556; line-height: 1.4; margin-top: auto;">
+        <b>Note:</b> Vacancy exchange probability is artificially boosted for classroom demonstration. Real-world rates are orders of magnitude slower.
     </div>
 </div>
 
-<div id="render-area">
-    <div class="finish-gate"></div>
-    <canvas id="sim-canvas"></canvas>
+<div id="main-content">
+    <div id="canvas-wrap">
+        <canvas id="sim-canvas"></canvas>
+    </div>
+    <div id="graph-wrap">
+        <canvas id="chart-canvas"></canvas>
+    </div>
 </div>
 
 <script>
     const canvas = document.getElementById('sim-canvas');
     const ctx = canvas.getContext('2d');
-    
+    let chart;
+
     let T = 1000;
-    let isRacing = false;
+    let isRunning = false;
+    let time = 0;
     let animationId;
 
-    const spacing = 36;
-    const atomRadius = 11;
-    const gridRows = 8; // Doubled width
+    const spacing = 32;
+    const atomRadius = 10;
+    const gridRows = 8;
     let gridCols;
 
-    // Physics State
-    let intAtom = { c: 0, r: 3.5, laps: 0 }; // Initialized to center of the lattice voids
+    // Atoms
+    let intAtom = { c: 0, r: 3.5, laps: 0 }; 
     let vacTracer = { c: 0, r: 4, laps: 0 };
     let vacancies = [];
 
     function init() {
         window.addEventListener('resize', resize);
+        document.getElementById('in-t').oninput = (e) => {
+            T = parseInt(e.target.value);
+            document.getElementById('disp-t').innerText = T;
+        };
         resize();
-        resetRace();
+        initChart();
+        resetSim();
     }
 
     function resize() {
-        const parent = document.getElementById('render-area');
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-        gridCols = Math.floor((canvas.width - 160) / spacing);
+        const wrap = document.getElementById('canvas-wrap');
+        canvas.width = wrap.clientWidth;
+        canvas.height = wrap.clientHeight;
+        gridCols = Math.floor((canvas.width - 100) / spacing);
         draw();
     }
 
-    function updateTemp() {
-        T = parseInt(document.getElementById('in-t').value);
-        document.getElementById('val-t').innerText = T;
+    function toggleSim() {
+        isRunning = !isRunning;
+        document.getElementById('btn-start').innerText = isRunning ? "|| Pause" : "▶ Resume";
+        if (isRunning) animate();
     }
 
-    function toggleRace() {
-        isRacing = !isRacing;
-        document.getElementById('btn-start').innerText = isRacing ? "|| Pause" : "▶ Resume";
-        if (isRacing) animate();
-    }
-
-    function resetRace() {
-        isRacing = false;
-        cancelAnimationFrame(animationId);
-        intAtom = { c: 0, r: 3.5, laps: 0 }; 
+    function resetSim() {
+        isRunning = false;
+        time = 0;
+        intAtom = { c: 0, r: 3.5, laps: 0 };
         vacTracer = { c: 0, r: 4, laps: 0 };
-        // Scatter a few more vacancies due to larger grid
-        vacancies = [
-            { c: Math.floor(gridCols * 0.3), r: 2 },
-            { c: Math.floor(gridCols * 0.6), r: 5 },
-            { c: Math.floor(gridCols * 0.8), r: 1 }
-        ];
+        // Scatter vacancies randomly across the grid
+        vacancies = [];
+        for(let i=0; i<8; i++) {
+            vacancies.push({ 
+                c: Math.floor(Math.random() * gridCols), 
+                r: Math.floor(Math.random() * gridRows) 
+            });
+        }
         updateUI();
         draw();
+        updateChart();
     }
 
     function updateUI() {
@@ -142,138 +139,136 @@
     }
 
     function animate() {
-        if (!isRacing) return;
+        if (!isRunning) return;
+        time += 0.05;
 
-        const freq = (T - 300) / 1100;
+        const jumpProb = (T - 400) / 1200;
 
-        // --- INTERSTITIAL LOGIC ---
-        // High jump frequency (simulating lower activation energy)
-        for(let i=0; i<18; i++) {
-            if (Math.random() < 0.12 * freq) {
-                let move = Math.random();
-                // 55% Forward, 25% Backwards (the "drift"), 20% Lateral
-                if (move < 0.55) {
-                    intAtom.c++; 
-                } else if (move < 0.80) {
-                    intAtom.c--;
-                } else if (move < 0.90) {
-                    intAtom.r += 1;
-                } else {
-                    intAtom.r -= 1;
-                }
+        // --- INTERSTITIAL: TRUE RANDOM WALK ---
+        // High frequency, centered in 4-atom voids
+        for(let i=0; i<20; i++) {
+            if (Math.random() < 0.1 * jumpProb) {
+                const dir = Math.floor(Math.random() * 4);
+                if (dir === 0) intAtom.c++;
+                else if (dir === 1) intAtom.c--;
+                else if (dir === 2) intAtom.r++;
+                else intAtom.r--;
 
-                // Keep within the voids (between rows 0-7, so void indices 0.5 to 6.5)
+                // Clamp & Lap
                 if (intAtom.r < 0.5) intAtom.r = 0.5;
                 if (intAtom.r > 6.5) intAtom.r = 6.5;
-
-                if (intAtom.c >= gridCols) {
-                    intAtom.c = 0;
-                    intAtom.laps++;
-                    updateUI();
-                }
                 if (intAtom.c < 0) intAtom.c = 0;
+                if (intAtom.c >= gridCols) { intAtom.c = 0; intAtom.laps++; updateUI(); }
             }
         }
 
-        // --- VACANCY LOGIC ---
-        // Bottlenecked by the rare arrival of a vacancy
-        if (Math.random() < 0.7 * freq) {
-            vacancies.forEach(v => {
+        // --- VACANCY: TRUE RANDOM WALK (SPED UP) ---
+        // Vacancies move randomly
+        vacancies.forEach(v => {
+            if (Math.random() * 0.5 < jumpProb) {
                 const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
-                const dir = dirs[Math.floor(Math.random() * dirs.length)];
-                let nc = v.c + dir[0];
-                let nr = v.r + dir[1];
+                const d = dirs[Math.floor(Math.random() * 4)];
+                let nc = v.c + d[0], nr = v.r + d[1];
 
                 if (nc >= 0 && nc < gridCols && nr >= 0 && nr < gridRows) {
+                    // Check for interaction with Tracer
                     if (nc === vacTracer.c && nr === vacTracer.r) {
-                        // Swap with tracer - 85% forward bias if vacancy is ahead of tracer
-                        let isForwardSwap = (dir[0] === -1); 
-                        if (isForwardSwap || Math.random() < 0.2) {
-                            vacTracer.c = v.c;
-                            vacTracer.r = v.r;
-                            v.c = nc;
-                            v.r = nr;
+                        // High swap probability for engagement
+                        if (Math.random() < 0.9) {
+                            vacTracer.c = v.c; vacTracer.r = v.r;
+                            v.c = nc; v.r = nr;
                         }
-                    } else if (!vacancies.find(other => other.c === nc && other.r === nr)) {
+                    } else {
                         v.c = nc; v.r = nr;
                     }
                 }
-            });
-
-            if (vacTracer.c >= gridCols) {
-                vacTracer.c = 0;
-                vacTracer.laps++;
-                updateUI();
             }
-        }
+        });
 
+        if (vacTracer.c >= gridCols) { vacTracer.c = 0; vacTracer.laps++; updateUI(); }
+        if (vacTracer.c < 0) vacTracer.c = 0;
+
+        if (Math.floor(time * 10) % 5 === 0) updateChart();
+        
         draw();
         animationId = requestAnimationFrame(animate);
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const offsetX = 60;
-        const offsetY = canvas.height / 2 - (gridRows * spacing) / 2;
+        const ox = 50, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        // Draw Background Lattice (The "Bulk")
-        for (let r = 0; r < gridRows; r++) {
-            for (let c = 0; c < gridCols; c++) {
-                let x = offsetX + c * spacing;
-                let y = offsetY + r * spacing;
-                
-                let isVacancy = vacancies.find(v => v.c === c && v.r === r);
-                let isTracer = (vacTracer.c === c && vacTracer.r === r);
+        // Bulk atoms
+        for(let r=0; r<gridRows; r++) {
+            for(let c=0; c<gridCols; c++) {
+                let isV = vacancies.find(v => v.c === c && v.r === r);
+                let isT = vacTracer.c === c && vacTracer.r === r;
+                let x = ox + c * spacing, y = oy + r * spacing;
 
-                if (isTracer) {
-                    drawAtom(x, y, atomRadius * 1.25, "#ff00ff", true);
-                } else if (isVacancy) {
-                    drawAtom(x, y, atomRadius, "#ff00ff", false);
-                } else {
-                    drawAtom(x, y, atomRadius, "#2a1a0a", true); // Dimmer bulk for better contrast
-                }
+                if (isT) drawAtom(x, y, atomRadius*1.2, "#ff00ff", true);
+                else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false);
+                else drawAtom(x, y, atomRadius, "#221a10", true);
             }
         }
 
-        // Draw Interstitial Path Guides (Optional: very subtle dots in the centers of 4 atoms)
-        ctx.fillStyle = "rgba(0, 255, 255, 0.05)";
-        for (let r = 0; r < gridRows - 1; r++) {
-            for (let c = 0; c < gridCols - 1; c++) {
-                ctx.beginPath();
-                ctx.arc(offsetX + c * spacing + spacing/2, offsetY + r * spacing + spacing/2, 2, 0, Math.PI*2);
-                ctx.fill();
-            }
-        }
-
-        // Draw Interstitial Atom (Electric Cyan)
-        // Positioned in the middle of the 4-atom square
-        let ix = offsetX + intAtom.c * spacing + spacing/2;
-        let iy = offsetY + intAtom.r * spacing + spacing/2;
+        // Interstitial - Centered in 4-atom void
+        let ix = ox + intAtom.c * spacing + spacing/2;
+        let iy = oy + intAtom.r * spacing + spacing/2;
         drawAtom(ix, iy, atomRadius * 0.7, "#00ffff", true);
     }
 
-    function drawAtom(x, y, r, color, fill) {
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        if (fill) {
-            ctx.fillStyle = color;
-            if (color !== "#2a1a0a") {
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 15;
-            } else {
-                ctx.shadowBlur = 0;
-            }
-            ctx.fill();
-        } else {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 3]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
+    function drawAtom(x, y, r, col, fill) {
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+        if (fill) { ctx.fillStyle = col; ctx.fill(); }
+        else { ctx.strokeStyle = col; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]); }
     }
 
-    window.onload = init;
+    function initChart() {
+        const ctxChart = document.getElementById('chart-canvas').getContext('2d');
+        chart = new Chart(ctxChart, {
+            type: 'line',
+            data: { labels: Array.from({length: 50}, (_, i) => i), datasets: [
+                { label: 'Concentration C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }
+            ]},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { color: '#555' } },
+                    x: { title: { display: true, text: 'Distance (x)', color: '#555' }, grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function erf(x) {
+        const a = [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429];
+        const p = 0.3275911;
+        const sign = (x < 0) ? -1 : 1;
+        x = Math.abs(x);
+        const t = 1.0 / (1.0 + p * x);
+        const y = 1.0 - (((((a[4] * t + a[3]) * t) + a[2]) * t + a[1]) * t + a[0]) * t * Math.exp(-x * x);
+        return sign * y;
+    }
+
+    function updateChart() {
+        const Cs = 1.0, C0 = 0.05;
+        const D0 = 1e-4;
+        const Q = 80000; 
+        const R = 8.314;
+        const D = D0 * Math.exp(-Q / (R * T));
+        const effectiveTime = time * 5000;
+
+        const newData = [];
+        for (let x = 0; x < 50; x++) {
+            const val = Cs - (Cs - C0) * erf(x / (2 * Math.sqrt(D * effectiveTime + 0.1)));
+            newData.push(val);
+        }
+        chart.data.datasets[0].data = newData;
+        chart.update('none');
+    }
+
+    init();
 </script>
 </body>
 </html>
