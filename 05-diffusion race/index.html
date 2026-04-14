@@ -1,1 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Diffusion Kinetics: The Race</title>
+    <style>
+        body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; height: 100vh; }
+        
+        #ui { 
+            width: 320px; 
+            background: rgba(5, 5, 15, 0.98); 
+            border-right: 1px solid #00ffff; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 25px; 
+            box-sizing: border-box; 
+            z-index: 10; 
+            box-shadow: 2px 0 20px rgba(0, 255, 255, 0.2); 
+        }
 
+        .header { font-weight: 900; font-size: 1.3rem; margin-bottom: 5px; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+        .sub-header { font-size: 0.75rem; color: #00ffff; margin-bottom: 25px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #1a1a3a; padding-bottom: 10px;}
+        
+        .slider-wrap { margin: 15px 0; }
+        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #00ffff; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; }
+        label b { color: #fff; font-family: 'Courier New', monospace; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff00ff; height: 6px; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; margin-bottom: 20px;}
+        button { 
+            flex: 1; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; 
+            cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; text-transform: uppercase; font-size: 0.8rem;
+        }
+        #btn-start { background: #ff00ff; border-color: #fff; color: #fff; box-shadow: 0 0 10px rgba(255, 0, 255, 0.4); }
+        #btn-start:active { transform: scale(0.95); }
+        #btn-reset:hover { background: #222; color: #fff; }
+
+        .math-box { background: #000; border: 1px solid #223; border-radius: 8px; padding: 15px; margin-top: auto; font-size: 0.8rem; color: #aaa; line-height: 1.6; }
+        .math-box b { color: #fff; }
+        .eq { font-family: 'Courier New', monospace; color: #00ffff; display: block; margin: 5px 0; font-size: 0.85rem; }
+        .eq.vac { color: #ff00ff; }
+
+        #render-area { flex-grow: 1; position: relative; background: #000; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        .finish-line { position: absolute; right: 10%; top: 0; bottom: 0; width: 2px; border-right: 2px dashed #444; z-index: 1;}
+        .finish-label { position: absolute; right: calc(10% + 10px); top: 20px; color: #444; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;}
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="header">Diffusion Kinetics</div>
+    <div class="sub-header">Vacancy vs. Interstitial</div>
+    
+    <div class="slider-wrap">
+        <label>Temperature (K) <b id="val-t">1000</b></label>
+        <input type="range" id="in-t" min="300" max="1500" step="10" value="1000" oninput="updateTemp()">
+    </div>
+
+    <div class="btn-group">
+        <button id="btn-start" onclick="toggleRace()">▶ Start Race</button>
+        <button id="btn-reset" onclick="resetRace()">Reset</button>
+    </div>
+
+    <div class="math-box">
+        <b>Interstitial Rate (Cyan):</b><br>
+        Relies only on migration energy ($Q_m$).<br>
+        <span class="eq">Rate &propto; exp(-Q<sub>m</sub> / kT)</span>
+        <br>
+        <b>Vacancy Rate (Magenta):</b><br>
+        Requires vacancy formation ($Q_v$) AND migration ($Q_m$).<br>
+        <span class="eq vac">Rate &propto; exp(-(Q<sub>v</sub>+Q<sub>m</sub>) / kT)</span>
+    </div>
+</div>
+
+<div id="render-area">
+    <div class="finish-line"></div>
+    <div class="finish-label">Concentration Sink</div>
+    <canvas id="sim-canvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Physics & UI State
+    let T = 1000;
+    const k = 8.617e-5; // eV/K
+    let isRacing = false;
+    let animationId;
+
+    // Energies (Pedagogically scaled for visual comparison)
+    const Q_int_m = 0.8; // Interstitial migration
+    const Q_vac_m = 1.0; // Vacancy migration
+    const Q_vac_f = 0.8; // Vacancy formation
+
+    // Geometry
+    const rad = 14;
+    const spacing = rad * 2.2;
+    let cols, rows_per_lane;
+    
+    // Entities
+    let bulkLattice1 = [], bulkLattice2 = [];
+    let vacancies = [];
+    let tracerInt, tracerVac;
+
+    function init() {
+        window.addEventListener('resize', resize);
+        resize();
+        resetRace();
+    }
+
+    function resize() {
+        const parent = document.getElementById('render-area');
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+        cols = Math.floor((canvas.width * 0.8) / spacing); // 80% width to finish line
+        rows_per_lane = Math.floor(canvas.height / 2 / spacing) - 2;
+        if (!isRacing) resetRace();
+    }
+
+    function updateTemp() {
+        T = parseInt(document.getElementById('in-t').value);
+        document.getElementById('val-t').innerText = T;
+        
+        // Color shift for heat
+        const ratio = (T - 300) / 1200;
+        document.getElementById('val-t').style.color = `rgb(255, ${255 - ratio*200}, ${255 - ratio*255})`;
+    }
+
+    function toggleRace() {
+        isRacing = !isRacing;
+        document.getElementById('btn-start').innerText = isRacing ? "|| Pause" : "▶ Resume";
+        document.getElementById('btn-start').style.background = isRacing ? "#00ffff" : "#ff00ff";
+        document.getElementById('btn-start').style.color = "#000";
+        if (isRacing) animate();
+        else cancelAnimationFrame(animationId);
+    }
+
+    function resetRace() {
+        isRacing = false;
+        cancelAnimationFrame(animationId);
+        document.getElementById('btn-start').innerText = "▶ Start Race";
+        document.getElementById('btn-start').style.background = "#ff00ff";
+        document.getElementById('btn-start').style.color = "#fff";
+        
+        generateLattice();
+        draw();
+    }
+
+    function generateLattice() {
+        bulkLattice1 = []; bulkLattice2 = []; vacancies = [];
+        
+        const lane1_y = canvas.height * 0.25;
+        const lane2_y = canvas.height * 0.75;
+        const startX = spacing * 2;
+
+        // Lane 1: Vacancy Diffusion (Top)
+        for (let r = -2; r <= 2; r++) {
+            for (let c = 0; c < cols; c++) {
+                let x = startX + c * spacing;
+                let y = lane1_y + r * spacing;
+                
+                // Spawn a few random vacancies, but keep the lattice mostly full
+                if (Math.random() > 0.9 && c > 1) {
+                    vacancies.push({ r: r, c: c, x: x, y: y });
+                } else {
+                    bulkLattice1.push({ r: r, c: c, x: x, y: y });
+                }
+            }
+        }
+        
+        // Ensure tracer has no immediate vacancy to start, forcing it to wait
+        tracerVac = { r: 0, c: 0, x: startX, y: lane1_y, progress: 0 };
+        // Remove bulk atom where tracer sits
+        bulkLattice1 = bulkLattice1.filter(a => !(a.r === 0 && a.c === 0));
+
+        // Lane 2: Interstitial Diffusion (Bottom)
+        for (let r = -2; r <= 2; r++) {
+            for (let c = 0; c < cols; c++) {
+                let x = startX + c * spacing;
+                let y = lane2_y + r * spacing;
+                bulkLattice2.push({ x: x, y: y });
+            }
+        }
+        
+        // Interstitial tracer starts in the gap (offset by half spacing)
+        tracerInt = { r: 0, c: 0, x: startX + spacing*0.5, y: lane2_y + spacing*0.5, progress: 0 };
+    }
+
+    function calculateJumpProbabilities() {
+        // Base attempt frequency (scaled for simulation speed)
+        const v0 = 60; 
+        
+        // Arrhenius equations
+        let p_int = Math.exp(-Q_int_m / (k * T));
+        
+        // Vacancy relies on concentration of vacancies AND migration
+        let p_vac_exist = Math.exp(-Q_vac_f / (k * T)); 
+        let p_vac_move = Math.exp(-Q_vac_m / (k * T));
+        
+        return {
+            int: Math.min(v0 * p_int, 1.0), // Cap at 100% chance per frame
+            vac_move: Math.min(v0 * p_vac_move, 1.0),
+            vac_spawn: p_vac_exist // Affects dynamic vacancy generation
+        };
+    }
+
+    function animate() {
+        if (!isRacing) return;
+        
+        const probs = calculateJumpProbabilities();
+
+        // --- INTERSTITIAL LOGIC ---
+        // Zips freely through the lattice. Biased right to simulate gradient.
+        if (Math.random() < probs.int) {
+            let moveDir = Math.random() < 0.7 ? 1 : (Math.random() < 0.5 ? -1 : 0); // 70% right, 15% left, 15% up/down
+            tracerInt.c += moveDir;
+            if (tracerInt.c < 0) tracerInt.c = 0;
+            tracerInt.x = (spacing * 2) + tracerInt.c * spacing + spacing*0.5;
+            
+            // Random Y wobble
+            tracerInt.r += Math.random() < 0.5 ? 1 : -1;
+            if (Math.abs(tracerInt.r) > 2) tracerInt.r = 0;
+            tracerInt.y = (canvas.height * 0.75) + tracerInt.r * spacing + spacing*0.5;
+        }
+
+        // --- VACANCY LOGIC ---
+        // 1. Vacancies wander randomly
+        vacancies.forEach(v => {
+            if (Math.random() < probs.vac_move) {
+                // Pick a random adjacent bulk atom to swap with
+                const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
+                const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                
+                const targetC = v.c + dir[0];
+                const targetR = v.r + dir[1];
+
+                // Check if target is Tracer
+                if (targetC === tracerVac.c && targetR === tracerVac.r) {
+                    // SWAP with tracer
+                    v.c = tracerVac.c; v.r = tracerVac.r;
+                    v.x = tracerVac.x; v.y = tracerVac.y;
+                    
+                    tracerVac.c = targetC; tracerVac.r = targetR;
+                    tracerVac.x = (spacing * 2) + tracerVac.c * spacing;
+                    tracerVac.y = (canvas.height * 0.25) + tracerVac.r * spacing;
+                } else {
+                    // SWAP with bulk
+                    let bulkAtom = bulkLattice1.find(a => a.c === targetC && a.r === targetR);
+                    if (bulkAtom) {
+                        bulkAtom.c = v.c; bulkAtom.r = v.r;
+                        bulkAtom.x = v.x; bulkAtom.y = v.y;
+                        
+                        v.c = targetC; v.r = targetR;
+                        v.x = (spacing * 2) + v.c * spacing;
+                        v.y = (canvas.height * 0.25) + v.r * spacing;
+                    }
+                }
+            }
+        });
+
+        // Check Win Condition
+        if (tracerInt.c >= cols - 1 || tracerVac.c >= cols - 1) {
+            isRacing = false;
+            document.getElementById('btn-start').innerText = "Race Finished";
+            document.getElementById('btn-start').style.background = "#444";
+        }
+
+        draw();
+        
+        if (isRacing) animationId = requestAnimationFrame(animate);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Labels
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.font = "bold 20px 'Segoe UI'";
+        ctx.fillText("VACANCY DIFFUSION", 40, canvas.height * 0.25 - spacing * 3);
+        ctx.fillText("INTERSTITIAL DIFFUSION", 40, canvas.height * 0.75 - spacing * 3);
+
+        // Draw Bulk Lattices (Orange)
+        ctx.fillStyle = "#aa5500";
+        ctx.shadowBlur = 0;
+        
+        bulkLattice1.forEach(a => drawCircle(a.x, a.y, rad, true));
+        bulkLattice2.forEach(a => drawCircle(a.x, a.y, rad, true));
+
+        // Draw Vacancies (Magenta Dashed)
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ff00ff";
+        ctx.shadowColor = "#ff00ff";
+        ctx.shadowBlur = 10;
+        vacancies.forEach(v => {
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.arc(v.x, v.y, rad, 0, Math.PI*2);
+            ctx.stroke();
+        });
+        ctx.setLineDash([]); // reset
+
+        // Draw Tracers (Electric Cyan)
+        ctx.fillStyle = "#00ffff";
+        ctx.shadowColor = "#00ffff";
+        ctx.shadowBlur = 15;
+        
+        // Vacancy Tracer (Large)
+        drawCircle(tracerVac.x, tracerVac.y, rad, true);
+        
+        // Interstitial Tracer (Small)
+        drawCircle(tracerInt.x, tracerInt.y, rad * 0.4, true);
+    }
+
+    function drawCircle(x, y, r, fill) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        if (fill) ctx.fill();
+        else ctx.stroke();
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
