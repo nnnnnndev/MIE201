@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Diffusion Kinetics: The Professor's Dashboard</title>
+    <title>Diffusion Kinetics: The Drift Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
@@ -55,10 +55,6 @@
 
     <button id="btn-start" onclick="toggleSim()">▶ Start Simulation</button>
     <button onclick="resetSim()">Reset All</button>
-
-    <div style="font-size: 0.7rem; color: #556; line-height: 1.4; margin-top: auto;">
-        <b>Note:</b> Vacancy exchange probability is artificially boosted for classroom demonstration. Real-world rates are orders of magnitude slower.
-    </div>
 </div>
 
 <div id="main-content">
@@ -80,13 +76,14 @@
     let time = 0;
     let animationId;
 
-    const spacing = 32;
+    const spacing = 34;
     const atomRadius = 10;
     const gridRows = 8;
     let gridCols;
 
     // Atoms
-    let intAtom = { c: 0, r: 3.5, laps: 0 }; 
+    // Interstitial uses "void" coordinates: 0 to gridCols-2, 0 to gridRows-2
+    let intAtom = { c: 0, r: 3, laps: 0 }; 
     let vacTracer = { c: 0, r: 4, laps: 0 };
     let vacancies = [];
 
@@ -105,7 +102,7 @@
         const wrap = document.getElementById('canvas-wrap');
         canvas.width = wrap.clientWidth;
         canvas.height = wrap.clientHeight;
-        gridCols = Math.floor((canvas.width - 100) / spacing);
+        gridCols = Math.floor((canvas.width - 120) / spacing);
         draw();
     }
 
@@ -118,11 +115,10 @@
     function resetSim() {
         isRunning = false;
         time = 0;
-        intAtom = { c: 0, r: 3.5, laps: 0 };
+        intAtom = { c: 0, r: 3, laps: 0 };
         vacTracer = { c: 0, r: 4, laps: 0 };
-        // Scatter vacancies randomly across the grid
         vacancies = [];
-        for(let i=0; i<8; i++) {
+        for(let i=0; i<10; i++) {
             vacancies.push({ 
                 c: Math.floor(Math.random() * gridCols), 
                 r: Math.floor(Math.random() * gridRows) 
@@ -144,41 +140,56 @@
 
         const jumpProb = (T - 400) / 1200;
 
-        // --- INTERSTITIAL: TRUE RANDOM WALK ---
-        // High frequency, centered in 4-atom voids
-        for(let i=0; i<20; i++) {
-            if (Math.random() < 0.1 * jumpProb) {
-                const dir = Math.floor(Math.random() * 4);
-                if (dir === 0) intAtom.c++;
-                else if (dir === 1) intAtom.c--;
-                else if (dir === 2) intAtom.r++;
-                else intAtom.r--;
+        // --- INTERSTITIAL: BIASED RANDOM WALK ---
+        // Jumps between 4-atom void centers
+        for(let i=0; i<22; i++) {
+            if (Math.random() < 0.08 * jumpProb) {
+                const move = Math.random();
+                let nextC = intAtom.c;
+                let nextR = intAtom.r;
 
-                // Clamp & Lap
-                if (intAtom.r < 0.5) intAtom.r = 0.5;
-                if (intAtom.r > 6.5) intAtom.r = 6.5;
-                if (intAtom.c < 0) intAtom.c = 0;
-                if (intAtom.c >= gridCols) { intAtom.c = 0; intAtom.laps++; updateUI(); }
+                if (move < 0.50) nextC++;           // 50% Right
+                else if (move < 0.70) nextC--;      // 20% Back
+                else if (move < 0.85) nextR++;      // 15% Down
+                else nextR--;                       // 15% Up
+
+                // Constraint: Must stay within the voids (between bulk atoms)
+                // Grid has gridCols columns and gridRows rows of atoms.
+                // Voids exist between index 0 and gridCols-2, and 0 and gridRows-2.
+                if (nextR >= 0 && nextR <= gridRows - 2 && nextC >= 0) {
+                    intAtom.r = nextR;
+                    intAtom.c = nextC;
+                }
+
+                if (intAtom.c >= gridCols - 1) { 
+                    intAtom.c = 0; 
+                    intAtom.laps++; 
+                    updateUI(); 
+                }
             }
         }
 
-        // --- VACANCY: TRUE RANDOM WALK (SPED UP) ---
-        // Vacancies move randomly
+        // --- VACANCY: BIASED RANDOM WALK ---
         vacancies.forEach(v => {
-            if (Math.random() * 0.5 < jumpProb) {
-                const dirs = [[0,1], [1,0], [0,-1], [-1,0]];
-                const d = dirs[Math.floor(Math.random() * 4)];
-                let nc = v.c + d[0], nr = v.r + d[1];
+            if (Math.random() * 0.4 < jumpProb) {
+                const move = Math.random();
+                let dc=0, dr=0;
+                
+                // Vacancy moves "Left" to make tracer move "Right"
+                // To create right-drift for the Magenta tracer, vacancies must drift left
+                if (move < 0.50) dc = -1;      // Forward bias for Tracer
+                else if (move < 0.70) dc = 1;
+                else if (move < 0.85) dr = 1;
+                else dr = -1;
+
+                let nc = v.c + dc, nr = v.r + dr;
 
                 if (nc >= 0 && nc < gridCols && nr >= 0 && nr < gridRows) {
-                    // Check for interaction with Tracer
                     if (nc === vacTracer.c && nr === vacTracer.r) {
-                        // High swap probability for engagement
-                        if (Math.random() < 0.9) {
-                            vacTracer.c = v.c; vacTracer.r = v.r;
-                            v.c = nc; v.r = nr;
-                        }
-                    } else {
+                        // Swap with tracer
+                        vacTracer.c = v.c; vacTracer.r = v.r;
+                        v.c = nc; v.r = nr;
+                    } else if (!vacancies.find(o => o.c === nc && o.r === nr)) {
                         v.c = nc; v.r = nr;
                     }
                 }
@@ -189,16 +200,15 @@
         if (vacTracer.c < 0) vacTracer.c = 0;
 
         if (Math.floor(time * 10) % 5 === 0) updateChart();
-        
         draw();
         animationId = requestAnimationFrame(animate);
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const ox = 50, oy = canvas.height/2 - (gridRows * spacing)/2;
+        const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        // Bulk atoms
+        // Bulk atoms: Brilliant Orange for Contrast
         for(let r=0; r<gridRows; r++) {
             for(let c=0; c<gridCols; c++) {
                 let isV = vacancies.find(v => v.c === c && v.r === r);
@@ -207,34 +217,34 @@
 
                 if (isT) drawAtom(x, y, atomRadius*1.2, "#ff00ff", true);
                 else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false);
-                else drawAtom(x, y, atomRadius, "#221a10", true);
+                else drawAtom(x, y, atomRadius, "#ff8800", true); // Bright Orange
             }
         }
 
-        // Interstitial - Centered in 4-atom void
+        // Interstitial - EXACT center of 4-atom void
         let ix = ox + intAtom.c * spacing + spacing/2;
         let iy = oy + intAtom.r * spacing + spacing/2;
-        drawAtom(ix, iy, atomRadius * 0.7, "#00ffff", true);
+        drawAtom(ix, iy, atomRadius * 0.65, "#00ffff", true);
     }
 
     function drawAtom(x, y, r, col, fill) {
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
-        if (fill) { ctx.fillStyle = col; ctx.fill(); }
-        else { ctx.strokeStyle = col; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]); }
+        if (fill) { ctx.fillStyle = col; ctx.fill(); if(col !== "#ff8800") { ctx.shadowBlur=10; ctx.shadowColor=col; } }
+        else { ctx.strokeStyle = col; ctx.setLineDash([2,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0; }
     }
 
     function initChart() {
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 50}, (_, i) => i), datasets: [
-                { label: 'Concentration C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }
+            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [
+                { label: 'C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }
             ]},
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
-                    y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { color: '#555' } },
-                    x: { title: { display: true, text: 'Distance (x)', color: '#555' }, grid: { display: false } }
+                    y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } },
+                    x: { grid: { display: false }, ticks: { display: false } }
                 },
                 plugins: { legend: { display: false } }
             }
@@ -253,14 +263,11 @@
 
     function updateChart() {
         const Cs = 1.0, C0 = 0.05;
-        const D0 = 1e-4;
-        const Q = 80000; 
-        const R = 8.314;
-        const D = D0 * Math.exp(-Q / (R * T));
-        const effectiveTime = time * 5000;
+        const D = 2e-5 * Math.exp(-90000 / (8.314 * T));
+        const effectiveTime = time * 8000;
 
         const newData = [];
-        for (let x = 0; x < 50; x++) {
+        for (let x = 0; x < 60; x++) {
             const val = Cs - (Cs - C0) * erf(x / (2 * Math.sqrt(D * effectiveTime + 0.1)));
             newData.push(val);
         }
