@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Diffusion Kinetics: The Track</title>
+    <title>Diffusion Kinetics: The Lattice Track</title>
     <style>
         body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; height: 100vh; }
         
@@ -31,17 +31,16 @@
             flex: 1; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #888; 
             cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; text-transform: uppercase; font-size: 0.8rem;
         }
-        #btn-start { background: #00ffff; border-color: #fff; color: #000; box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
+        #btn-start { background: #00ffff; border-color: #000; color: #000; box-shadow: 0 0 10px rgba(0, 255, 255, 0.4); }
         #btn-start:active { transform: scale(0.95); }
         #btn-reset:hover { background: #222; color: #fff; }
 
         .math-box { background: #000; border: 1px solid #223; border-radius: 8px; padding: 15px; margin-top: auto; font-size: 0.8rem; color: #aaa; line-height: 1.6; }
         .math-box b { color: #fff; }
 
-        #render-area { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #0a0a1a 0%, #000000 100%); }
+        #render-area { flex-grow: 1; position: relative; background: #0a0a0f; }
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* Central Lap Dashboard */
         #lap-dashboard {
             position: absolute;
             top: 50%;
@@ -54,14 +53,13 @@
             gap: 20px;
         }
         .lap-counter {
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.8);
             border: 1px solid #334;
             padding: 15px 30px;
             border-radius: 12px;
-            backdrop-filter: blur(4px);
         }
         .lap-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
-        .lap-number { font-size: 3rem; font-weight: 900; font-family: 'Courier New', monospace; line-height: 1; }
+        .lap-number { font-size: 3.5rem; font-weight: 900; font-family: 'Courier New', monospace; line-height: 1; }
         
         #int-counter .lap-title { color: #00ffff; }
         #int-counter .lap-number { color: #fff; text-shadow: 0 0 15px #00ffff; }
@@ -75,7 +73,7 @@
 
 <div id="ui">
     <div class="header">Diffusion Kinetics</div>
-    <div class="sub-header">Vacancy vs. Interstitial Track</div>
+    <div class="sub-header">2D Lattice Track</div>
     
     <div class="slider-wrap">
         <label>Temperature (K) <b id="val-t">1000</b></label>
@@ -83,26 +81,26 @@
     </div>
 
     <div class="btn-group">
-        <button id="btn-start" onclick="toggleRace()">▶ Start Simulation</button>
+        <button id="btn-start" onclick="toggleRace()">▶ Start Race</button>
         <button id="btn-reset" onclick="resetRace()">Reset</button>
     </div>
 
     <div class="math-box">
-        <b>Interstitial Diffusivity (Outer):</b><br>
-        Orders of magnitude faster. Empty adjacent sites are always available.<br><br>
-        <b>Vacancy Diffusivity (Inner):</b><br>
-        Severely bottlenecked. The tracer must wait for a rare vacancy to randomly drift into an adjacent site before it can move.
+        <b>Interstitial Lattice (Cyan):</b><br>
+        Moves continuously through the geometric gaps. Highly temperature dependent, but unconstrained by defects.<br><br>
+        <b>Vacancy Lattice (Magenta):</b><br>
+        Rigidly bound to the bulk sites. The tracer must wait for a rare vacancy to drift into a neighboring position before swapping.
     </div>
 </div>
 
 <div id="render-area">
     <div id="lap-dashboard">
         <div class="lap-counter" id="int-counter">
-            <div class="lap-title">Interstitial Laps (Cyan)</div>
+            <div class="lap-title">Interstitial Laps</div>
             <div class="lap-number" id="laps-int">0</div>
         </div>
         <div class="lap-counter" id="vac-counter">
-            <div class="lap-title">Vacancy Laps (Magenta)</div>
+            <div class="lap-title">Vacancy Laps</div>
             <div class="lap-number" id="laps-vac">0</div>
         </div>
     </div>
@@ -113,38 +111,64 @@
     const canvas = document.getElementById('sim-canvas');
     const ctx = canvas.getContext('2d');
     
-    // UI State
     let T = 1000;
     let isRacing = false;
     let animationId;
 
-    // Track Geometry
-    let centerX, centerY;
-    const radiusVac = 180; // Inner track
-    const radiusInt = 260; // Outer track
+    const spacing = 24;
     const atomRadius = 8;
-    const numSites = 72; // 5 degrees per site
-
-    // Physics State
-    // We use absolute positions to track laps (absPos / numSites = laps)
-    let intAbsPos = 0; 
-    let vacTracerAbsPos = 0;
     
-    let vacancies = []; // Array of positions [0 to numSites-1]
+    // Path Arrays
+    let outerRing = [];
+    let innerRing = [];
+    let interstitialRing = [];
+    
+    let trackWidth, trackHeight;
+    let startX, startY;
+
+    // Physics
+    let intAbsPos = 0; 
+    let vacAbsPos = 0;
+    let vacancies = [];
 
     function init() {
-        window.addEventListener('resize', resize);
-        resize();
+        window.addEventListener('resize', buildTrack);
+        buildTrack();
         resetRace();
     }
 
-    function resize() {
+    function buildTrack() {
         const parent = document.getElementById('render-area');
         canvas.width = parent.clientWidth;
         canvas.height = parent.clientHeight;
-        centerX = canvas.width / 2;
-        centerY = canvas.height / 2;
+        
+        // Define grid track dimensions based on window size
+        const cols = Math.floor(canvas.width / spacing) - 8;
+        const rows = Math.floor(canvas.height / spacing) - 4;
+        
+        startX = (canvas.width - (cols * spacing)) / 2;
+        startY = (canvas.height - (rows * spacing)) / 2;
+
+        outerRing = generateRectPath(startX, startY, cols, rows);
+        innerRing = generateRectPath(startX + spacing, startY + spacing, cols - 2, rows - 2);
+        
+        // Interstitial path runs directly in the middle of the inner and outer rings
+        interstitialRing = generateRectPath(startX + spacing/2, startY + spacing/2, cols - 1, rows - 1);
+        
         if (!isRacing) draw();
+    }
+
+    function generateRectPath(x, y, w, h) {
+        let path = [];
+        // Top edge
+        for(let i=0; i<w; i++) path.push({x: x + i*spacing, y: y});
+        // Right edge
+        for(let i=0; i<h; i++) path.push({x: x + w*spacing, y: y + i*spacing});
+        // Bottom edge
+        for(let i=w; i>0; i--) path.push({x: x + i*spacing, y: y + h*spacing});
+        // Left edge
+        for(let i=h; i>0; i--) path.push({x: x, y: y + i*spacing});
+        return path;
     }
 
     function updateTemp() {
@@ -166,17 +190,17 @@
     function resetRace() {
         isRacing = false;
         cancelAnimationFrame(animationId);
-        document.getElementById('btn-start').innerText = "▶ Start Simulation";
+        document.getElementById('btn-start').innerText = "▶ Start Race";
         document.getElementById('btn-start').style.background = "#00ffff";
         document.getElementById('btn-start').style.color = "#000";
         
         intAbsPos = 0;
-        vacTracerAbsPos = 0;
+        vacAbsPos = 0;
         
-        // Distribute exactly 2 vacancies evenly to avoid clustering
+        // Start vacancies far away from the start line
         vacancies = [
-            { pos: Math.floor(numSites * 0.33) },
-            { pos: Math.floor(numSites * 0.66) }
+            { pos: Math.floor(outerRing.length * 0.4) },
+            { pos: Math.floor(outerRing.length * 0.8) }
         ];
 
         document.getElementById('laps-int').innerText = "0";
@@ -188,57 +212,41 @@
     function animate() {
         if (!isRacing) return;
 
-        // Temperature influences jump frequency. 
-        // We scale it so T=1400 is fast, T=400 is crawling.
-        const speedMultiplier = Math.max(0.01, (T - 300) / 700);
+        const speedMultiplier = Math.max(0.02, (T - 300) / 700);
 
-        // --- INTERSTITIAL LOGIC (Extremely Fast) ---
-        // Runs multiple times per frame to simulate orders of magnitude difference
-        let intJumpsThisFrame = Math.floor(15 * speedMultiplier);
+        // --- INTERSTITIAL LOGIC ---
+        let intJumpsThisFrame = Math.floor(12 * speedMultiplier);
         for(let i=0; i<intJumpsThisFrame; i++) {
-            // Strong chemical driving force (80% forward)
-            if (Math.random() < 0.8) intAbsPos++;
-            else intAbsPos--;
+            if (Math.random() < 0.9) intAbsPos++; // Strong forward drive
         }
 
-        // --- VACANCY LOGIC (Extremely Bottlenecked) ---
-        // Vacancies wander randomly.
-        let vacJumpsThisFrame = Math.random() < (0.5 * speedMultiplier) ? 1 : 0;
+        // --- VACANCY LOGIC ---
+        let vacJumpsThisFrame = Math.random() < (0.8 * speedMultiplier) ? 1 : 0;
         
         if (vacJumpsThisFrame > 0) {
-            for(let v=0; v<vacancies.length; v++) {
-                let vac = vacancies[v];
-                
-                // Vacancy tries to move to an adjacent site
+            vacancies.forEach(vac => {
                 let dir = Math.random() < 0.5 ? 1 : -1;
-                let currentVacTracerPos = ((vacTracerAbsPos % numSites) + numSites) % numSites;
-                let targetPos = (vac.pos + dir + numSites) % numSites;
+                let currentTracerPos = ((vacAbsPos % outerRing.length) + outerRing.length) % outerRing.length;
+                let targetPos = (vac.pos + dir + outerRing.length) % outerRing.length;
 
-                // Check if target is the Tracer Atom
-                if (targetPos === currentVacTracerPos) {
-                    // The vacancy is swapping with the tracer.
-                    // Is this a forward lap move for the tracer?
-                    let tracerDir = (vac.pos > currentVacTracerPos) ? 1 : -1;
-                    if (vac.pos === 0 && currentVacTracerPos === numSites - 1) tracerDir = 1;
-                    if (vac.pos === numSites - 1 && currentVacTracerPos === 0) tracerDir = -1;
+                if (targetPos === currentTracerPos) {
+                    let tracerDir = (vac.pos > currentTracerPos) ? 1 : -1;
+                    if (vac.pos === 0 && currentTracerPos === outerRing.length - 1) tracerDir = 1;
+                    if (vac.pos === outerRing.length - 1 && currentTracerPos === 0) tracerDir = -1;
 
-                    // Apply driving force: Tracer prefers to swap into a vacancy if it moves it forward
-                    let swapProb = (tracerDir === 1) ? 0.85 : 0.15; 
-                    
-                    if (Math.random() < swapProb) {
-                        vacTracerAbsPos += tracerDir;
-                        vac.pos = targetPos; // Vacancy takes tracer's old position
+                    // 90% chance to swap forward if given the opportunity
+                    if (Math.random() < (tracerDir === 1 ? 0.9 : 0.1)) {
+                        vacAbsPos += tracerDir;
+                        vac.pos = targetPos;
                     }
-                } else if (!vacancies.find(other => other.pos === targetPos)) {
-                    // Swap with a standard bulk atom
-                    vac.pos = targetPos;
+                } else if (!vacancies.find(v => v.pos === targetPos)) {
+                    vac.pos = targetPos; // Random walk
                 }
-            }
+            });
         }
 
-        // Update UI
-        document.getElementById('laps-int').innerText = Math.floor(intAbsPos / numSites);
-        document.getElementById('laps-vac').innerText = Math.floor(vacTracerAbsPos / numSites);
+        document.getElementById('laps-int').innerText = Math.floor(intAbsPos / interstitialRing.length);
+        document.getElementById('laps-vac').innerText = Math.floor(vacAbsPos / outerRing.length);
 
         draw();
         animationId = requestAnimationFrame(animate);
@@ -247,53 +255,53 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Finish Line
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - radiusVac + 20);
-        ctx.lineTo(centerX, centerY - radiusInt - 20);
-        ctx.strokeStyle = "rgba(255,255,255,0.3)";
-        ctx.setLineDash([5, 5]);
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.setLineDash([]);
+        // Draw Start/Finish Line Banner
+        const startX1 = outerRing[0].x - spacing;
+        const startX2 = innerRing[0].x + spacing;
+        const startY1 = outerRing[0].y - spacing;
+        const startY2 = outerRing[0].y + spacing;
+        
+        ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        ctx.fillRect(outerRing[0].x - spacing/2, outerRing[0].y - spacing, spacing, spacing * 3);
+        
+        // Checkered pattern
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(outerRing[0].x - spacing/4, outerRing[0].y - spacing + 5, 6, 6);
+        ctx.fillRect(outerRing[0].x - spacing/4 + 6, outerRing[0].y - spacing + 11, 6, 6);
+        ctx.fillRect(outerRing[0].x - spacing/4, outerRing[0].y - spacing + 17, 6, 6);
 
-        // Calculate positions
-        let currentVacTracerPos = ((vacTracerAbsPos % numSites) + numSites) % numSites;
-        let currentIntPos = ((intAbsPos % numSites) + numSites) % numSites;
+        // Render Lattice Rings
+        renderRing(innerRing, -1, "#aa5500", true); // Inner Bulk
+        renderRing(outerRing, vacAbsPos, "#aa5500", true); // Outer Bulk + Tracer
 
-        // --- DRAW INNER RING (VACANCY) ---
-        for (let i = 0; i < numSites; i++) {
-            let angle = (i / numSites) * Math.PI * 2 - Math.PI/2;
-            let x = centerX + Math.cos(angle) * radiusVac;
-            let y = centerY + Math.sin(angle) * radiusVac;
+        // Render Interstitial Ring Gaps (subtle dots to show path)
+        ctx.fillStyle = "rgba(0, 255, 255, 0.1)";
+        interstitialRing.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+            ctx.fill();
+        });
 
-            if (i === currentVacTracerPos) {
-                // Tracer Atom
-                drawCircle(x, y, atomRadius * 1.5, "#ff00ff", true);
-            } else if (vacancies.find(v => v.pos === i)) {
-                // Vacancy
-                drawCircle(x, y, atomRadius, "#ff00ff", false, true);
+        // Draw Interstitial Tracer
+        let currentIntPos = ((intAbsPos % interstitialRing.length) + interstitialRing.length) % interstitialRing.length;
+        let pInt = interstitialRing[currentIntPos];
+        drawCircle(pInt.x, pInt.y, atomRadius * 0.6, "#00ffff", true);
+    }
+
+    function renderRing(ringData, tracerAbsPos, color, isSolid) {
+        let tracerPos = tracerAbsPos >= 0 ? ((tracerAbsPos % ringData.length) + ringData.length) % ringData.length : -1;
+        
+        for (let i = 0; i < ringData.length; i++) {
+            let p = ringData[i];
+            
+            if (i === tracerPos) {
+                drawCircle(p.x, p.y, atomRadius * 1.4, "#ff00ff", true); // Vacancy Tracer
+            } else if (tracerAbsPos >= 0 && vacancies.find(v => v.pos === i)) {
+                drawCircle(p.x, p.y, atomRadius, "#ff00ff", false, true); // Empty Vacancy
             } else {
-                // Bulk Atom
-                drawCircle(x, y, atomRadius, "#aa5500", true);
+                drawCircle(p.x, p.y, atomRadius, color, isSolid); // Bulk Atom
             }
         }
-
-        // --- DRAW OUTER RING (INTERSTITIAL) ---
-        // Draw the bulk lattice first
-        for (let i = 0; i < numSites; i++) {
-            let angle = (i / numSites) * Math.PI * 2 - Math.PI/2;
-            let x = centerX + Math.cos(angle) * radiusInt;
-            let y = centerY + Math.sin(angle) * radiusInt;
-            drawCircle(x, y, atomRadius, "#aa5500", true);
-        }
-        
-        // Draw Interstitial Tracer (sits between sites)
-        // Offset by half a site so it clearly rides the "gaps"
-        let intAngle = ((currentIntPos + 0.5) / numSites) * Math.PI * 2 - Math.PI/2;
-        let ix = centerX + Math.cos(intAngle) * radiusInt;
-        let iy = centerY + Math.sin(intAngle) * radiusInt;
-        drawCircle(ix, iy, atomRadius * 1.2, "#00ffff", true);
     }
 
     function drawCircle(x, y, r, color, fill, isDashed = false) {
@@ -303,7 +311,7 @@
         if (fill) {
             ctx.fillStyle = color;
             ctx.shadowColor = color;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = color === "#aa5500" ? 0 : 12;
             ctx.fill();
         } else {
             ctx.strokeStyle = color;
