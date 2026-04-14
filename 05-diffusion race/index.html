@@ -8,8 +8,9 @@
         body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
         #ui { 
-            width: 380px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #00ffff; 
+            width: 390px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #00ffff; 
             display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 100;
+            overflow-y: auto;
         }
 
         .header { font-weight: 900; font-size: 1.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
@@ -31,23 +32,21 @@
         }
         #btn-start { background: #00ffff; color: #000; border: none; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
 
-        /* Arrhenius Pedagogy Box */
         .remember-box {
             background: rgba(255, 0, 255, 0.05);
             border-left: 3px solid #ff00ff;
-            padding: 12px;
-            margin-top: 15px;
-            font-size: 0.7rem;
+            padding: 15px;
+            margin-top: 10px;
+            font-size: 0.75rem;
             line-height: 1.5;
             color: #ccc;
             border-radius: 0 6px 6px 0;
         }
-        .remember-box strong { color: #ff00ff; display: block; margin-bottom: 6px; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
-        .math-text { font-family: 'Courier New', monospace; color: #00ffff; display: block; margin: 4px 0 10px 0; font-weight: bold; background: #000; padding: 4px; border-radius: 4px; text-align: center; border: 1px solid #1a1a3a;}
-        .math-text sub { color: #88f; }
-
+        .remember-box strong { color: #ff00ff; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; }
+        .math-text { font-family: 'Courier New', monospace; color: #00ffff; display: block; margin: 6px 0; font-weight: bold; background: #000; padding: 6px; border-radius: 4px; text-align: center; border: 1px solid #1a1a3a;}
+        
         #main-content { flex-grow: 1; display: flex; flex-direction: column; background: #05050a; }
-        #canvas-wrap { flex: 3; position: relative; border-bottom: 1px solid #1a1a3a; cursor: crosshair; }
+        #canvas-wrap { flex: 3; position: relative; border-bottom: 1px solid #1a1a3a; }
         #graph-wrap { flex: 2; padding: 20px; box-sizing: border-box; background: #020205; }
         canvas { display: block; width: 100%; height: 100%; }
     </style>
@@ -56,7 +55,7 @@
 
 <div id="ui">
     <div class="header">Kinetic Explorer</div>
-    <div class="sub-header">Diffusion Race: Left → Right</div>
+    <div class="sub-header">The "Double Exponential" Penalty</div>
     
     <div class="stat-card">
         <div class="stat-label">Interstitial (Cyan) Laps</div>
@@ -73,12 +72,11 @@
     </div>
 
     <div class="slider-wrap">
-        <label>Vacancy Speed Boost</label>
+        <label>Simulation Speed Scaling</label>
         <select id="boost-select">
-            <option value="1000">1,000x Speedup</option>
-            <option value="10000">10,000x Speedup</option>
-            <option value="50000">50,000x Speedup</option>
-            <option value="100000" selected>100,000x (Simulation Mode)</option>
+            <option value="1000">1,000x Base</option>
+            <option value="10000">10,000x Base</option>
+            <option value="100000" selected>100,000x (Atomic Scale)</option>
         </select>
     </div>
 
@@ -86,13 +84,15 @@
     <button onclick="resetSim()">Reset Lattice</button>
 
     <div class="remember-box">
-        <strong>Remember: Arrhenius Kinetics</strong>
-        Vacancy diffusion requires BOTH vacancy formation AND atomic jumping to occur:
-        <span class="math-text">Q<sub>d(vac)</sub> = Q<sub>v</sub> + Q<sub>m</sub></span>
-        Interstitial atoms already exist in the void space, so they only need to jump:
-        <span class="math-text">Q<sub>d(int)</sub> = Q<sub>m</sub></span>
-        Vacancy Formation Dependence:
-        <span class="math-text">N<sub>v</sub> = N exp(-Q<sub>v</sub> / kT)</span>
+        <strong>The Arrhenius Barrier</strong>
+        The Diffusion Coefficient (D) follows:
+        <span class="math-text">D = D₀ exp(-Q / RT)</span>
+        
+        For <b>Interstitials</b>, the atom is already present in the void. It only needs energy to move (migration):
+        <span class="math-text">Q<sub>total</sub> = Q<sub>m</sub></span>
+        
+        For <b>Self-Diffusion</b>, you must first create the site, then move into it. This double penalty is why it is so slow:
+        <span class="math-text">Q<sub>total</sub> = Q<sub>v</sub> + Q<sub>m</sub></span>
     </div>
 </div>
 
@@ -153,17 +153,11 @@
         isRunning = false;
         time = 0;
         gridCols = Math.floor((canvas.width - 120) / spacing);
-        
         intAtom = { c: 0, r: 3, laps: 0 };
         vacTracer = { c: 0, r: 4, laps: 0 };
-        
         vacancies = [];
-        // Populate 15 vacancies to act as the driving force
         for(let i=0; i<15; i++) {
-            vacancies.push({ 
-                c: Math.floor(Math.random() * gridCols), 
-                r: Math.floor(Math.random() * gridRows) 
-            });
+            vacancies.push({ c: Math.floor(Math.random() * gridCols), r: Math.floor(Math.random() * gridRows) });
         }
         updateUI();
         draw();
@@ -180,59 +174,32 @@
         time += 0.05;
 
         const boost = parseInt(document.getElementById('boost-select').value);
-        
-        // Temperature dependence for generic jumping
         const tempFactor = Math.max(0.1, (T - 400) / 1200); 
 
-        // --- INTERSTITIAL: Drift Right ---
-        // Runs at a constant "fast" baseline
+        // --- INTERSTITIAL (Fast Path) ---
         for(let i=0; i<15; i++) {
             if (Math.random() < 0.25 * tempFactor) {
-                const move = Math.random();
                 let nc = intAtom.c, nr = intAtom.r;
-                
-                if (move < 0.55) nc++;      // Bias Right
-                else if (move < 0.70) nc--; 
-                else if (move < 0.85) nr++; 
-                else nr--;                  
-
-                if (nr >= 0 && nr <= gridRows - 2 && nc >= 0) {
-                    intAtom.c = nc; intAtom.r = nr;
-                }
-                
-                if (intAtom.c >= gridCols - 1) { 
-                    intAtom.c = 0; 
-                    intAtom.laps++; 
-                    updateUI(); 
-                }
+                const move = Math.random();
+                if (move < 0.55) nc++; else if (move < 0.70) nc--; else if (move < 0.85) nr++; else nr--;                  
+                if (nr >= 0 && nr <= gridRows - 2 && nc >= 0) { intAtom.c = nc; intAtom.r = nr; }
+                if (intAtom.c >= gridCols - 1) { intAtom.c = 0; intAtom.laps++; updateUI(); }
             }
         }
 
-        // --- VACANCY: Drift Left (Pushing Tracer Right) ---
-        // Scales directly with the boost multiplier. 
-        // At 100,000x boost, this yields roughly a 10:1 ratio compared to interstitial laps.
+        // --- VACANCY (Slow Path - 10^6 Factor) ---
         const vacMultiplier = boost / 100000; 
-        
         vacancies.forEach(v => {
-            // Vacancy jump frequency depends on temperature AND the boost slider
             if (Math.random() < 0.35 * tempFactor * vacMultiplier) {
-                const move = Math.random();
                 let dc=0, dr=0;
-                
-                if (move < 0.55) dc = -1;     // Bias Left
-                else if (move < 0.70) dc = 1;
-                else if (move < 0.85) dr = 1;
-                else dr = -1;
-
+                const move = Math.random();
+                if (move < 0.55) dc = -1; else if (move < 0.70) dc = 1; else if (move < 0.85) dr = 1; else dr = -1;
                 let nc = v.c + dc, nr = v.r + dr;
-                
-                // Wrap boundaries to maintain continuous flux
                 if (nc < 0) nc = gridCols - 1;
                 if (nc >= gridCols) nc = 0;
 
                 if (nr >= 0 && nr < gridRows) {
                     if (nc === vacTracer.c && nr === vacTracer.r) {
-                        // Swap with tracer
                         vacTracer.c = v.c; vacTracer.r = v.r;
                         v.c = nc; v.r = nr;
                     } else if (!vacancies.find(o => o.c === nc && o.r === nr)) {
@@ -243,7 +210,7 @@
         });
 
         if (vacTracer.c >= gridCols - 1) { vacTracer.c = 0; vacTracer.laps++; updateUI(); }
-        if (vacTracer.c < 0) vacTracer.c = 0; // Prevent backward lap loss
+        if (vacTracer.c < 0) vacTracer.c = 0;
 
         if (Math.floor(time * 10) % 5 === 0) updateChart();
         draw();
@@ -254,61 +221,35 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        // Finish Gate
-        ctx.fillStyle = "rgba(0, 255, 255, 0.05)";
-        ctx.fillRect(ox + (gridCols - 1.5) * spacing, 0, spacing, canvas.height);
         ctx.strokeStyle = "#00ffff";
-        ctx.lineWidth = 1;
         ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(ox + (gridCols - 1) * spacing, 0);
-        ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox + (gridCols - 1) * spacing, 0); ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height); ctx.stroke();
 
-        // Atoms
         for(let r=0; r<gridRows; r++) {
             for(let c=0; c<gridCols; c++) {
                 let isV = vacancies.find(v => v.c === c && v.r === r);
                 let isT = vacTracer.c === c && vacTracer.r === r;
                 let x = ox + c * spacing, y = oy + r * spacing;
-
                 if (isT) drawAtom(x, y, atomRadius*1.3, "#ff00ff", true);
                 else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false);
                 else drawAtom(x, y, atomRadius, "#ff4e00", true); 
             }
         }
-
-        let ix = ox + intAtom.c * spacing + spacing/2;
-        let iy = oy + intAtom.r * spacing + spacing/2;
-        drawAtom(ix, iy, atomRadius * 0.65, "#00ffff", true);
+        drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true);
     }
 
     function drawAtom(x, y, r, col, fill) {
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
-        if (fill) { 
-            ctx.fillStyle = col; 
-            ctx.fill(); 
-            if(col !== "#ff4e00") { ctx.shadowBlur=12; ctx.shadowColor=col; }
-        } else { 
-            ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0;
-        }
+        if (fill) { ctx.fillStyle = col; ctx.fill(); if(col !== "#ff4e00") { ctx.shadowBlur=12; ctx.shadowColor=col; } }
+        else { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0; }
     }
 
     function initChart() {
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [
-                { label: 'C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }
-            ]},
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: {
-                    y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } },
-                    x: { grid: { display: false }, ticks: { display: false } }
-                },
-                plugins: { legend: { display: false } }
-            }
+            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }]},
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } }, x: { grid: { display: false }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
         });
     }
 
