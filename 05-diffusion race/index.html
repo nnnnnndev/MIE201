@@ -73,12 +73,12 @@
     </div>
 
     <div class="slider-wrap">
-        <label>Vacancy Diff Speed Scaling</label>
+        <label>Simulation Speed Scaling</label>
         <select id="boost-select">
-            <option value="1">2,500x Base</option>
-            <option value="5">25,000x Base</option>
-            <option value="15">125,000x Base</option>
-            <option value="45" selected>250,000x (Simulation Mode)</option>
+            <option value="2.5">2,500x Base</option>
+            <option value="25">25,000x Base</option>
+            <option value="125">125,000x Base</option>
+            <option value="250" selected>250,000x (Simulation Mode)</option>
         </select>
     </div>
 
@@ -87,18 +87,18 @@
 
     <div class="remember-box">
         <strong>The Arrhenius Barrier</strong>
-        The concentration of required vacancies follows:
+        Vacancy concentration ($N_v$) increases exponentially with temperature:
         <span class="math-text">N<sub>v</sub> = N exp(-Q<sub>v</sub> / kT)</span>
         
-        The overall Diffusion Coefficient (D) scales with temperature:
+        Diffusion ($D$) also relies on $T$ for the atomic "jump" itself:
         <span class="math-text">D = D₀ exp(-Q / RT)</span>
         
         <br>
         <span class="highlight">Activation Energy (Q) Summary:</span><br>
-        For <b>Interstitials</b> (Cyan), the atom is already in the void; it only needs energy to move:
+        For <b>Interstitials</b> (Cyan), sites are always available. It only needs energy to move:
         <span class="math-text">Q<sub>total</sub> = Q<sub>migration</sub></span>
         
-        For <b>Self-Diffusion</b> (Orange), you face a "double penalty" to form the site then hop:
+        For <b>Self-Diffusion</b> (Orange), you must first <i>form</i> the vacancy, then move into it:
         <span class="math-text">Q<sub>total</sub> = Q<sub>vacancy</sub> + Q<sub>migration</sub></span>
     </div>
 </div>
@@ -136,6 +136,7 @@
         document.getElementById('in-t').oninput = (e) => {
             T = parseInt(e.target.value);
             document.getElementById('disp-t').innerText = T;
+            updateVacancyConcentration(); // Update count on slider move
         };
         resize();
         initChart();
@@ -156,6 +157,25 @@
         if (isRunning) animate();
     }
 
+    function updateVacancyConcentration() {
+        // Simplified exponential scaling for N_v visualization
+        // At 600K ~ 4 vacancies, at 1600K ~ 35 vacancies
+        const baseN = 4;
+        const targetN = Math.floor(baseN * Math.exp(0.0022 * (T - 600)));
+        
+        while (vacancies.length < targetN) {
+            let nc = Math.floor(Math.random() * gridCols);
+            let nr = Math.floor(Math.random() * gridRows);
+            // Ensure we don't place a vacancy on the tracer's spot or an existing vacancy
+            if ((nc !== vacTracer.c || nr !== vacTracer.r) && !vacancies.find(v => v.c === nc && v.r === nr)) {
+                vacancies.push({ c: nc, r: nr });
+            }
+        }
+        while (vacancies.length > targetN) {
+            vacancies.pop();
+        }
+    }
+
     function resetSim() {
         isRunning = false;
         time = 0;
@@ -163,10 +183,7 @@
         intAtom = { c: 0, r: 3, laps: 0 };
         vacTracer = { c: 0, r: 4, laps: 0 };
         vacancies = [];
-        // Populate vacancies
-        for(let i=0; i<18; i++) {
-            vacancies.push({ c: Math.floor(Math.random() * gridCols), r: Math.floor(Math.random() * gridRows) });
-        }
+        updateVacancyConcentration();
         updateUI();
         draw();
         updateChart();
@@ -181,11 +198,10 @@
         if (!isRunning) return;
         time += 0.05;
 
-        const vacPasses = parseInt(document.getElementById('boost-select').value);
+        const vacMultiplier = parseFloat(document.getElementById('boost-select').value);
         const tempFactor = Math.max(0.1, (T - 400) / 1200); 
 
-        // --- INTERSTITIAL (Fast Path) ---
-        // Runs ~20 checks per frame to maintain high visible speed
+        // --- INTERSTITIAL (Cyan) ---
         for(let i=0; i<20; i++) {
             if (Math.random() < 0.25 * tempFactor) {
                 let nc = intAtom.c, nr = intAtom.r;
@@ -196,14 +212,14 @@
             }
         }
 
-        // --- VACANCY/SELF-DIFFUSION (Slow Path - Scrambling) ---
-        // Uses the high vacPasses to force a ~10:1 ratio relative to interstitials
-        for (let p = 0; p < vacPasses; p++) {
+        // --- VACANCY/SELF-DIFFUSION (Orange) ---
+        // Using the 2.5x boosted multiplier for scrambling
+        for (let p = 0; p < vacMultiplier; p++) {
             vacancies.forEach(v => {
                 if (Math.random() < 0.5 * tempFactor) {
                     let dc=0, dr=0;
                     const move = Math.random();
-                    // Biased diffusion: Vacancies move left to move Tracer right
+                    // Bias leftward for vacancies to push atoms rightward
                     if (move < 0.60) dc = -1; 
                     else if (move < 0.70) dc = 1; 
                     else if (move < 0.85) dr = 1; 
@@ -214,7 +230,6 @@
                     if (nc >= gridCols) nc = 0;
 
                     if (nr >= 0 && nr < gridRows) {
-                        // If vacancy hits tracer, swap them (The hopping event)
                         if (nc === vacTracer.c && nr === vacTracer.r) {
                             vacTracer.c = v.c; vacTracer.r = v.r;
                             v.c = nc; v.r = nr;
@@ -238,8 +253,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
 
-        // Draw Finish Line
-        ctx.strokeStyle = "#444";
+        ctx.strokeStyle = "#222";
         ctx.setLineDash([5, 5]);
         ctx.beginPath(); ctx.moveTo(ox + (gridCols - 1) * spacing, 0); ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height); ctx.stroke();
 
@@ -250,18 +264,18 @@
                 let x = ox + c * spacing, y = oy + r * spacing;
                 
                 if (isT) {
-                    // Self-Diffusion tracer (Bright Orange Glow)
+                    // Tracer with Orange Glow
                     drawAtom(x, y, atomRadius*1.3, "#ff8c00", true, true);
                 } else if (isV) {
-                    // Vacancy Site (Dashed)
+                    // Vacancy Site
                     drawAtom(x, y, atomRadius, "#ff00ff", false, false);
                 } else {
-                    // Bulk Atoms (Darker Orange/Brown)
-                    drawAtom(x, y, atomRadius, "#331a00", true, false); 
+                    // Dark Bulk Atoms
+                    drawAtom(x, y, atomRadius, "#1a0d00", true, false); 
                 }
             }
         }
-        // Interstitial Atom (Cyan Glow)
+        // Interstitial with Cyan Glow
         drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true, true);
     }
 
@@ -270,7 +284,7 @@
         if (fill) { 
             ctx.fillStyle = col; 
             if (glow) {
-                ctx.shadowBlur = 15;
+                ctx.shadowBlur = 20;
                 ctx.shadowColor = col;
             } else {
                 ctx.shadowBlur = 0;
@@ -278,7 +292,7 @@
             ctx.fill(); 
         } else { 
             ctx.strokeStyle = col; 
-            ctx.lineWidth = 1; 
+            ctx.lineWidth = 1.5; 
             ctx.setLineDash([3,2]); 
             ctx.stroke(); 
             ctx.setLineDash([]); 
@@ -290,7 +304,7 @@
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'Concentration', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' }]},
+            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [{ label: 'Diffusion Profile', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' }]},
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } }, x: { grid: { display: false }, ticks: { display: false } } }, plugins: { legend: { display: false } } }
         });
     }
