@@ -35,15 +35,13 @@
         #canvas-wrap { flex: 3; position: relative; border-bottom: 1px solid #1a1a3a; cursor: crosshair; }
         #graph-wrap { flex: 2; padding: 20px; box-sizing: border-box; background: #020205; }
         canvas { display: block; width: 100%; height: 100%; }
-
-        .finish-gate { position: absolute; left: 60px; top: 0; bottom: 0; width: 4px; background: #00ffff; opacity: 0.3; box-shadow: 0 0 20px #00ffff; }
     </style>
 </head>
 <body>
 
 <div id="ui">
     <div class="header">Kinetic Explorer</div>
-    <div class="sub-header">Diffusion Race: Right → Left</div>
+    <div class="sub-header">Diffusion Race: Left → Right</div>
     
     <div class="stat-card">
         <div class="stat-label">Interstitial (Cyan) Laps</div>
@@ -73,13 +71,12 @@
     <button onclick="resetSim()">Reset Lattice</button>
 
     <div style="font-size: 0.65rem; color: #556; line-height: 1.4; margin-top: auto;">
-        *Note: At 1,000K, a real vacancy swap occurs roughly once every 10^7 vibrations. The tracer is "sped up" here so you don't have to wait until next semester.
+        *Note: At 1,000K, a real vacancy swap occurs roughly once every 10^7 vibrations. The tracer is "sped up" here for classroom demonstration.
     </div>
 </div>
 
 <div id="main-content">
     <div id="canvas-wrap">
-        <div class="finish-gate"></div>
         <canvas id="sim-canvas"></canvas>
     </div>
     <div id="graph-wrap">
@@ -102,6 +99,7 @@
     const gridRows = 8;
     let gridCols;
 
+    // Integers strictly guarantee alignment
     let intAtom = { c: 0, r: 3, laps: 0 }; 
     let vacTracer = { c: 0, r: 4, laps: 0 };
     let vacancies = [];
@@ -135,11 +133,12 @@
         isRunning = false;
         time = 0;
         gridCols = Math.floor((canvas.width - 120) / spacing);
-        // Start on the far RIGHT for the race
-        intAtom = { c: gridCols - 2, r: 3.5, laps: 0 };
-        vacTracer = { c: gridCols - 1, r: 4, laps: 0 };
         
-        // Distribute 15 vacancies throughout the entire grid
+        // Start on the far LEFT
+        intAtom = { c: 0, r: 3, laps: 0 };
+        vacTracer = { c: 0, r: 4, laps: 0 };
+        
+        // Distribute vacancies throughout the entire grid
         vacancies = [];
         for(let i=0; i<15; i++) {
             vacancies.push({ 
@@ -149,6 +148,7 @@
         }
         updateUI();
         draw();
+        updateChart();
     }
 
     function updateUI() {
@@ -163,37 +163,52 @@
         const boost = parseInt(document.getElementById('boost-select').value);
         const jumpFreq = ((T - 400) / 1200) * (boost / 100000);
 
-        // --- INTERSTITIAL: Drift Left (towards finish) ---
-        // Jump 10 times more often than the vacancy tracer's BASE rate
+        // --- INTERSTITIAL: Drift Right (towards finish) ---
         for(let i=0; i<25; i++) {
             if (Math.random() < 0.1 * ((T - 400) / 1200)) {
                 const move = Math.random();
                 let nc = intAtom.c, nr = intAtom.r;
-                if (move < 0.50) nc--;      // 50% Left (Race direction)
-                else if (move < 0.70) nc++; // 20% Back
-                else if (move < 0.85) nr++; 
-                else nr--;
+                
+                if (move < 0.50) nc++;      // 50% Right (Race direction)
+                else if (move < 0.70) nc--; // 20% Left
+                else if (move < 0.85) nr++; // 15% Down
+                else nr--;                  // 15% Up
 
-                if (nr >= 0.5 && nr <= gridRows - 1.5 && nc <= gridCols - 2) {
+                // Enforce STRICT integer boundaries for the void grid
+                // (r must be between 0 and gridRows-2)
+                // (c must be >= 0)
+                if (nr >= 0 && nr <= gridRows - 2 && nc >= 0) {
                     intAtom.c = nc; intAtom.r = nr;
                 }
-                if (intAtom.c < 0) { intAtom.c = gridCols - 2; intAtom.laps++; updateUI(); }
+                
+                // Lap Condition
+                if (intAtom.c >= gridCols - 1) { 
+                    intAtom.c = 0; 
+                    intAtom.laps++; 
+                    updateUI(); 
+                }
             }
         }
 
-        // --- VACANCY: Drift Right to push Tracer Left ---
-        // Vacancies move randomly but drift RIGHT
+        // --- VACANCY: Drift Left to push Tracer Right ---
         vacancies.forEach(v => {
             if (Math.random() < 0.8 * jumpFreq) {
                 const move = Math.random();
                 let dc=0, dr=0;
-                if (move < 0.45) dc = 1;     // Bias RIGHT to push tracer LEFT
-                else if (move < 0.65) dc = -1;
-                else if (move < 0.825) dr = 1;
+                
+                // Vacancies drift LEFT so tracer drifts RIGHT
+                if (move < 0.50) dc = -1;     
+                else if (move < 0.70) dc = 1;
+                else if (move < 0.85) dr = 1;
                 else dr = -1;
 
                 let nc = v.c + dc, nr = v.r + dr;
-                if (nc >= 0 && nc < gridCols && nr >= 0 && nr < gridRows) {
+                
+                // PERIODIC BOUNDARY: Wrap vacancies to the right edge to maintain flux
+                if (nc < 0) nc = gridCols - 1;
+                if (nc >= gridCols) nc = 0;
+
+                if (nr >= 0 && nr < gridRows) {
                     // Interaction logic
                     if (nc === vacTracer.c && nr === vacTracer.r) {
                         // SWAP
@@ -206,7 +221,10 @@
             }
         });
 
-        if (vacTracer.c < 0) { vacTracer.c = gridCols - 1; vacTracer.laps++; updateUI(); }
+        // Lap Condition for Tracer
+        if (vacTracer.c >= gridCols - 1) { vacTracer.c = 0; vacTracer.laps++; updateUI(); }
+        // Prevent tracer from backing off the start line
+        if (vacTracer.c < 0) vacTracer.c = 0;
 
         if (Math.floor(time * 10) % 5 === 0) updateChart();
         draw();
@@ -216,6 +234,17 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
+
+        // Draw Finish Gate
+        ctx.fillStyle = "rgba(0, 255, 255, 0.1)";
+        ctx.fillRect(ox + (gridCols - 1.5) * spacing, 0, spacing, canvas.height);
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(ox + (gridCols - 1) * spacing, 0);
+        ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height);
+        ctx.stroke();
 
         // BULK: International Orange
         for(let r=0; r<gridRows; r++) {
@@ -230,7 +259,7 @@
             }
         }
 
-        // INTERSTITIAL: In the quad-void center
+        // INTERSTITIAL: In the exact center of the 4-atom square
         let ix = ox + intAtom.c * spacing + spacing/2;
         let iy = oy + intAtom.r * spacing + spacing/2;
         drawAtom(ix, iy, atomRadius * 0.65, "#00ffff", true);
@@ -251,14 +280,14 @@
         const ctxChart = document.getElementById('chart-canvas').getContext('2d');
         chart = new Chart(ctxChart, {
             type: 'line',
-            data: { labels: Array.from({length: 60}, (_, i) => 60 - i), datasets: [
+            data: { labels: Array.from({length: 60}, (_, i) => i), datasets: [
                 { label: 'C(x,t)', borderColor: '#00ffff', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(0, 255, 255, 0.05)' }
             ]},
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
                     y: { min: 0, max: 1, grid: { color: '#1a1a3a' }, ticks: { display: false } },
-                    x: { grid: { display: false }, ticks: { display: false }, reverse: true }
+                    x: { grid: { display: false }, ticks: { display: false } }
                 },
                 plugins: { legend: { display: false } }
             }
