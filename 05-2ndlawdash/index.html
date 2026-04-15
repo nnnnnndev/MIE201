@@ -1,1 +1,121 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
+// --- Parameters (Callister 10e, C in gamma-Fe) ---
+const D0 = 2.3e-5;      // Pre-exponential (m^2/s)
+const Qd = 148000;      // Activation energy (J/mol)
+const R = 8.314;        // Gas Constant
+const Cs = 1.0;         // Surface concentration (normalized)
+const C0 = 0.0;         // Initial concentration
+
+// Simulation state
+let state = {
+    tempC: 950,
+    timeHrs: 10,
+    depthScale: 0.0001 // Visualization scaling
+};
+
+// --- Three.js Setup ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(15, 10, 20);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+
+// --- Materials ---
+const ironMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0x330033 });
+const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666 });
+const ambientLight = new THREE.AmbientLight(0x404040, 2);
+scene.add(ambientLight);
+
+// --- Lattice Construction ---
+const nx = 40, ny = 6, nz = 6; // Grid dimensions
+const spacing = 1.0; 
+
+// 1. Host Iron (FCC)
+const ironGeo = new THREE.SphereGeometry(0.15, 8, 8);
+const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
+scene.add(ironMesh);
+
+// 2. Interstitial Carbon (Octahedral Sites)
+const carbonGeo = new THREE.SphereGeometry(0.06, 6, 6);
+const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
+scene.add(carbonMesh);
+
+function updateLattice() {
+    const tempK = state.tempC + 273.15;
+    const timeSec = state.timeHrs * 3600;
+    const D = D0 * Math.exp(-Qd / (R * tempK));
+    
+    let ironIdx = 0;
+    let carbonIdx = 0;
+    const dummy = new THREE.Object3D();
+
+    for (let x = 0; x < nx; x++) {
+        // Calculate concentration at this x-depth
+        const depthMeters = x * 0.00005; // Dummy spatial mapping
+        const z = depthMeters / (2 * Math.sqrt(D * timeSec));
+        const concentration = Cs * (1 - errorFunction(z));
+
+        for (let y = 0; y < ny; y++) {
+            for (let z_coord = 0; z_coord < nz; z_coord++) {
+                
+                // Position FCC Host atoms
+                const bases = [[0,0,0], [0.5,0.5,0], [0,0.5,0.5], [0.5,0,0.5]];
+                bases.forEach(b => {
+                    dummy.position.set(x + b[0], y + b[1], z_coord + b[2]);
+                    dummy.updateMatrix();
+                    ironMesh.setMatrixAt(ironIdx++, dummy.matrix);
+                });
+
+                // Position Octahedral Carbon atoms
+                // Sites at: [0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5], [0.5, 0.5, 0.5]
+                const octa = [[0.5,0,0], [0,0.5,0], [0,0,0.5], [0.5,0.5,0.5]];
+                octa.forEach(o => {
+                    dummy.position.set(x + o[0], y + o[1], z_coord + o[2]);
+                    // Only "reveal" based on concentration probability
+                    const scale = Math.random() < concentration ? 1 : 0;
+                    dummy.scale.set(scale, scale, scale);
+                    dummy.updateMatrix();
+                    carbonMesh.setMatrixAt(carbonIdx++, dummy.matrix);
+                });
+            }
+        }
+    }
+    ironMesh.instanceMatrix.needsUpdate = true;
+    carbonMesh.instanceMatrix.needsUpdate = true;
+}
+
+// --- Math Helpers ---
+function errorFunction(z) {
+    // Numerical approximation for erf(z)
+    const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
+    const ans = 1 - t * Math.exp(-z * z - 1.26551223 +
+        t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+        t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 +
+        t * (1.48851587 + t * (-0.82215223 + t * (0.17087277))))))))));
+    return z >= 0 ? ans : -ans;
+}
+
+// --- Loop ---
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+updateLattice();
+animate();
+
+// --- Event Listeners for Sliders ---
+// Assume HTML contains: <input type="range" id="tempSlider" ...>
+document.getElementById('tempSlider')?.addEventListener('input', (e) => {
+    state.tempC = parseFloat(e.target.value);
+    updateLattice();
+});
