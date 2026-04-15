@@ -3,52 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ch 5: Diffusion Dashboard // Kinetic Engine</title>
+    <title>Ch 5: Diffusion Dashboard // Industrial Kinetic Engine</title>
     <style>
-        /* Bold, Industrial UI */
+        /* Bold, High-Contrast UI */
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; background: #000; color: #00ffff; font-family: 'Arial Black', 'Arial', sans-serif; overflow: hidden; font-weight: 900; }
         
         #viewport-container { flex: 1; position: relative; min-height: 0; border-bottom: 3px solid #ff00ff; }
         canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-        #ui-layer { position: absolute; top: 15px; left: 15px; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 12px; }
+        #ui-layer { position: absolute; top: 15px; left: 15px; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 10px; }
 
         .panel {
             background: rgba(0, 0, 0, 0.95);
             border: 3px solid #ff00ff;
             padding: 15px;
-            width: 360px;
+            width: 380px;
             box-shadow: 0 0 20px rgba(255, 0, 255, 0.6);
             pointer-events: auto;
             border-radius: 4px;
         }
 
-        h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 5px; font-weight: 900; }
+        h2 { margin: 0 0 8px 0; font-size: 1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 5px; font-weight: 900; }
 
-        #equation-display { font-size: 1.6rem; margin: 10px 0; font-weight: 900; }
-        .exponent { display: inline-block; vertical-align: super; font-size: 0.9rem; font-weight: 900; }
+        #equation-display { font-size: 1.1rem; margin: 10px 0; font-weight: 900; line-height: 1.4; color: #fff; }
         
-        .control-group { margin: 12px 0; }
-        label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: #ff00ff; }
+        .control-group { margin: 10px 0; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: #ff00ff; text-transform: uppercase; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
         
-        .target-inputs { display: flex; gap: 10px; }
-        input[type=number] { background: #111; border: 2px solid #00ffff; color: #00ffff; padding: 4px; font-weight: 900; width: 75px; font-size: 1rem; }
+        .target-inputs { display: flex; gap: 15px; margin-top: 5px; }
+        input[type=number] { background: #111; border: 2px solid #00ffff; color: #00ffff; padding: 4px; font-weight: 900; width: 80px; font-size: 1rem; }
+
+        /* Custom Toggle Switch */
+        .toggle-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; cursor: pointer; }
+        .toggle-container input { cursor: pointer; width: 18px; height: 18px; }
 
         .readout { font-size: 1rem; margin-top: 6px; color: #00f2ff; }
-        .target-readout { border-top: 1px solid #00ffff55; padding-top: 8px; margin-top: 8px;}
+        
+        #status-panel { transition: all 0.3s ease; text-align: center; }
+        #status-text { font-size: 1.2rem; letter-spacing: 1px; font-weight: 900; }
+        
+        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; box-shadow: 0 0 30px #00ff00 !important; }
+        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 30px #ff0000 !important; }
+        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; box-shadow: 0 0 30px #ffff00 !important; }
 
-        /* Status Feedback Classes */
-        #status-panel { transition: all 0.3s ease; }
-        #status-text { font-size: 1.3rem; text-align: center; letter-spacing: 1px; }
-        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; box-shadow: 0 0 25px #00ff00 !important; }
-        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 25px #ff0000 !important; }
-        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; box-shadow: 0 0 25px #ffff00 !important; }
-
-        #graph-area { flex: 0 0 300px; background: #000; position: relative; }
+        #graph-area { flex: 0 0 320px; background: #000; position: relative; border-top: 1px solid #333; }
         svg { width: 100%; height: 100%; display: block; }
         
-        #system-status { position: absolute; bottom: 10px; right: 15px; font-size: 0.8rem; color: #ff00ff; text-align: right; pointer-events: none; opacity: 0.8; }
+        #system-status { position: absolute; bottom: 10px; right: 15px; font-size: 0.75rem; color: #ff00ff; text-align: right; pointer-events: none; opacity: 0.7; font-weight: 900; }
     </style>
 </head>
 <body>
@@ -57,7 +59,9 @@
         <div id="ui-layer">
             <div class="panel">
                 <h2>Kinetic Engine</h2>
-                <div id="equation-display">D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span></div>
+                <div id="equation-display">
+                    C(x,t) = C<sub>s</sub> [1 - erf(x / 2&radic;Dt)]
+                </div>
                 <div class="control-group">
                     <label>Temp (T): <span id="val-temp">1032</span> °C</label>
                     <input type="range" id="slider-temp" min="800" max="1250" value="1032">
@@ -66,31 +70,31 @@
                     <label>Time (t): <span id="val-time">10</span> Hours</label>
                     <input type="range" id="slider-time" min="1" max="100" value="10">
                 </div>
-                <div class="control-group">
-                    <label>Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
-                    <input type="range" id="slider-qd" min="100" max="250" value="148">
-                </div>
+                <label class="toggle-container">
+                    <input type="checkbox" id="toggle-rotate" checked>
+                    <span>AUTO-ROTATE VIEW</span>
+                </label>
             </div>
 
             <div class="panel">
-                <h2>Target Specs</h2>
+                <h2>Process Target</h2>
                 <div class="target-inputs">
                     <div><label>Depth [mm]</label><input type="number" id="input-target-depth" step="0.1" value="1.0"></div>
-                    <div><label>Conc [wt%]</label><input type="number" id="input-target-conc" step="0.01" value="0.45"></div>
+                    <div><label>Target %C</label><input type="number" id="input-target-conc" step="0.01" value="0.45"></div>
                 </div>
-                <div class="target-readout readout">
-                    Actual Conc: <span id="readout-conc-at-target">--</span> wt% C
+                <div class="readout" style="margin-top:12px; border-top:1px solid #333; padding-top:8px;">
+                    Actual at Depth: <span id="readout-conc-at-target">--</span> wt% C
                 </div>
             </div>
 
             <div id="status-panel" class="panel">
-                <div id="status-text">INITIALIZING...</div>
+                <div id="status-text">SYSTEM STANDBY</div>
             </div>
         </div>
 
         <div id="system-status">
-            FCC AUSTENITE // DIFFUSANT: CARBON<br>
-            BOUNDARY: SEMI-INFINITE // Cs=1.2%
+            FCC AUSTENITE // DIFFUSANT: CARBON (OCTAHEDRAL)<br>
+            BOUNDARY: SEMI-INFINITE // C<sub>s</sub>=1.2% // C<sub>0</sub>=0%
         </div>
     </div>
 
@@ -115,40 +119,40 @@
         const R = 8.314;
         const Cs = 1.2;
 
-        let state = { tempC: 1032, timeHrs: 10, qdKJ: 148, targetX: 1.0, targetC: 0.45 };
+        let state = { tempC: 1032, timeHrs: 10, targetX: 1.0, targetC: 0.45, autoRotate: true };
 
-        // --- 3D Setup ---
+        // --- 3D Scene ---
         const container = document.getElementById('viewport-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-        camera.position.set(50, 20, 50);
+        camera.position.set(55, 25, 55);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.autoRotate = true;
+        controls.autoRotate = state.autoRotate;
         controls.target.set(30, 0, 0);
 
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        const light = new THREE.PointLight(0x00ffff, 500);
-        light.position.set(0, 20, 20);
+        const light = new THREE.PointLight(0x00ffff, 600);
+        light.position.set(10, 30, 30);
         scene.add(light);
 
-        // --- Lattice Initialization ---
-        const nx = 70, ny = 8, nz = 8, spacing = 2;
+        // --- Atoms ---
+        const nx = 75, ny = 8, nz = 8, spacing = 1.8;
         const ironGeo = new THREE.SphereGeometry(0.35, 8, 8);
         const ironMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
         const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
         scene.add(ironMesh);
 
         const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6);
-        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaaa });
+        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.5 });
         const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
         scene.add(carbonMesh);
 
-        // Pulsing Surface
+        // Pulsing Face
         const planeGeo = new THREE.PlaneGeometry(ny * spacing, nz * spacing);
         const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
         const sourcePlane = new THREE.Mesh(planeGeo, planeMat);
@@ -156,7 +160,6 @@
         sourcePlane.position.set(-0.5, (ny*spacing)/2 - 1, (nz*spacing)/2 - 1);
         scene.add(sourcePlane);
 
-        // Pre-place Iron
         const dummy = new THREE.Object3D();
         let iIdx = 0;
         const bases = [[0,0,0], [1,1,0], [1,0,1], [0,1,1]];
@@ -175,12 +178,12 @@
             return z >= 0 ? ans : -ans;
         }
 
-        // --- Graph Engine ---
+        // --- SVG Graph ---
         const svg = document.getElementById('diffusion-svg');
-        function updateGraph(D, tSec) {
+        function updateGraph(D, tSec, statusColor) {
             svg.innerHTML = '';
             const w = svg.clientWidth, h = svg.clientHeight;
-            const pad = { l: 80, r: 40, t: 50, b: 60 };
+            const pad = { l: 80, r: 40, t: 60, b: 60 };
             const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
             const drawLine = (x1, y1, x2, y2, color, stroke, dash="") => {
@@ -191,10 +194,10 @@
                 svg.appendChild(l);
             };
 
-            const drawText = (txt, x, y, anchor="start", weight="900") => {
+            const drawText = (txt, x, y, anchor="start", weight="900", size="14px") => {
                 const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 t.textContent = txt; t.setAttribute("x", x); t.setAttribute("y", y);
-                t.setAttribute("fill", "#ff00ff"); t.setAttribute("font-size", "14px");
+                t.setAttribute("fill", "#ff00ff"); t.setAttribute("font-size", size);
                 t.setAttribute("text-anchor", anchor); t.setAttribute("font-weight", weight);
                 svg.appendChild(t);
             };
@@ -203,7 +206,7 @@
             drawLine(pad.l, pad.t, pad.l, h-pad.b, "#ff00ff", "2"); 
             drawLine(pad.l, h-pad.b, w-pad.r, h-pad.b, "#ff00ff", "2");
 
-            // Curve
+            // Main Curve
             let pts = "";
             for(let i=0; i<=150; i++) {
                 const depthMM = (i/150) * 10;
@@ -213,52 +216,66 @@
             }
             const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
             path.setAttribute("points", pts); path.setAttribute("fill", "none");
-            path.setAttribute("stroke", "#00ffff"); path.setAttribute("stroke-width", "3");
+            path.setAttribute("stroke", "#00ffff"); path.setAttribute("stroke-width", "4");
             svg.appendChild(path);
 
-            // Target Depth Line
+            // Cross-hair lines
             const tx = pad.l + (state.targetX / 10) * iw;
-            drawLine(tx, pad.t, tx, h-pad.b, "#ff00ff", "1.5", "5,5");
+            const ty = pad.t + ih - (state.targetC / 1.3) * ih;
+            drawLine(tx, pad.t, tx, h-pad.b, "#ff00ff", "1.5", "6,4"); // Vertical
+            drawLine(pad.l, ty, w-pad.r, ty, "#00ffff", "1.5", "6,4"); // Horizontal Target
 
-            drawText("Depth [mm]", w/2, h-10, "middle");
-            drawText("wt% C", 10, pad.t, "start");
-            drawText(`TARGET @ ${state.targetX}mm`, tx, pad.t - 10, "middle");
-            drawText("Carburizing Profile: C(x,t) = Cs [1 - erf(z)]", w/2, 25, "middle", "900");
+            // Tracker Dot on the Curve
+            const currentZ = (state.targetX / 1000) / (2 * Math.sqrt(D * tSec));
+            const currentC = Cs * (1 - erf(currentZ));
+            const cy = pad.t + ih - (currentC / 1.3) * ih;
+            
+            const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            dot.setAttribute("cx", tx); dot.setAttribute("cy", cy); dot.setAttribute("r", "8");
+            dot.setAttribute("fill", statusColor);
+            dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", "2");
+            dot.style.filter = `drop-shadow(0 0 10px ${statusColor})`;
+            svg.appendChild(dot);
+
+            drawText("DEPTH [mm]", w/2, h-10, "middle", "900");
+            drawText("CONC. [wt% C]", 10, pad.t - 10, "start", "900", "12px");
+            drawText(`TARGET: ${state.targetC}% @ ${state.targetX}mm`, w-pad.r, pad.t - 10, "end", "900");
         }
 
-        // --- Simulation ---
         function updateSim() {
-            const T = state.tempC + 273.15, tSec = state.timeHrs * 3600, Qd = state.qdKJ * 1000;
+            const T = state.tempC + 273.15, tSec = state.timeHrs * 3600, Qd = 148000;
             const D = D0 * Math.exp(-Qd / (R * T));
             
             const zTarget = (state.targetX / 1000) / (2 * Math.sqrt(D * tSec));
             const actualC = Cs * (1 - erf(zTarget));
-            
             document.getElementById('readout-conc-at-target').innerText = actualC.toFixed(3);
             
             const statusPanel = document.getElementById('status-panel');
             const statusText = document.getElementById('status-text');
             statusPanel.className = 'panel';
             
+            let statusColor = "#ffffff";
             const diff = actualC - state.targetC;
-            if(Math.abs(diff) < 0.02) {
+            if(Math.abs(diff) < 0.03) {
                 statusText.innerText = "TARGET ACHIEVED";
                 statusPanel.classList.add('status-achieved');
+                statusColor = "#00ff00";
             } else if(diff < 0) {
                 statusText.innerText = "UNDER-CARBURIZED";
                 statusPanel.classList.add('status-under');
+                statusColor = "#ffff00";
             } else {
                 statusText.innerText = "OVER-CARBURIZED";
                 statusPanel.classList.add('status-over');
+                statusColor = "#ff0000";
             }
 
-            updateGraph(D, tSec);
+            updateGraph(D, tSec, statusColor);
 
-            // Update Carbon population
             let cIdx = 0;
             const octa = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]];
             for(let x=0; x<nx; x++) {
-                const localZ = (x * 0.0001) / (2 * Math.sqrt(D * tSec));
+                const localZ = (x * 0.00015) / (2 * Math.sqrt(D * tSec));
                 const p = Cs * (1 - erf(localZ));
                 for(let y=0; y<ny; y++) for(let z=0; z<nz; z++) {
                     octa.forEach(o => {
@@ -272,17 +289,19 @@
             carbonMesh.instanceMatrix.needsUpdate = true;
         }
 
-        // Listeners
-        const map = { 'slider-temp': 'tempC', 'slider-time': 'timeHrs', 'slider-qd': 'qdKJ' };
-        Object.entries(map).forEach(([id, key]) => {
-            document.getElementById(id).addEventListener('input', (e) => {
-                state[key] = parseFloat(e.target.value);
-                const labelId = id.replace('slider', 'val');
-                if(document.getElementById(labelId)) document.getElementById(labelId).innerText = e.target.value;
-                updateSim();
-            });
+        document.getElementById('slider-temp').addEventListener('input', (e) => {
+            state.tempC = parseFloat(e.target.value);
+            document.getElementById('val-temp').innerText = e.target.value;
+            updateSim();
         });
-
+        document.getElementById('slider-time').addEventListener('input', (e) => {
+            state.timeHrs = parseFloat(e.target.value);
+            document.getElementById('val-time').innerText = e.target.value;
+            updateSim();
+        });
+        document.getElementById('toggle-rotate').addEventListener('change', (e) => {
+            controls.autoRotate = e.target.checked;
+        });
         document.getElementById('input-target-depth').addEventListener('change', (e) => { state.targetX = parseFloat(e.target.value); updateSim(); });
         document.getElementById('input-target-conc').addEventListener('change', (e) => { state.targetC = parseFloat(e.target.value); updateSim(); });
 
@@ -298,7 +317,7 @@
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
             const freq = 1 + ((state.tempC - 800) / 450) * 8; 
-            sourcePlane.material.opacity = 0.2 + 0.2 * Math.sin(time * freq);
+            sourcePlane.material.opacity = 0.2 + 0.15 * Math.sin(time * freq);
             controls.update();
             renderer.render(scene, camera);
         }
