@@ -1,121 +1,254 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 5: Non-Steady State Diffusion Dashboard</title>
+    <style>
+        body { margin: 0; background: #000; color: #00ffff; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        canvas { display: block; }
 
-// --- Parameters (Callister 10e, C in gamma-Fe) ---
-const D0 = 2.3e-5;      // Pre-exponential (m^2/s)
-const Qd = 148000;      // Activation energy (J/mol)
-const R = 8.314;        // Gas Constant
-const Cs = 1.0;         // Surface concentration (normalized)
-const C0 = 0.0;         // Initial concentration
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            width: 100%;
+        }
 
-// Simulation state
-let state = {
-    tempC: 950,
-    timeHrs: 10,
-    depthScale: 0.0001 // Visualization scaling
-};
+        .panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #ff00ff;
+            padding: 15px;
+            pointer-events: auto;
+            margin-bottom: 10px;
+            width: 320px;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
 
-// --- Three.js Setup ---
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+        h2 { margin: 0 0 10px 0; font-size: 1.2rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; }
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(15, 10, 20);
+        /* Arrhenius Equation Styling */
+        #equation-display {
+            font-size: 1.4rem;
+            margin: 10px 0;
+            transition: all 0.2s ease;
+        }
+        .exponent { display: inline-block; vertical-align: super; font-size: 0.8rem; transition: all 0.2s ease; }
+        .highlight { color: #ffffff; text-shadow: 0 0 10px #ffffff; }
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+        .control-group { margin: 15px 0; }
+        label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: #ff00ff; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
 
-const controls = new OrbitControls(camera, renderer.domElement);
+        .readout { font-size: 0.9rem; margin-top: 5px; color: #00f2ff; }
+        
+        #data-log {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+            font-size: 0.75rem;
+            color: #ff00ff;
+        }
+    </style>
+</head>
+<body>
 
-// --- Materials ---
-const ironMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0x330033 });
-const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666 });
-const ambientLight = new THREE.AmbientLight(0x404040, 2);
-scene.add(ambientLight);
+    <div id="ui-layer">
+        <div class="panel">
+            <h2>Kinetic Engine</h2>
+            <div id="equation-display">
+                D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Temperature (T): <span id="val-temp">950</span> °C</label>
+                <input type="range" id="slider-temp" min="800" max="1200" value="950">
+            </div>
 
-// --- Lattice Construction ---
-const nx = 40, ny = 6, nz = 6; // Grid dimensions
-const spacing = 1.0; 
+            <div class="control-group">
+                <label>Time (t): <span id="val-time">10</span> Hours</label>
+                <input type="range" id="slider-time" min="1" max="100" value="10">
+            </div>
 
-// 1. Host Iron (FCC)
-const ironGeo = new THREE.SphereGeometry(0.15, 8, 8);
-const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
-scene.add(ironMesh);
+            <div class="control-group">
+                <label>Activation Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
+                <input type="range" id="slider-qd" min="100" max="200" value="148">
+            </div>
+        </div>
 
-// 2. Interstitial Carbon (Octahedral Sites)
-const carbonGeo = new THREE.SphereGeometry(0.06, 6, 6);
-const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
-scene.add(carbonMesh);
+        <div class="panel">
+            <h2>Process Feedback</h2>
+            <div class="readout">D: <span id="readout-d">--</span> m²/s</div>
+            <div class="readout">z at 1mm: <span id="readout-z">--</span></div>
+            <div class="readout">erf(z): <span id="readout-erf">--</span></div>
+        </div>
+    </div>
 
-function updateLattice() {
-    const tempK = state.tempC + 273.15;
-    const timeSec = state.timeHrs * 3600;
-    const D = D0 * Math.exp(-Qd / (R * tempK));
-    
-    let ironIdx = 0;
-    let carbonIdx = 0;
-    const dummy = new THREE.Object3D();
+    <div id="data-log">
+        SYSTEM: SEMI-INFINITE BAR // LATTICE: FCC AUSTENITE<br>
+        DIFFUSION: INTERSTITIAL CARBON // BOUNDARY: CONSTANT Cs
+    </div>
 
-    for (let x = 0; x < nx; x++) {
-        // Calculate concentration at this x-depth
-        const depthMeters = x * 0.00005; // Dummy spatial mapping
-        const z = depthMeters / (2 * Math.sqrt(D * timeSec));
-        const concentration = Cs * (1 - errorFunction(z));
-
-        for (let y = 0; y < ny; y++) {
-            for (let z_coord = 0; z_coord < nz; z_coord++) {
-                
-                // Position FCC Host atoms
-                const bases = [[0,0,0], [0.5,0.5,0], [0,0.5,0.5], [0.5,0,0.5]];
-                bases.forEach(b => {
-                    dummy.position.set(x + b[0], y + b[1], z_coord + b[2]);
-                    dummy.updateMatrix();
-                    ironMesh.setMatrixAt(ironIdx++, dummy.matrix);
-                });
-
-                // Position Octahedral Carbon atoms
-                // Sites at: [0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5], [0.5, 0.5, 0.5]
-                const octa = [[0.5,0,0], [0,0.5,0], [0,0,0.5], [0.5,0.5,0.5]];
-                octa.forEach(o => {
-                    dummy.position.set(x + o[0], y + o[1], z_coord + o[2]);
-                    // Only "reveal" based on concentration probability
-                    const scale = Math.random() < concentration ? 1 : 0;
-                    dummy.scale.set(scale, scale, scale);
-                    dummy.updateMatrix();
-                    carbonMesh.setMatrixAt(carbonIdx++, dummy.matrix);
-                });
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
-    }
-    ironMesh.instanceMatrix.needsUpdate = true;
-    carbonMesh.instanceMatrix.needsUpdate = true;
-}
+    </script>
 
-// --- Math Helpers ---
-function errorFunction(z) {
-    // Numerical approximation for erf(z)
-    const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
-    const ans = 1 - t * Math.exp(-z * z - 1.26551223 +
-        t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
-        t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 +
-        t * (1.48851587 + t * (-0.82215223 + t * (0.17087277))))))))));
-    return z >= 0 ? ans : -ans;
-}
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// --- Loop ---
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-}
+        // Constants
+        const D0 = 2.3e-5;
+        const R = 8.314;
+        const Cs = 1.0; 
 
-updateLattice();
-animate();
+        // State
+        let state = {
+            tempC: 950,
+            timeHrs: 10,
+            qdKJ: 148
+        };
 
-// --- Event Listeners for Sliders ---
-// Assume HTML contains: <input type="range" id="tempSlider" ...>
-document.getElementById('tempSlider')?.addEventListener('input', (e) => {
-    state.tempC = parseFloat(e.target.value);
-    updateLattice();
-});
+        // Scene Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(20, 15, 35);
+        controls.enableDamping = true;
+
+        // Lighting
+        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambient);
+        const point = new THREE.PointLight(0x00ffff, 100);
+        point.position.set(-10, 10, 10);
+        scene.add(point);
+
+        // Lattice Params
+        const nx = 50, ny = 6, nz = 6; // Long bar for semi-infinite look
+        const spacing = 2;
+
+        // Instanced Meshes
+        const ironGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const ironMat = new THREE.MeshStandardMaterial({ color: 0xff00ff, emissive: 0x440044 });
+        const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
+        scene.add(ironMesh);
+
+        const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6);
+        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666 });
+        const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
+        scene.add(carbonMesh);
+
+        // Source Plane
+        const planeGeo = new THREE.PlaneGeometry(ny * spacing, nz * spacing);
+        const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+        const sourcePlane = new THREE.Mesh(planeGeo, planeMat);
+        sourcePlane.rotation.y = Math.PI / 2;
+        sourcePlane.position.set(-0.5, (ny*spacing)/2 - 1, (nz*spacing)/2 - 1);
+        scene.add(sourcePlane);
+
+        function errorFunction(z) {
+            const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
+            const ans = 1 - t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * (0.17087277))))))))));
+            return z >= 0 ? ans : -ans;
+        }
+
+        function updateSimulation() {
+            const T = state.tempC + 273.15;
+            const tSec = state.timeHrs * 3600;
+            const Qd = state.qdKJ * 1000;
+            const D = D0 * Math.exp(-Qd / (R * T));
+
+            // UI Feedback
+            document.getElementById('readout-d').innerText = D.toExponential(3);
+            const zTest = 0.001 / (2 * Math.sqrt(D * tSec));
+            document.getElementById('readout-z').innerText = zTest.toFixed(4);
+            document.getElementById('readout-erf').innerText = errorFunction(zTest).toFixed(4);
+
+            // Dynamic Font Logic
+            const expTerm = document.getElementById('exp-term');
+            const glowIntensity = (state.tempC - 800) / 400; // 0 to 1
+            expTerm.style.fontSize = (0.8 + glowIntensity * 0.5) + 'rem';
+            expTerm.style.textShadow = `0 0 ${glowIntensity * 20}px #00ffff`;
+            expTerm.style.color = glowIntensity > 0.7 ? '#fff' : '#00ffff';
+
+            let iIdx = 0;
+            let cIdx = 0;
+            const dummy = new THREE.Object3D();
+
+            for (let x = 0; x < nx; x++) {
+                // Fick's 2nd Law Concentration
+                const depthM = x * 0.0001; 
+                const z = depthM / (2 * Math.sqrt(D * tSec));
+                const Conc = Cs * (1 - errorFunction(z));
+
+                for (let y = 0; y < ny; y++) {
+                    for (let z_c = 0; z_c < nz; z_c++) {
+                        // FCC Bases
+                        const bases = [[0,0,0], [1,1,0], [0,1,1], [1,0,1]];
+                        bases.forEach(b => {
+                            dummy.position.set((x + b[0]/2)*spacing, (y + b[1]/2)*spacing, (z_c + b[2]/2)*spacing);
+                            dummy.updateMatrix();
+                            ironMesh.setMatrixAt(iIdx++, dummy.matrix);
+                        });
+
+                        // Octahedral Interstitials
+                        const octa = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]];
+                        octa.forEach(o => {
+                            dummy.position.set((x + o[0]/2)*spacing, (y + o[1]/2)*spacing, (z_c + o[2]/2)*spacing);
+                            const visibility = Math.random() < Conc ? 1 : 0;
+                            dummy.scale.set(visibility, visibility, visibility);
+                            dummy.updateMatrix();
+                            carbonMesh.setMatrixAt(cIdx++, dummy.matrix);
+                        });
+                    }
+                }
+            }
+            ironMesh.instanceMatrix.needsUpdate = true;
+            carbonMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        // Event Listeners
+        const sliders = {
+            'slider-temp': { key: 'tempC', label: 'val-temp' },
+            'slider-time': { key: 'timeHrs', label: 'val-time' },
+            'slider-qd': { key: 'qdKJ', label: 'val-qd' }
+        };
+
+        Object.entries(sliders).forEach(([id, config]) => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                state[config.key] = val;
+                document.getElementById(config.label).innerText = val;
+                updateSimulation();
+            });
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateSimulation();
+        animate();
+    </script>
+</body>
+</html>
