@@ -3,134 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ch 5: Non-Steady State Diffusion Dashboard // Carbon in FCC Iron</title>
+    <title>Ch 5: Interstitial Diffusion // Neon-Industrial</title>
     <style>
-        body { margin: 0; background: #000; color: #00ffff; font-family: 'Courier New', Courier, monospace; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-        canvas { display: block; flex: 1; }
+        /* Strict Flexbox Architecture */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; background: #000; color: #00ffff; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        
+        /* 3D Viewport - Flexes to fill available space */
+        #viewport-container { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-        /* UI Overlays */
+        /* Floating HUD */
         #ui-layer {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            pointer-events: none;
-            width: 100%;
+            top: 15px;
+            left: 15px;
+            z-index: 100;
+            pointer-events: none; /* Let clicks pass through to 3D canvas... */
         }
 
         .panel {
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(5, 5, 5, 0.9);
             border: 1px solid #ff00ff;
             padding: 15px;
-            pointer-events: auto;
             margin-bottom: 15px;
-            width: 350px;
-            box-shadow: 0 0 20px rgba(255, 0, 255, 0.4);
+            width: 320px;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+            pointer-events: auto; /* ...but re-enable clicks for the actual panels */
         }
 
-        h2 { margin: 0 0 10px 0; font-size: 1.3rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2.5px; }
+        h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid rgba(255,0,255,0.3); padding-bottom: 5px; }
 
-        /* Arrhenius Equation Styling */
-        #equation-display {
-            font-size: 1.5rem;
-            margin: 10px 0;
-            transition: all 0.2s ease;
-        }
-        .exponent { display: inline-block; vertical-align: super; font-size: 0.85rem; transition: all 0.2s ease; }
-
-        .control-group { margin: 15px 0; }
-        label { display: block; font-size: 0.9rem; margin-bottom: 5px; color: #ff00ff; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; margin-bottom: 2px; }
-
-        .readout { font-size: 1rem; margin-top: 7px; color: #00f2ff; font-weight: bold; }
+        /* Arrhenius Display */
+        #equation-display { font-size: 1.3rem; margin: 10px 0; transition: all 0.2s ease; }
+        .exponent { display: inline-block; vertical-align: super; font-size: 0.8rem; transition: all 0.2s ease; }
         
-        #data-log {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            text-align: right;
-            font-size: 0.8rem;
-            color: #ff00ff;
+        /* Controls */
+        .control-group { margin: 12px 0; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #ff00ff; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
+        
+        .readout { font-size: 0.9rem; margin-top: 6px; color: #00f2ff; font-weight: bold; }
+
+        /* 2D Graph Area - Fixed Height */
+        #graph-area {
+            flex: 0 0 280px;
+            background: #050505;
+            border-top: 2px solid #ff00ff;
+            position: relative;
+            box-shadow: 0 -10px 20px rgba(0,0,0,0.8);
         }
 
-        /* 2D Diffusion Graph Panel */
-        #graph-panel {
-            flex: 0 0 300px; /* Fixed height for graph */
-            background: rgba(0, 0, 0, 0.9);
-            border-top: 2px solid #ff00ff;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #ff00ff;
-            box-shadow: 0 -10px 30px rgba(255, 0, 255, 0.2);
-            position: relative;
-        }
-        #graph-container {
-            width: 100%;
-            height: 100%;
-            max-width: 1200px;
-            position: relative;
-        }
-        #diffusion-svg {
-            width: 100%;
-            height: 100%;
-        }
-        #target-depth-label {
+        svg { width: 100%; height: 100%; display: block; }
+        
+        #system-status {
             position: absolute;
             bottom: 10px;
-            left: calc(10% - 1.5mm);
+            right: 15px;
+            font-size: 0.75rem;
             color: #ff00ff;
-            font-size: 0.9rem;
-            transform: translateX(-50%);
-            white-space: nowrap;
+            text-align: right;
+            pointer-events: none;
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="panel">
-            <h2>Kinetic Engine</h2>
-            <div id="equation-display">
-                D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span>
-            </div>
-            
-            <div class="control-group">
-                <label>Temperature (T): <span id="val-temp">1032</span> °C</label>
-                <input type="range" id="slider-temp" min="800" max="1200" value="1032">
+    <div id="viewport-container">
+        <div id="ui-layer">
+            <div class="panel">
+                <h2>Kinetic Engine</h2>
+                <div id="equation-display">
+                    D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span>
+                </div>
+                
+                <div class="control-group">
+                    <label>Temp (T): <span id="val-temp">1032</span> °C</label>
+                    <input type="range" id="slider-temp" min="800" max="1250" value="1032">
+                </div>
+
+                <div class="control-group">
+                    <label>Time (t): <span id="val-time">10</span> hrs</label>
+                    <input type="range" id="slider-time" min="1" max="100" value="10">
+                </div>
+
+                <div class="control-group">
+                    <label>Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
+                    <input type="range" id="slider-qd" min="100" max="250" value="148">
+                </div>
             </div>
 
-            <div class="control-group">
-                <label>Time (t): <span id="val-time">10</span> Hours</label>
-                <input type="range" id="slider-time" min="1" max="100" value="10">
-            </div>
-
-            <div class="control-group">
-                <label>Activation Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
-                <input type="range" id="slider-qd" min="100" max="200" value="148">
+            <div class="panel">
+                <h2>Process Feedback</h2>
+                <div class="readout">D: <span id="readout-d">--</span> m²/s</div>
+                <div class="readout">z at 1mm: <span id="readout-z">--</span></div>
+                <div class="readout">erf(z): <span id="readout-erf">--</span></div>
+                <div class="readout">Conc at 1mm: <span id="readout-conc1mm">--</span> wt% C</div>
             </div>
         </div>
 
-        <div class="panel">
-            <h2>Process Feedback</h2>
-            <div class="readout">Diffusion D: <span id="readout-d">--</span> m²/s</div>
-            <div class="readout">z at 1mm: <span id="readout-z">--</span></div>
-            <div class="readout">erf(z): <span id="readout-erf">--</span></div>
-            <div class="readout">Conc at 1mm: <span id="readout-conc1mm">--</span> wt% C</div>
+        <div id="system-status">
+            LATTICE: FCC AUSTENITE (GREY) // DIFFUSANT: C (CYAN)<br>
+            SITES: OCTAHEDRAL // BOUNDARY: SEMI-INFINITE
         </div>
     </div>
 
-    <div id="graph-panel">
-        <div id="graph-container">
-            <svg id="diffusion-svg">
-                </svg>
-            <div id="target-depth-label">Target Depth: 1.0 mm</div>
-        </div>
-    </div>
-
-    <div id="data-log">
-        SYSTEM: SEMI-INFINITE BAR // HOST LATTICE: FIXED GREY FCC IRON<br>
-        DIFFUSION: INTERSTITIAL CYAN CARBON // BOUNDARY: CONSTANT Cs=1.2%
+    <div id="graph-area">
+        <svg id="diffusion-svg"></svg>
     </div>
 
     <script type="importmap">
@@ -146,268 +125,193 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- Core Parameters ---
-        const D0 = 2.3e-5;      // Pre-exponential (m^2/s)
-        const R = 8.314;        // Gas Constant
-        const Cs = 1.2;         // Surface concentration (normalized, in wt% C)
-        const C0 = 0.0;         // Initial concentration
+        // --- Physics Constants ---
+        const D0 = 2.3e-5;
+        const R = 8.314;
+        const Cs = 1.2;
 
-        // --- State ---
-        let state = {
-            tempC: 1032,
-            timeHrs: 10,
-            qdKJ: 148
-        };
+        let state = { tempC: 1032, timeHrs: 10, qdKJ: 148 };
 
-        // --- Three.js 3D Scene Setup ---
+        // --- Viewport & Scene Setup ---
+        const container = document.getElementById('viewport-container');
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / (window.innerHeight - 300), 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight - 300);
-        document.body.appendChild(renderer.domElement);
+        scene.fog = new THREE.FogExp2(0x000000, 0.005); // Adds depth to the infinite bar
+        
+        const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(45, 20, 60);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        camera.position.set(40, 25, 60);
         controls.enableDamping = true;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.5;
+        controls.autoRotateSpeed = 0.4;
+        controls.target.set(30, 0, 0); // Focus further down the bar
 
         // Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const point = new THREE.PointLight(0x00ffff, 200);
-        point.position.set(-10, 20, 20);
-        scene.add(point);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+        const pointLight = new THREE.PointLight(0x00ffff, 400);
+        pointLight.position.set(-10, 15, 15);
+        scene.add(pointLight);
 
-        // --- Host Lattice Initialization (Fixed Grey Iron FCC) ---
-        const nx = 80, ny = 10, nz = 10; // Large bar for thousands of atoms
-        const spacing = 1.5; // unit size for visualizing spacing
+        // --- Lattice Geometry (Semi-Infinite Bar) ---
+        const nx = 70, ny = 8, nz = 8;
+        const spacing = 1.5;
 
-        // Material for Iron Host
-        const ironMat = new THREE.MeshStandardMaterial({ color: 0x666666, emissive: 0x111111 });
-        const ironGeo = new THREE.SphereGeometry(0.35, 10, 10);
-        
-        // FCC Lattice Structure (Relative position matrix to iron atom)
-        // Basis positions: [0,0,0], [0.5,0.5,0], [0.5,0,0.5], [0,0.5,0.5] (face centers)
-        const hostAtomsPerCell = 4;
-        const hostMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * hostAtomsPerCell);
-        hostMesh.name = 'host_iron';
-        scene.add(hostMesh);
+        // 1. Host Lattice (Fixed Grey Iron)
+        const ironGeo = new THREE.SphereGeometry(0.35, 8, 8);
+        const ironMat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x111111, roughness: 0.8 });
+        const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
+        scene.add(ironMesh);
 
-        // --- Interstitial Lattice Initialization (Diffuse Cyan Carbon) ---
-        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666 });
-        const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6); // Smaller, fitted in sites
-
-        // Interstitial Coordinate Positions relative to FCC host
-        // Octahedral sites: [0.5,0.0,0.0], [0.0,0.5,0.0], [0.0,0.0,0.5], [0.5,0.5,0.5] (edge centers and body center)
-        const octahedralSitesPerCell = 4;
-        const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * octahedralSitesPerCell);
-        carbonMesh.name = 'solute_carbon';
+        // 2. Interstitial Lattice (Diffusing Cyan Carbon)
+        const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6);
+        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaaa });
+        const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
         scene.add(carbonMesh);
 
-        // Surface plane indicator (glowing cyan source)
+        // Source Plane (Cyan Glow on left face)
         const planeGeo = new THREE.PlaneGeometry(ny * spacing, nz * spacing);
-        const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+        const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
         const sourcePlane = new THREE.Mesh(planeGeo, planeMat);
         sourcePlane.rotation.y = Math.PI / 2;
         sourcePlane.position.set(-0.5, (ny*spacing)/2 - spacing/2, (nz*spacing)/2 - spacing/2);
         scene.add(sourcePlane);
 
-        // --- Optimization: Pre-calculate Fixed Host Lattice matrices once ---
-        (function initHostLattice() {
-            const dummy = new THREE.Object3D();
-            let idx = 0;
-            const bases = [[0,0,0], [1,1,0], [0,1,1], [1,0,1]]; // FCC Face centers scaled by 2
-            
-            for (let x = 0; x < nx; x++) {
-                for (let y = 0; y < ny; y++) {
-                    for (let z_c = 0; z_c < nz; z_c++) {
-                        bases.forEach(b => {
-                            dummy.position.set((x + b[0]/2)*spacing, (y + b[1]/2)*spacing, (z_c + b[2]/2)*spacing);
-                            dummy.updateMatrix();
-                            hostMesh.setMatrixAt(idx++, dummy.matrix);
-                        });
-                    }
+        // Pre-compute Fixed Host Lattice (FCC Positions)
+        const dummy = new THREE.Object3D();
+        let iIdx = 0;
+        const fccBases = [[0,0,0], [1,1,0], [1,0,1], [0,1,1]]; // Scaled for integer math
+        
+        for(let x=0; x<nx; x++) {
+            for(let y=0; y<ny; y++) {
+                for(let z=0; z<nz; z++) {
+                    fccBases.forEach(b => {
+                        dummy.position.set((x + b[0]/2)*spacing, (y + b[1]/2)*spacing, (z + b[2]/2)*spacing);
+                        dummy.updateMatrix();
+                        ironMesh.setMatrixAt(iIdx++, dummy.matrix);
+                    });
                 }
             }
-            hostMesh.instanceMatrix.needsUpdate = true;
-        })();
+        }
+        ironMesh.instanceMatrix.needsUpdate = true;
 
-        // --- Math Helpers ---
-        function errorFunction(z) {
-            // Precise numerical approximation for erf(z) from Callister
+        // --- Math Engine ---
+        function erf(z) {
             const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
-            const ans = 1 - t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * (0.17087277))))))))));
+            const ans = 1 - t * Math.exp(-z*z - 1.26551223 + t*(1.00002368 + t*(0.37409196 + t*(0.09678418 + t*(-0.18628806 + t*(0.27886807 + t*(-1.13520398 + t*(1.48851587 + t*(-0.82215223 + t*(0.17087277))))))))));
             return z >= 0 ? ans : -ans;
         }
 
-        // --- 2D Diffusion Graph Implementation (Manual SVG) ---
+        // --- 2D Graph Engine (SVG) ---
         const svg = document.getElementById('diffusion-svg');
-        const W_graph = 1000, H_graph = 250;
-        const padding = { top: 30, right: 30, bottom: 50, left: 60 };
-        const innerW = W_graph - padding.left - padding.right;
-        const innerH = H_graph - padding.top - padding.bottom;
-        const maxDepthMM = 10.0; // depth axis 0 to 10 mm
-        const maxConcWt = 1.3;    // concentration axis 0 to 1.3 wt%
+        
+        function drawGraph(D, tSec) {
+            svg.innerHTML = ''; // Clear previous
+            const w = svg.clientWidth;
+            const h = svg.clientHeight;
+            const pad = { l: 60, r: 30, t: 30, b: 40 };
+            const iw = w - pad.l - pad.r;
+            const ih = h - pad.t - pad.b;
 
-        // Draw basic SVG axes structure once
-        (function drawBaseSVG() {
-            svg.setAttribute('viewBox', `0 0 ${W_graph} ${H_graph}`);
+            // Helper to draw lines
+            const drawLine = (x1, y1, x2, y2, color, stroke, dash="") => {
+                const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+                l.setAttribute("stroke", color); l.setAttribute("stroke-width", stroke);
+                if(dash) l.setAttribute("stroke-dasharray", dash);
+                svg.appendChild(l);
+            };
 
-            // Group for axes
-            const gAxes = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            gAxes.setAttribute('transform', `translate(${padding.left}, ${padding.top})`);
-            gAxes.setAttribute('stroke', '#ff00ff');
-            svg.appendChild(gAxes);
+            // Axes
+            drawLine(pad.l, pad.t, pad.l, h - pad.b, "#ff00ff", "1"); // Y
+            drawLine(pad.l, h - pad.b, w - pad.r, h - pad.b, "#ff00ff", "1"); // X
 
-            // Draw Y Axis (Concentration)
-            const yLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            yLine.setAttribute('x1', 0); yLine.setAttribute('y1', 0); yLine.setAttribute('x2', 0); yLine.setAttribute('y2', innerH);
-            gAxes.appendChild(yLine);
-            // Label Y
-            const yLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            yLabel.textContent = 'Concentration [wt% C]'; yLabel.setAttribute('x', -innerH/2); yLabel.setAttribute('y', -45); yLabel.setAttribute('transform', 'rotate(-90)'); yLabel.setAttribute('fill', '#ff00ff');
-            gAxes.appendChild(yLabel);
-
-            // Draw X Axis (Depth)
-            const xLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            xLine.setAttribute('x1', 0); xLine.setAttribute('y1', innerH); xLine.setAttribute('x2', innerW); xLine.setAttribute('y2', innerH);
-            gAxes.appendChild(xLine);
-            // Label X
-            const xLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            xLabel.textContent = 'Depth x [mm]'; xLabel.setAttribute('x', innerW/2); yLabel.setAttribute('text-anchor', 'middle'); xLabel.setAttribute('y', innerH + 40); xLabel.setAttribute('fill', '#ff00ff');
-            gAxes.appendChild(xLabel);
-
-            // Ticks and labels
-            [0, 2, 4, 6, 8, 10].forEach(tick => {
-                const tx = (tick / maxDepthMM) * innerW;
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', tx); line.setAttribute('y1', innerH); line.setAttribute('x2', tx); line.setAttribute('y2', innerH+5);
-                gAxes.appendChild(line);
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.textContent = tick; text.setAttribute('x', tx); text.setAttribute('y', innerH+20); text.setAttribute('text-anchor', 'middle'); text.setAttribute('fill', '#ff00ff'); text.setAttribute('font-size', '0.8rem');
-                gAxes.appendChild(text);
-            });
-            [0, 0.4, 0.8, 1.2].forEach(tick => {
-                const ty = (1 - (tick / maxConcWt)) * innerH;
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', 0); line.setAttribute('y1', ty); line.setAttribute('x2', -5); line.setAttribute('y2', ty);
-                gAxes.appendChild(line);
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.textContent = tick.toFixed(1); text.setAttribute('x', -10); text.setAttribute('y', ty+5); text.setAttribute('text-anchor', 'end'); text.setAttribute('fill', '#ff00ff'); text.setAttribute('font-size', '0.8rem');
-                gAxes.appendChild(text);
-            });
-
-            // Container for path
-            const gPath = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            gPath.setAttribute('transform', `translate(${padding.left}, ${padding.top})`);
-            svg.appendChild(gPath);
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('id', 'diffusion-path'); path.setAttribute('stroke', '#00ffff'); path.setAttribute('stroke-width', '2'); path.setAttribute('fill', 'none'); path.setAttribute('stroke-shadow', '0 0 10px #00ffff');
-            gPath.appendChild(path);
-
-            // Vertical Target depth line at 1.0mm
-            const targetXLine = (1.0 / maxDepthMM) * innerW;
-            const targetLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            targetLine.setAttribute('x1', targetXLine); targetLine.setAttribute('y1', 0); targetLine.setAttribute('x2', targetXLine); targetLine.setAttribute('y2', innerH); targetLine.setAttribute('stroke', '#ff00ff'); targetLine.setAttribute('stroke-dasharray', '5,5');
-            gPath.appendChild(targetLine);
-
-            // Current point indicator on graph at 1mm depth
-            const curPoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            curPoint.setAttribute('id', 'current-point'); curPoint.setAttribute('r', '6'); curPoint.setAttribute('fill', '#ffffff'); curPoint.setAttribute('stroke', '#00ffff'); curPoint.setAttribute('stroke-width', '2');
-            gPath.appendChild(curPoint);
-            const pointLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            pointLabel.setAttribute('id', 'point-label'); pointLabel.setAttribute('text-anchor', 'start'); pointLabel.setAttribute('font-size', '0.9rem'); pointLabel.setAttribute('fill', '#ffffff'); pointLabel.setAttribute('stroke', '#000000'); pointLabel.setAttribute('stroke-width', '0.5'); pointLabel.setAttribute('dx', '12'); pointLabel.setAttribute('dy', '-5');
-            gPath.appendChild(pointLabel);
-
-            // Graph title
-            const gTitle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            gTitle.setAttribute('transform', `translate(${W_graph/2}, ${padding.top - 10})`);
-            svg.appendChild(gTitle);
-            const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            title.setAttribute('id', 'graph-title'); title.textContent = 'Carburizing Profile (C(x,t) = Cs * [1 - erf(z)])'; title.setAttribute('text-anchor', 'middle'); title.setAttribute('font-size', '1rem'); title.setAttribute('fill', '#ff00ff'); title.setAttribute('text-transform', 'uppercase'); title.setAttribute('letter-spacing', '2px');
-            gTitle.appendChild(title);
-
-        })();
-
-        // --- Core Simulation Update Logic ---
-        function updateSimulation() {
-            const T_K = state.tempC + 273.15;
-            const t_Sec = state.timeHrs * 3600;
-            const Qd_J = state.qdKJ * 1000;
-            const D = D0 * Math.exp(-Qd_J / (R * T_K));
-
-            // 1. Update 2D Panel Readouts
-            document.getElementById('readout-d').innerText = D.toExponential(3);
-            const testDepthM = 0.001; // 1.0 mm sensor depth
-            const zTest = testDepthM / (2 * Math.sqrt(D * t_Sec));
-            document.getElementById('readout-z').innerText = zTest.toFixed(4);
-            const erfValTest = errorFunction(zTest);
-            document.getElementById('readout-erf').innerText = erfValTest.toFixed(4);
-            const concAt1mm = Cs * (1 - erfValTest);
-            document.getElementById('readout-conc1mm').innerText = concAt1mm.toFixed(3);
-
-            // 2. Dynamic Font Logic (Arrhenius Exponent Feedback)
-            const expTerm = document.getElementById('exp-term');
-            const relativeTempFactor = (state.tempC - 800) / 400; // normalized 0 to 1
-            expTerm.style.fontSize = (0.85 + relativeTempFactor * 0.5) + 'rem';
-            expTerm.style.textShadow = `0 0 ${5 + relativeTempFactor * 25}px #00ffff`;
-            expTerm.style.color = relativeTempFactor > 0.65 ? '#ffffff' : '#00ffff';
-
-            // 3. Update 2D SVG Graph Curve
-            let dPath = 'M';
-            let pathPoints = [];
-            const numSteps = 200;
-            for (let i = 0; i <= numSteps; i++) {
-                const xMM = (i / numSteps) * maxDepthMM;
-                const xM = xMM / 1000.0; // depth in meters
-                const localZ = xM / (2 * Math.sqrt(D * t_Sec));
-                const localConc = Cs * (1 - errorFunction(localZ));
-
-                // Scale to SVG inner viewport
-                const svgX = padding.left + (xMM / maxDepthMM) * innerW;
-                const svgY = padding.top + (1 - (localConc / maxConcWt)) * innerH;
-                dPath += `${svgX.toFixed(1)},${svgY.toFixed(1)} `;
-                pathPoints.push({x: svgX, y: svgY, conc: localConc});
+            // Curve Path
+            let points = "";
+            for(let i=0; i<=150; i++) {
+                const depthMM = (i/150) * 10; // Graph goes to 10mm
+                const z = (depthMM / 1000) / (2 * Math.sqrt(D * tSec));
+                const c = Cs * (1 - erf(z));
+                const px = pad.l + (i/150) * iw;
+                const py = pad.t + ih - (c/1.3) * ih; // Max Y is 1.3 wt%
+                points += `${px},${py} `;
             }
-            document.getElementById('diffusion-path').setAttribute('d', dPath.trim());
-
-            // Update Current Point indicator at 1mm depth
-            const point1mm = (1.0 / maxDepthMM) * innerW;
-            const point1mmM = 0.001;
-            const z1mm = point1mmM / (2 * Math.sqrt(D * t_Sec));
-            const conc1mm = Cs * (1 - errorFunction(z1mm));
-            const point1mmY = padding.top + (1 - (conc1mm / maxConcWt)) * innerH;
             
-            document.getElementById('current-point').setAttribute('cx', point1mm + padding.left);
-            document.getElementById('current-point').setAttribute('cy', point1mmY);
-            const labelText = `[1.0 mm, ${conc1mm.toFixed(2)} wt% C]`;
-            document.getElementById('point-label').setAttribute('x', point1mm + padding.left);
-            document.getElementById('point-label').setAttribute('y', point1mmY);
-            document.getElementById('point-label').textContent = labelText;
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            path.setAttribute("points", points);
+            path.setAttribute("fill", "none"); 
+            path.setAttribute("stroke", "#00ffff");
+            path.setAttribute("stroke-width", "2");
+            svg.appendChild(path);
 
-            // 4. Update 3D Solute (Carbon) Mesh Visibility based on local probability cloud
+            // 1.0mm Marker
+            const markerX = pad.l + (1.0/10) * iw;
+            drawLine(markerX, pad.t, markerX, h - pad.b, "#ff00ff", "1", "4,4");
+            
+            const text = (txt, x, y, color, size, anchor="start", rotate=0) => {
+                const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t.textContent = txt; 
+                t.setAttribute("x", x); 
+                t.setAttribute("y", y);
+                t.setAttribute("fill", color); 
+                t.setAttribute("font-size", size);
+                t.setAttribute("text-anchor", anchor);
+                if(rotate) t.setAttribute("transform", `rotate(${rotate} ${x} ${y})`);
+                svg.appendChild(t);
+            };
+
+            text("Depth x [mm]", pad.l + iw/2, h - 10, "#ff00ff", "12px", "middle");
+            text("Concentration [wt% C]", pad.l - 40, pad.t + ih/2, "#ff00ff", "12px", "middle", -90);
+            text("0", pad.l - 10, h - pad.b + 4, "#ff00ff", "10px", "end");
+            text("1.3", pad.l - 10, pad.t + 4, "#ff00ff", "10px", "end");
+            text("10", w - pad.r, h - pad.b + 15, "#ff00ff", "10px", "middle");
+            text("1.0mm", markerX, h - pad.b + 15, "#fff", "10px", "middle");
+        }
+
+        // --- Main Simulation Loop ---
+        function updateSim() {
+            const T = state.tempC + 273.15;
+            const tSec = state.timeHrs * 3600;
+            const Qd = state.qdKJ * 1000;
+            const D = D0 * Math.exp(-Qd / (R * T));
+            
+            // UI Text Updates
+            document.getElementById('readout-d').innerText = D.toExponential(3);
+            const z1mm = 0.001 / (2 * Math.sqrt(D * tSec));
+            document.getElementById('readout-z').innerText = z1mm.toFixed(3);
+            document.getElementById('readout-erf').innerText = erf(z1mm).toFixed(3);
+            document.getElementById('readout-conc1mm').innerText = (Cs * (1 - erf(z1mm))).toFixed(3);
+            
+            // Dynamic Font Logic
+            const exp = document.getElementById('exp-term');
+            const glow = (state.tempC - 800) / 450;
+            exp.style.textShadow = `0 0 ${glow * 20}px #00ffff`;
+            exp.style.color = glow > 0.7 ? '#fff' : '#00ffff';
+            exp.style.fontSize = (0.75 + glow * 0.4) + "rem";
+
+            // Update SVG
+            drawGraph(D, tSec);
+
+            // Update Carbon (Solute) Matrix - strictly Octahedral sites
             let cIdx = 0;
-            const dummy = new THREE.Object3D();
-            const octa = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]]; // Octahedral sites scaled by 2
+            const octaBases = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]]; // Scaled for integer math
             
-            for (let x = 0; x < nx; x++) {
-                // Calculate concentration probability based on Fick's 2nd Law (C(x,t) = Cs * [1 - erf(z)])
-                // Dummy spatial scaling: map Three.js x-index to real depth
-                const dummySpatialFactor = 0.0001; // map spatial scale for visualization
-                const depthMmeters = x * dummySpatialFactor; 
-                const z = depthMmeters / (2 * Math.sqrt(D * t_Sec));
-                const localConcProbability = Cs * (1 - errorFunction(z)); // Normalized probability [0, Cs]
+            for(let x=0; x<nx; x++) {
+                // Map the 3D unit index to a simulated physical depth
+                const localZ = (x * 0.0001) / (2 * Math.sqrt(D * tSec)); 
+                const probability = Cs * (1 - erf(localZ)); // Local concentration dictates fill probability
 
-                for (let y = 0; y < ny; y++) {
-                    for (let z_c = 0; z_c < nz; z_c++) {
-                        // Position Carbon Atoms strictly at Octahedral Sites
-                        octa.forEach(o => {
-                            dummy.position.set((x + o[0]/2)*spacing, (y + o[1]/2)*spacing, (z_c + o[2]/2)*spacing);
-                            
-                            // Probability-based population of Carbon interstitial cloud
-                            // Scale atom to 0 (invisible) or 1 (visible) based on probability check against local Conc.
-                            const visibility = Math.random() < localConcProbability ? 1 : 0;
-                            dummy.scale.set(visibility, visibility, visibility);
+                for(let y=0; y<ny; y++) {
+                    for(let z=0; z<nz; z++) {
+                        octaBases.forEach(o => {
+                            dummy.position.set((x + o[0]/2)*spacing, (y + o[1]/2)*spacing, (z + o[2]/2)*spacing);
+                            // Populate based on probability curve
+                            const scale = Math.random() < probability ? 1 : 0;
+                            dummy.scale.set(scale, scale, scale);
                             dummy.updateMatrix();
                             carbonMesh.setMatrixAt(cIdx++, dummy.matrix);
                         });
@@ -417,41 +321,37 @@
             carbonMesh.instanceMatrix.needsUpdate = true;
         }
 
-        // --- UI Slider Event Listeners ---
-        const sliders = {
-            'slider-temp': { key: 'tempC', label: 'val-temp' },
-            'slider-time': { key: 'timeHrs', label: 'val-time' },
-            'slider-qd': { key: 'qdKJ', label: 'val-qd' }
-        };
+        // --- Event Listeners ---
+        const inputs = [
+            { id: 'slider-temp', key: 'tempC', val: 'val-temp' },
+            { id: 'slider-time', key: 'timeHrs', val: 'val-time' },
+            { id: 'slider-qd', key: 'qdKJ', val: 'val-qd' }
+        ];
 
-        Object.entries(sliders).forEach(([id, config]) => {
-            const input = document.getElementById(id);
-            if (input) {
-                input.addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
-                    state[config.key] = val;
-                    document.getElementById(config.label).innerText = val;
-                    updateSimulation();
-                });
-            }
+        inputs.forEach(input => {
+            document.getElementById(input.id).addEventListener('input', (e) => {
+                state[input.key] = parseFloat(e.target.value);
+                document.getElementById(input.val).innerText = e.target.value;
+                updateSim();
+            });
         });
 
-        // --- Animation Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update(); // autoRotate logic handled here
-            renderer.render(scene, camera);
-        }
-
-        // Handle Window Resize
+        // Handle robust resizing for Canvas and SVG
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / (window.innerHeight - 300);
+            camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight - 300);
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            updateSim(); // Force graph redraw
         });
 
-        // Initial Run
-        updateSimulation();
+        // Boot
+        updateSim();
+        
+        function animate() { 
+            requestAnimationFrame(animate); 
+            controls.update(); 
+            renderer.render(scene, camera); 
+        }
         animate();
     </script>
 </body>
