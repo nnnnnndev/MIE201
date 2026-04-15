@@ -3,86 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ch 5: Diffusion Dashboard // Interstitial Carbon in FCC Iron // Semi-Infinite Bar</title>
+    <title>Ch 5: Diffusion Dashboard // Kinetic Engine</title>
     <style>
-        /* Modern CSS Architecture for Neon-Industrial Dashboard */
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; background: #000000; color: #00ffff; font-family: 'JetBrains Mono', 'Courier New', Courier, monospace; overflow: hidden; font-weight: 900; }
+        /* Bold, Industrial UI */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; background: #000; color: #00ffff; font-family: 'Arial Black', 'Arial', sans-serif; overflow: hidden; font-weight: 900; }
         
-        /* 3D Viewport - Flexes to fill available space */
-        #viewport-container { flex: 1; position: relative; min-height: 0; overflow: hidden; border-bottom: 2px solid #ff00ff; }
+        #viewport-container { flex: 1; position: relative; min-height: 0; border-bottom: 3px solid #ff00ff; }
         canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-        /* Floating HUD Overlays - Uses z-index and pointer-events trick */
-        #ui-layer {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 100;
-            pointer-events: none; /* Let clicks pass through to 3D canvas... */
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+        #ui-layer { position: absolute; top: 15px; left: 15px; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 12px; }
 
         .panel {
-            background: rgba(5, 5, 5, 0.9);
-            border: 2px solid #ff00ff;
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #ff00ff;
             padding: 15px;
-            width: 350px;
-            box-shadow: 0 0 25px rgba(255, 0, 255, 0.5);
-            pointer-events: auto; /* ...but re-enable clicks for the actual panels */
-            box-sizing: border-box;
-            border-radius: 5px;
+            width: 360px;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.6);
+            pointer-events: auto;
+            border-radius: 4px;
         }
 
-        h2 { margin: 0 0 12px 0; font-size: 1.2rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2.5px; border-bottom: 1px solid rgba(255,0,255,0.4); padding-bottom: 8px; }
+        h2 { margin: 0 0 10px 0; font-size: 1.1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 5px; font-weight: 900; }
 
-        /* Arrhenius Display */
-        #equation-display { font-size: 1.5rem; margin: 12px 0; transition: all 0.2s ease; }
-        .exponent { display: inline-block; vertical-align: super; font-size: 0.9rem; transition: all 0.2s ease; font-weight: bold; }
+        #equation-display { font-size: 1.6rem; margin: 10px 0; font-weight: 900; }
+        .exponent { display: inline-block; vertical-align: super; font-size: 0.9rem; font-weight: 900; }
         
-        /* Controls */
-        .control-group { margin: 15px 0; }
-        label { display: block; font-size: 0.95rem; margin-bottom: 6px; color: #ff00ff; font-weight: bold; }
+        .control-group { margin: 12px 0; }
+        label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: #ff00ff; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
         
-        /* Number Inputs for Target */
         .target-inputs { display: flex; gap: 10px; }
-        input[type=number] { background: #111; border: 1px solid #00ffff; color: #00ffff; padding: 5px; font-weight: 900; width: 70px; font-family: inherit; font-size: 1rem; border-radius: 3px; }
+        input[type=number] { background: #111; border: 2px solid #00ffff; color: #00ffff; padding: 4px; font-weight: 900; width: 75px; font-size: 1rem; }
 
-        /* Readouts */
-        .readout { font-size: 1rem; margin-top: 8px; color: #00f2ff; font-weight: 900; }
-        .target-readout { border-top: 1px solid rgba(0,255,255,0.3); padding-top: 8px; margin-top: 8px;}
+        .readout { font-size: 1rem; margin-top: 6px; color: #00f2ff; }
+        .target-readout { border-top: 1px solid #00ffff55; padding-top: 8px; margin-top: 8px;}
 
-        /* Status Feedback */
-        #status-panel { border-color: #ff00ff; }
-        #status-text { font-size: 1.2rem; color: #00ffff; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
-        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; text-shadow: 0 0 10px #00ff00; }
-        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; text-shadow: 0 0 10px #ff0000; }
-        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; text-shadow: 0 0 10px #ffff00; }
+        /* Status Feedback Classes */
+        #status-panel { transition: all 0.3s ease; }
+        #status-text { font-size: 1.3rem; text-align: center; letter-spacing: 1px; }
+        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; box-shadow: 0 0 25px #00ff00 !important; }
+        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 25px #ff0000 !important; }
+        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; box-shadow: 0 0 25px #ffff00 !important; }
 
-        /* 2D Graph Area - Fixed Height */
-        #graph-area {
-            flex: 0 0 300px;
-            background: #000000;
-            position: relative;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.9);
-            box-sizing: border-box;
-        }
-
+        #graph-area { flex: 0 0 300px; background: #000; position: relative; }
         svg { width: 100%; height: 100%; display: block; }
         
-        #system-status {
-            position: absolute;
-            bottom: 10px;
-            right: 15px;
-            font-size: 0.8rem;
-            color: #ff00ff;
-            text-align: right;
-            pointer-events: none;
-            opacity: 0.8;
-            font-weight: 900;
-        }
+        #system-status { position: absolute; bottom: 10px; right: 15px; font-size: 0.8rem; color: #ff00ff; text-align: right; pointer-events: none; opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -91,62 +57,40 @@
         <div id="ui-layer">
             <div class="panel">
                 <h2>Kinetic Engine</h2>
-                <div id="equation-display">
-                    D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span>
-                </div>
-                
+                <div id="equation-display">D = D₀e<span id="exp-term" class="exponent">(-Qd / RT)</span></div>
                 <div class="control-group">
-                    <label>Temperature (T): <span id="val-temp">1032</span> °C</label>
+                    <label>Temp (T): <span id="val-temp">1032</span> °C</label>
                     <input type="range" id="slider-temp" min="800" max="1250" value="1032">
                 </div>
-
                 <div class="control-group">
                     <label>Time (t): <span id="val-time">10</span> Hours</label>
                     <input type="range" id="slider-time" min="1" max="100" value="10">
                 </div>
-
                 <div class="control-group">
-                    <label>Activation Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
+                    <label>Energy (Qd): <span id="val-qd">148</span> kJ/mol</label>
                     <input type="range" id="slider-qd" min="100" max="250" value="148">
                 </div>
             </div>
 
             <div class="panel">
-                <h2>Process Feedback</h2>
-                <div class="readout">D: <span id="readout-d">--</span> m²/s</div>
-                <div class="readout">z at 1.0mm depth: <span id="readout-z1mm">--</span></div>
-                <div class="readout">erf(z): <span id="readout-erf1mm">--</span></div>
-                <div class="readout">Conc. at 1.0mm: <span id="readout-conc1mm">--</span> wt% C</div>
-            </div>
-
-            <div class="panel">
-                <h2>Target Specification</h2>
-                <div class="control-group">
-                    <label>Set Target Depth (x_t) [mm]:</label>
-                    <div class="target-inputs">
-                        <input type="number" id="input-target-depth" min="0" max="10" step="0.1" value="1.0">
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Set Target Conc. (C_t) [wt% C]:</label>
-                    <div class="target-inputs">
-                        <input type="number" id="input-target-conc" min="0" max="1.2" step="0.01" value="0.43">
-                    </div>
+                <h2>Target Specs</h2>
+                <div class="target-inputs">
+                    <div><label>Depth [mm]</label><input type="number" id="input-target-depth" step="0.1" value="1.0"></div>
+                    <div><label>Conc [wt%]</label><input type="number" id="input-target-conc" step="0.01" value="0.45"></div>
                 </div>
                 <div class="target-readout readout">
-                    Actual Conc. at <span id="val-target-depth-mm">1.0</span>mm: <span id="readout-conc-at-target">--</span> wt% C
+                    Actual Conc: <span id="readout-conc-at-target">--</span> wt% C
                 </div>
             </div>
 
             <div id="status-panel" class="panel">
-                <h2>Simulation Status</h2>
-                <div id="status-text">CALCULATING...</div>
+                <div id="status-text">INITIALIZING...</div>
             </div>
         </div>
 
         <div id="system-status">
-            SYSTEM: SEMI-INFINITE BAR // HOST LATTICE: FIXED GREY FCC IRON<br>
-            DIFFUSION: INTERSTITIAL CYAN CARBON // BOUNDARY: CONSTANT Cs=1.2% // SITES: OCTAHEDRAL
+            FCC AUSTENITE // DIFFUSANT: CARBON<br>
+            BOUNDARY: SEMI-INFINITE // Cs=1.2%
         </div>
     </div>
 
@@ -167,372 +111,200 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- Core Physics Constants (Callister) ---
-        const D0 = 2.3e-5;      // Pre-exponential factor for C in FCC Iron (m^2/s)
-        const R = 8.314;        // Gas constant (J/mol*K)
-        const Cs = 1.2;         // Surface concentration (wt% C)
-        const C0 = 0.0;         // Bulk concentration (wt% C)
+        const D0 = 2.3e-5; 
+        const R = 8.314;
+        const Cs = 1.2;
 
-        // --- State Object ---
-        let state = {
-            tempC: 1032,
-            timeHrs: 10,
-            qdKJ: 148,
-            targetDepthMM: 1.0,
-            targetConc: 0.43
-        };
+        let state = { tempC: 1032, timeHrs: 10, qdKJ: 148, targetX: 1.0, targetC: 0.45 };
 
-        // --- 3D Scene Initialization ---
+        // --- 3D Setup ---
         const container = document.getElementById('viewport-container');
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x000000, 0.003); // Infinite depth effect
-        
-        const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-        camera.position.set(40, 25, 60);
+        const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(50, 20, 50);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(container.clientWidth, container.clientHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.target.set(30, 0, 0); // Focus perspective down the long bar
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.5;
+        controls.target.set(30, 0, 0);
 
-        // Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const keyLight = new THREE.PointLight(0x00ffff, 300);
-        keyLight.position.set(-10, 15, 15);
-        scene.add(keyLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const light = new THREE.PointLight(0x00ffff, 500);
+        light.position.set(0, 20, 20);
+        scene.add(light);
 
-        // --- Lattice Geometry Definition (Callister FCC Host) ---
-        const nx = 80, ny = 10, nz = 10; // Large bar for true bulk representation
-        const spacing = 1.5; // unit cell visualization scaling
+        // --- Lattice Initialization ---
+        const nx = 70, ny = 8, nz = 8, spacing = 2;
+        const ironGeo = new THREE.SphereGeometry(0.35, 8, 8);
+        const ironMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+        const ironMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * 4);
+        scene.add(ironMesh);
 
-        // Material for Host Iron Lattice (FCC)
-        const ironGeo = new THREE.SphereGeometry(0.35, 10, 10);
-        const ironMat = new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0x111111, roughness: 0.8 });
-        
-        // FCC Basis coordinates scaled by integer math
-        const hostAtomsPerCell = 4;
-        const hostMesh = new THREE.InstancedMesh(ironGeo, ironMat, nx * ny * nz * hostAtomsPerCell);
-        hostMesh.name = 'host_lattice_fixed';
-        scene.add(hostMesh);
-
-        // Material for Diffusing Carbon Atoms (Solute, Cyan)
-        const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6); // Smaller, fits in sites
-        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x006666 });
-        
-        // Octahedral Interstitial coordinates scaled by integer math
-        const carbonSitesPerCell = 4;
-        const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * carbonSitesPerCell);
-        carbonMesh.name = 'solute_lattice_diffusing';
+        const carbonGeo = new THREE.SphereGeometry(0.12, 6, 6);
+        const carbonMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaaa });
+        const carbonMesh = new THREE.InstancedMesh(carbonGeo, carbonMat, nx * ny * nz * 4);
         scene.add(carbonMesh);
 
-        // Source Plane indicator (Cyan glowing face on left, pulsing)
+        // Pulsing Surface
         const planeGeo = new THREE.PlaneGeometry(ny * spacing, nz * spacing);
-        const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+        const planeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
         const sourcePlane = new THREE.Mesh(planeGeo, planeMat);
-        sourcePlane.name = 'surface_source_pulsing';
         sourcePlane.rotation.y = Math.PI / 2;
-        sourcePlane.position.set(-0.5, (ny*spacing)/2 - spacing/2, (nz*spacing)/2 - spacing/2);
+        sourcePlane.position.set(-0.5, (ny*spacing)/2 - 1, (nz*spacing)/2 - 1);
         scene.add(sourcePlane);
 
-        // Optimization: Initialize the fixed gray iron lattice once
-        (function initFixedHostLattice() {
-            const dummy = new THREE.Object3D();
-            let idx = 0;
-            const fccBases = [[0,0,0], [1,1,0], [1,0,1], [0,1,1]]; // Scaled FCC face centers
-            for(let x=0; x<nx; x++) for(let y=0; y<ny; y++) for(let z_c=0; z_c<nz; z_c++) {
-                fccBases.forEach(b => {
-                    dummy.position.set((x + b[0]/2)*spacing, (y + b[1]/2)*spacing, (z_c + b[2]/2)*spacing);
-                    dummy.updateMatrix();
-                    hostMesh.setMatrixAt(idx++, dummy.matrix);
-                });
-            }
-            hostMesh.instanceMatrix.needsUpdate = true;
-        })();
+        // Pre-place Iron
+        const dummy = new THREE.Object3D();
+        let iIdx = 0;
+        const bases = [[0,0,0], [1,1,0], [1,0,1], [0,1,1]];
+        for(let x=0; x<nx; x++) for(let y=0; y<ny; y++) for(let z=0; z<nz; z++) {
+            bases.forEach(b => {
+                dummy.position.set((x + b[0]/2)*spacing, (y + b[1]/2)*spacing, (z + b[2]/2)*spacing);
+                dummy.updateMatrix();
+                ironMesh.setMatrixAt(iIdx++, dummy.matrix);
+            });
+        }
+        ironMesh.instanceMatrix.needsUpdate = true;
 
-        // --- Math Engine: errorFunction Approximation (Callister, A.1-1) ---
-        function errorFunction(z) {
-            const a = Math.abs(z);
-            // Coefficients from Callister (A.B. Hastings)
-            const p = 0.3275911;
-            const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429;
-            const t = 1.0 / (1.0 + p * a);
-            const ans = 1 - (a1*t + a2*t*t + a3*t*t*t + a4*t*t*t*t + a5*t*t*t*t*t) * Math.exp(-a*a);
+        function erf(z) {
+            const t = 1.0 / (1.0 + 0.5 * Math.abs(z));
+            const ans = 1 - t * Math.exp(-z*z - 1.26551223 + t*(1.00002368 + t*(0.37409196 + t*(0.09678418 + t*(-0.18628806 + t*(0.27886807 + t*(-1.13520398 + t*(1.48851587 + t*(-0.82215223 + t*(0.17087277))))))))));
             return z >= 0 ? ans : -ans;
         }
 
-        // --- 2D Graph Engine (SVG) ---
+        // --- Graph Engine ---
         const svg = document.getElementById('diffusion-svg');
-        
-        function drawGraph(D, tSec) {
-            svg.innerHTML = ''; // Full redraw
-            const w = svg.clientWidth;
-            const h = svg.clientHeight;
-            const pad = { l: 80, r: 40, t: 40, b: 60 };
-            const iw = w - pad.l - pad.r;
-            const ih = h - pad.t - pad.b;
-            const maxDepthAxisMM = 10.0;
-            const maxConcAxisWt = 1.3;
+        function updateGraph(D, tSec) {
+            svg.innerHTML = '';
+            const w = svg.clientWidth, h = svg.clientHeight;
+            const pad = { l: 80, r: 40, t: 50, b: 60 };
+            const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
-            // Helper to draw SVG lines and elements
-            const createElement = (type, attrs) => {
-                const el = document.createElementNS("http://www.w3.org/2000/svg", type);
-                for (const k in attrs) el.setAttribute(k, attrs[k]);
-                svg.appendChild(el);
+            const drawLine = (x1, y1, x2, y2, color, stroke, dash="") => {
+                const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+                l.setAttribute("stroke", color); l.setAttribute("stroke-width", stroke);
+                if(dash) l.setAttribute("stroke-dasharray", dash);
+                svg.appendChild(l);
             };
 
-            const text = (txt, x, y, anchor="start", rotate=0, weight="900") => {
-                createElement("text", { x, y, fill: "#ff00ff", "font-size": "14px", "font-weight": weight, "text-anchor": anchor, transform: `rotate(${rotate} ${x} ${y})`, content: txt });
-                svg.lastChild.textContent = txt; // For some reason template attribute doesn't work for content
+            const drawText = (txt, x, y, anchor="start", weight="900") => {
+                const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t.textContent = txt; t.setAttribute("x", x); t.setAttribute("y", y);
+                t.setAttribute("fill", "#ff00ff"); t.setAttribute("font-size", "14px");
+                t.setAttribute("text-anchor", anchor); t.setAttribute("font-weight", weight);
+                svg.appendChild(t);
             };
 
-            // Main Axes
-            createElement("line", { x1: pad.l, y1: pad.t, x2: pad.l, y2: h - pad.b, stroke: "#ff00ff", "stroke-width": "2" }); // Y
-            createElement("line", { x1: pad.l, y1: h - pad.b, x2: w - pad.r, y2: h - pad.b, stroke: "#ff00ff", "stroke-width": "2" }); // X
+            // Axes
+            drawLine(pad.l, pad.t, pad.l, h-pad.b, "#ff00ff", "2"); 
+            drawLine(pad.l, h-pad.b, w-pad.r, h-pad.b, "#ff00ff", "2");
 
-            // Curve Path
-            let points = "";
-            for(let i=0; i<=200; i++) {
-                const depthMM = (i/200) * maxDepthAxisMM;
-                const localZ = (depthMM / 1000) / (2 * Math.sqrt(D * tSec));
-                const localConc = Cs * (1 - errorFunction(localZ));
-                const px = pad.l + (i/200) * iw;
-                const py = pad.t + ih - (localConc / maxConcAxisWt) * ih; 
-                points += `${px.toFixed(1)},${py.toFixed(1)} `;
+            // Curve
+            let pts = "";
+            for(let i=0; i<=150; i++) {
+                const depthMM = (i/150) * 10;
+                const z = (depthMM / 1000) / (2 * Math.sqrt(D * tSec));
+                const c = Cs * (1 - erf(z));
+                pts += `${pad.l + (i/150) * iw},${pad.t + ih - (c/1.3) * ih} `;
             }
-            createElement("polyline", { points, fill: "none", stroke: "#00ffff", "stroke-width": "3", filter: "drop-shadow(0 0 5px #00ffff)" });
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            path.setAttribute("points", pts); path.setAttribute("fill", "none");
+            path.setAttribute("stroke", "#00ffff"); path.setAttribute("stroke-width", "3");
+            svg.appendChild(path);
 
-            // Graph Labels and Ticks
-            text("Depth x [mm]", pad.l + iw/2, h - 15, "middle", 0, "900");
-            text("Concentration [wt% C]", pad.l - 60, pad.t + ih/2, "middle", -90, "900");
-            // X-Ticks
-            [0, 2, 4, 6, 8, 10].forEach(tick => {
-                const tx = pad.l + (tick/10)*iw;
-                createElement("line", { x1: tx, y1: h-pad.b, x2: tx, y2: h-pad.b+8, stroke: "#ff00ff", "stroke-width": "2"});
-                text(tick, tx, h-pad.b+25, "middle", 0, "bold");
-            });
-            // Y-Ticks
-            [0, 0.4, 0.8, 1.2].forEach(tick => {
-                const ty = pad.t + ih - (tick/maxConcAxisWt)*ih;
-                createElement("line", { x1: pad.l, y1: ty, x2: pad.l-8, y2: ty, stroke: "#ff00ff", "stroke-width": "2"});
-                text(tick.toFixed(1), pad.l-15, ty+5, "end", 0, "bold");
-            });
+            // Target Depth Line
+            const tx = pad.l + (state.targetX / 10) * iw;
+            drawLine(tx, pad.t, tx, h-pad.b, "#ff00ff", "1.5", "5,5");
 
-            // Target Depth Marker (Vertical magenta dashed line)
-            const targetX = pad.l + (state.targetDepthMM / maxDepthAxisMM) * iw;
-            if (targetX < pad.l + iw) {
-                createElement("line", { x1: targetX, y1: pad.t, x2: targetX, y2: h - pad.b, stroke: "#ff00ff", "stroke-width": "1.5", "stroke-dasharray": "8,8" });
-                text(`${state.targetDepthMM.toFixed(1)}mm`, targetX, h - pad.b + 15, "middle", 0, "900");
-            }
-
-            // --- Point Readouts on Graph ---
-            // 1.0mm depth readout from previous image requirement
-            const localZ1mm = 0.001 / (2 * Math.sqrt(D * tSec));
-            const conc1mmActual = Cs * (1 - errorFunction(localZ1mm));
-            const pt1mmX = pad.l + (1.0 / maxDepthAxisMM) * iw;
-            const pt1mmY = pad.t + ih - (conc1mmActual / maxConcAxisWt) * ih;
-            createElement("circle", { cx: pt1mmX, cy: pt1mmY, r: "6", fill: "#ffffff", stroke: "#00ffff", "stroke-width": "2" });
-            const ptLabelText = `[1.0 mm, ${conc1mmActual.toFixed(3)} wt% C]`;
-            // Calculate best positioning for text
-            const dx = pt1mmX > w/2 ? -15 : 15;
-            const dy = pt1mmY > h/2 ? -15 : 15;
-            text(ptLabelText, pt1mmX + dx, pt1mmY + dy, pt1mmX > w/2 ? "end" : "start", 0, "bold");
-            createElement("line", { x1: pt1mmX, y1: pt1mmY, x2: pt1mmX + dx*0.8, y2: pt1mmY + dy*0.8, stroke: "#ffffff", "stroke-width": "1"});
-
-            // Actual concentration readout at target depth point
-            const zTarget = (state.targetDepthMM / 1000) / (2 * Math.sqrt(D * tSec));
-            const concActualAtTarget = Cs * (1 - errorFunction(zTarget));
-            const ptTargetX = pad.l + (state.targetDepthMM / maxDepthAxisMM) * iw;
-            const ptTargetY = pad.t + ih - (concActualAtTarget / maxConcAxisWt) * ih;
-            
-            // Only draw second point if target is close enough to visual scale
-            if (ptTargetX < pad.l + iw && ptTargetY < pad.t + ih && ptTargetY > pad.t && Math.abs(ptTargetX - pt1mmX) > 10) {
-                 createElement("circle", { cx: ptTargetX, cy: ptTargetY, r: "6", fill: "#ff00ff", stroke: "#ff00ff", "stroke-width": "2" });
-                 const targetActualText = `Actual @ ${state.targetDepthMM.toFixed(1)}mm: ${concActualAtTarget.toFixed(3)} wt% C`;
-                 text(targetActualText, ptTargetX + (ptTargetX > w/2 ? -15 : 15), ptTargetY + (ptTargetY > h/2 ? -15 : 15), ptTargetX > w/2 ? "end" : "start", 0, "bold");
-            }
-
-            // Target Concentration visual line comparison
-            const targetConcY = pad.t + ih - (state.targetConc / maxConcAxisWt) * ih;
-            if (targetConcY > pad.t && targetConcY < pad.t + ih) {
-                createElement("line", { x1: pad.l, y1: targetConcY, x2: w - pad.r, y2: targetConcY, stroke: "#ff00ff", "stroke-width": "1", "stroke-dasharray": "4,4" });
-                text(`${state.targetConc.toFixed(2)} wt% C`, w - pad.r - 5, targetConcY - 5, "end", 0, "900");
-            }
-
-            // Graph Title from image
-            createElement("g", { transform: `translate(${W_graph/2}, ${padding.top - 10})` }); // Placeholder for title group
-            // svg.lastChild is placeholder group
-            // text("Carburizing Profile (C(x,t) = Cs * [1 - erf(z)])", W_graph/2, padding.top - 10, "middle", 0, "bold"); // This positioning is hard relative to placeholder
-            text("Carburizing Profile (C(x,t) = Cs * [1 - erf(z)])", pad.l + iw/2, pad.t - 15, "middle", 0, "900");
+            drawText("Depth [mm]", w/2, h-10, "middle");
+            drawText("wt% C", 10, pad.t, "start");
+            drawText(`TARGET @ ${state.targetX}mm`, tx, pad.t - 10, "middle");
+            drawText("Carburizing Profile: C(x,t) = Cs [1 - erf(z)]", w/2, 25, "middle", "900");
         }
 
-        // --- Main Simulation and Feedback Update Loop ---
-        function updateSimulation() {
-            const T_K = state.tempC + 273.15;
-            const t_Sec = state.timeHrs * 3600;
-            const Qd_J = state.qdKJ * 1000;
-            const D = D0 * Math.exp(-Qd_J / (R * T_K));
+        // --- Simulation ---
+        function updateSim() {
+            const T = state.tempC + 273.15, tSec = state.timeHrs * 3600, Qd = state.qdKJ * 1000;
+            const D = D0 * Math.exp(-Qd / (R * T));
             
-            // 1. Kinetic Engine HUD Updates
-            document.getElementById('readout-d').innerText = D.toExponential(3);
-            const testDepthM = 0.001; // 1.0mm sensor depth
-            const zTest1mm = testDepthM / (2 * Math.sqrt(D * t_Sec));
-            document.getElementById('readout-z1mm').innerText = zTest1mm.toFixed(4);
-            const erfVal1mmActual = errorFunction(zTest1mm);
-            document.getElementById('readout-erf1mm').innerText = erfVal1mmActual.toFixed(4);
-            const concAt1mmActual = Cs * (1 - erfVal1mmActual);
-            document.getElementById('readout-conc1mm').innerText = concAt1mmActual.toFixed(3);
+            const zTarget = (state.targetX / 1000) / (2 * Math.sqrt(D * tSec));
+            const actualC = Cs * (1 - erf(zTarget));
             
-            // Dynamic Font Logic on Arrhenius Exponent (Feedback glow proportional to temperature)
-            const expTerm = document.getElementById('exp-term');
-            const relTempFactor = (state.tempC - 800) / 450; // Normalized factor 0 to 1
-            expTerm.style.fontSize = (0.9 + relTempFactor * 0.5) + "rem"; // Grow font size
-            expTerm.style.textShadow = `0 0 ${10 + relTempFactor * 25}px #00ffff`; // Increase glow
-            expTerm.style.color = relTempFactor > 0.7 ? "#ffffff" : "#00ffff"; // Turn white when very hot
-
-            // 2. Target Specification HUD Updates & Feedback Logic
-            document.getElementById('val-target-depth-mm').innerText = state.targetDepthMM.toFixed(1);
-            const zTarget = (state.targetDepthMM / 1000) / (2 * Math.sqrt(D * t_Sec));
-            const actualConcAtTarget = Cs * (1 - errorFunction(zTarget));
-            document.getElementById('readout-conc-at-target').innerText = actualConcAtTarget.toFixed(3);
-
-            // Compare Actual to Target Concentration
-            const targetTolerancePercentage = 0.05; // 5% tolerance
-            const errorFraction = (actualConcAtTarget - state.targetConc) / state.targetConc;
+            document.getElementById('readout-conc-at-target').innerText = actualC.toFixed(3);
             
-            // Update Status Panel and borders based on logic
             const statusPanel = document.getElementById('status-panel');
             const statusText = document.getElementById('status-text');
-            statusPanel.classList.remove("status-achieved", "status-over", "status-under"); // Clear classes
+            statusPanel.className = 'panel';
             
-            if (Math.abs(errorFraction) <= targetTolerancePercentage) {
-                // Within 5% tolerance
-                statusText.innerText = `TARGET ACHIEVED (diff: ${actualConcAtTarget.toFixed(3)} wt% C)`;
-                statusPanel.classList.add("status-achieved");
-            } else if (actualConcAtTarget < state.targetConc * (1 - targetTolerancePercentage)) {
-                // Under-carburized
-                statusText.innerText = `UNDER-CARBURIZED (-${(Math.abs(errorFraction)*100).toFixed(1)}%)`;
-                statusPanel.classList.add("status-under");
-            } else if (actualConcAtTarget > state.targetConc * (1 + targetTolerancePercentage)) {
-                // Over-carburized
-                statusText.innerText = `OVER-CARBURIZED (+${(errorFraction*100).toFixed(1)}%)`;
-                statusPanel.classList.add("status-over");
+            const diff = actualC - state.targetC;
+            if(Math.abs(diff) < 0.02) {
+                statusText.innerText = "TARGET ACHIEVED";
+                statusPanel.classList.add('status-achieved');
+            } else if(diff < 0) {
+                statusText.innerText = "UNDER-CARBURIZED";
+                statusPanel.classList.add('status-under');
             } else {
-                statusText.innerText = "CALCULATING...";
+                statusText.innerText = "OVER-CARBURIZED";
+                statusPanel.classList.add('status-over');
             }
 
-            // 3. Update 2D SVG Graph
-            drawGraph(D, t_Sec);
+            updateGraph(D, tSec);
 
-            // 4. Update 3D Solute Mesh visibility based on probability cloud
-            // Probability that local interstitial site is populated by carbon is erfc logic
+            // Update Carbon population
             let cIdx = 0;
-            const dummy = new THREE.Object3D();
-            const octaBases = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]]; // Scaled octahedral bases
-            
+            const octa = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]];
             for(let x=0; x<nx; x++) {
-                // dummy spatial mapping from x-index to simulated physical depth
-                const spatialScaleDummy = 0.0001; // map 1 unit x-index to physical depth
-                const dummySpatialFactor = spatialScaleDummy; 
-                const depthMmeters = x * dummySpatialFactor; 
-                const z = depthMmeters / (2 * Math.sqrt(D * t_Sec));
-                const probability = Cs * (1 - errorFunction(z)); // population probability based on Fick's 2nd Law
-
-                for(let y=0; y<ny; y++) {
-                    for(let z_c=0; z_c<nz; z_c++) {
-                        // Position Carbon Atoms at Octahedral sites
-                        octaBases.forEach(o => {
-                            dummy.position.set((x + o[0]/2)*spacing, (y + o[1]/2)*spacing, (z_c + o[2]/2)*spacing);
-                            // Probability based instantiation logic (1 or 0 scale)
-                            const visibility = Math.random() < probability ? 1 : 0;
-                            dummy.scale.set(visibility, visibility, visibility);
-                            dummy.updateMatrix();
-                            carbonMesh.setMatrixAt(cIdx++, dummy.matrix);
-                        });
-                    }
+                const localZ = (x * 0.0001) / (2 * Math.sqrt(D * tSec));
+                const p = Cs * (1 - erf(localZ));
+                for(let y=0; y<ny; y++) for(let z=0; z<nz; z++) {
+                    octa.forEach(o => {
+                        dummy.position.set((x + o[0]/2)*spacing, (y + o[1]/2)*spacing, (z + o[2]/2)*spacing);
+                        dummy.scale.setScalar(Math.random() < p ? 1 : 0);
+                        dummy.updateMatrix();
+                        carbonMesh.setMatrixAt(cIdx++, dummy.matrix);
+                    });
                 }
             }
             carbonMesh.instanceMatrix.needsUpdate = true;
         }
 
-        // --- UI Sliders and Input Listeners ---
-        const inputsMapping = {
-            'slider-temp': { key: 'tempC', val: 'val-temp' },
-            'slider-time': { key: 'timeHrs', val: 'val-time' },
-            'slider-qd': { key: 'qdKJ', val: 'val-qd' }
-        };
-
-        Object.entries(inputsMapping).forEach(([id, config]) => {
+        // Listeners
+        const map = { 'slider-temp': 'tempC', 'slider-time': 'timeHrs', 'slider-qd': 'qdKJ' };
+        Object.entries(map).forEach(([id, key]) => {
             document.getElementById(id).addEventListener('input', (e) => {
-                const val = parseFloat(e.target.value);
-                state[config.key] = val;
-                document.getElementById(config.val).innerText = val;
-                updateSimulation();
+                state[key] = parseFloat(e.target.value);
+                const labelId = id.replace('slider', 'val');
+                if(document.getElementById(labelId)) document.getElementById(labelId).innerText = e.target.value;
+                updateSim();
             });
         });
 
-        // Target Number Input Listeners
-        document.getElementById('input-target-depth').addEventListener('change', (e) => {
-            const val = parseFloat(e.target.value);
-            // Validation: must be within bounds [0, 10]
-            const validated = Math.max(0, Math.min(10, val));
-            e.target.value = validated.toFixed(1);
-            state.targetDepthMM = validated;
-            updateSimulation();
-        });
-        document.getElementById('input-target-conc').addEventListener('change', (e) => {
-            const val = parseFloat(e.target.value);
-            // Validation: must be within bounds [0, 1.2] (max Cs)
-            const validated = Math.max(0, Math.min(Cs, val));
-            e.target.value = validated.toFixed(2);
-            state.targetConc = validated;
-            updateSimulation();
+        document.getElementById('input-target-depth').addEventListener('change', (e) => { state.targetX = parseFloat(e.target.value); updateSim(); });
+        document.getElementById('input-target-conc').addEventListener('change', (e) => { state.targetC = parseFloat(e.target.value); updateSim(); });
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            updateSim();
         });
 
-
-        // --- Render and Animation Loop ---
         const clock = new THREE.Clock();
-
         function animate() {
             requestAnimationFrame(animate);
-            controls.update(); // autoRotate logic handled here
-            
             const time = clock.getElapsedTime();
-            
-            // --- Surface Plane Pulse Logic: Proportionate to Temperature slider ---
-            // Pulse frequency ranges from 1Hz (800C) to 6Hz (1250C)
-            const normalizedTemp = (state.tempC - 800) / 450;
-            const pulseFrequency = 1.0 + normalizedTemp * 5.0; // 1Hz to 6Hz
-            
-            // Vary material opacity based on pulse logic. Dummy value 0.25 +/- 0.15 intensity variation.
-            const minOpacity = 0.1;
-            const maxOpacity = 0.4;
-            // Opacity varies with cosine wave. pulseFreq determines speed.
-            const dummy_opacity = 0.25 + 0.15 * Math.cos(time * pulseFrequency * 2 * Math.PI);
-            sourcePlane.material.opacity = dummy_opacity;
-            sourcePlane.material.needsUpdate = true; // Update GPU material
-
+            const freq = 1 + ((state.tempC - 800) / 450) * 8; 
+            sourcePlane.material.opacity = 0.2 + 0.2 * Math.sin(time * freq);
+            controls.update();
             renderer.render(scene, camera);
         }
 
-        // Handle Window Resize for Canvas and SVG
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / (window.innerHeight - 300); // adjust for fixed height graph
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight - 300);
-            updateSimulation(); // redraw everything on graph resize
-        });
-
-        // --- Initial Boot ---
-        updateSimulation(); // Initial update
-        animate(); // Start animation loop
-
+        updateSim();
+        animate();
     </script>
 </body>
 </html>
