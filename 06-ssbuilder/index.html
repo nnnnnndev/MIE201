@@ -2,240 +2,239 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Ch 6: Materials Property Simulator // Industrial Grade</title>
+    <title>Ch 6: Mechanical Props // Advanced Materials Simulator</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Arial Black', sans-serif; background: #050505; color: #00ffff; overflow: hidden; font-weight: 900; }
-        #ui-panel { width: 400px; background: rgba(0, 0, 0, 0.95); border-right: 3px solid #ff00ff; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; z-index: 10; box-shadow: 5px 0 20px rgba(255, 0, 255, 0.2); overflow-y: auto; }
+        :root { --bg: #050505; --neon-cyan: #00ffff; --neon-magenta: #ff00ff; --neon-yellow: #ffff00; --grid: rgba(255, 0, 255, 0.15); }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', 'Arial Black', sans-serif; background: var(--bg); color: var(--neon-cyan); overflow: hidden; font-weight: 900; }
         
-        h2 { margin: 0 0 15px 0; font-size: 1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 8px; }
+        #sidebar { width: 380px; background: rgba(0,0,0,0.9); border-right: 2px solid var(--neon-magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
+        h1 { font-size: 0.9rem; color: var(--neon-magenta); text-transform: uppercase; margin: 0 0 15px; border-bottom: 1px solid var(--neon-magenta); padding-bottom: 5px; letter-spacing: 1px; }
         
-        select { background: #111; color: #00ffff; border: 2px solid #00ffff; padding: 10px; width: 100%; font-weight: 900; margin-bottom: 20px; cursor: pointer; font-size: 1rem; }
+        select { background: #111; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); padding: 8px; margin-bottom: 20px; font-weight: bold; width: 100%; }
         
-        .control-block { border: 1px solid #333; padding: 12px; margin-bottom: 12px; border-radius: 4px; background: #0a0a0a; }
-        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 6px; color: #ff00ff; }
-        input[type=range] { width: 100%; accent-color: #00ffff; cursor: pointer; }
+        .control-group { background: #111; border: 1px solid #333; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
+        .label-box { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--neon-magenta); margin-bottom: 5px; }
+        input[type=range] { width: 100%; accent-color: var(--neon-cyan); cursor: pointer; }
 
-        #metrics { margin-top: auto; border: 2px solid #00ffff; padding: 15px; background: #001111; }
-        .m-row { display: flex; justify-content: space-between; font-size: 1.1rem; margin-bottom: 5px; }
+        #readouts { margin-top: auto; border: 1px solid var(--neon-cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 1rem; margin: 4px 0; }
 
-        #graph-area { flex: 1; background: #000; position: relative; }
+        #stage { flex: 1; position: relative; }
         svg { width: 100%; height: 100%; }
         
-        .main-curve { fill: none; stroke: #00ffff; stroke-width: 4; filter: drop-shadow(0 0 6px #00ffff); stroke-linejoin: round; }
-        .offset-line { stroke: #ffaa00; stroke-width: 2; stroke-dasharray: 8,4; filter: drop-shadow(0 0 4px #ffaa00); }
-        .axis { stroke: #ff00ff; stroke-width: 2; }
-        .inset-box { fill: rgba(5,5,5,0.9); stroke: #444; stroke-width: 2; }
-        text { fill: #ff00ff; font-size: 12px; }
+        .curve { fill: none; stroke: var(--neon-cyan); stroke-width: 3.5; filter: drop-shadow(0 0 5px var(--neon-cyan)); }
+        .offset { fill: none; stroke: var(--neon-yellow); stroke-width: 2; stroke-dasharray: 6,4; }
+        .grid-line { stroke: var(--grid); stroke-width: 1; }
+        .axis-main { stroke: var(--neon-magenta); stroke-width: 2.5; }
+        text { fill: var(--neon-magenta); font-size: 12px; font-weight: bold; }
+        .inset-rect { fill: rgba(0,0,0,0.9); stroke: #444; stroke-width: 2; }
     </style>
 </head>
 <body>
 
-<div id="ui-panel">
-    <h2>Material Selector</h2>
+<div id="sidebar">
+    <h1>Material Library</h1>
     <select id="mat-select">
         <option value="316ss">316 Stainless Steel (Annealed)</option>
-        <option value="mild">A36 Mild Steel (Discontinuous Yield)</option>
-        <option value="6061">Aluminum 6061-T6</option>
+        <option value="mild">A36 Mild Steel (Discontinuous)</option>
+        <option value="6061">6061-T6 Aluminum</option>
         <option value="ti64">Ti-6Al-4V (Grade 5)</option>
     </select>
 
-    <h2>Fine-Tune Nodes</h2>
-    <div class="control-block">
-        <div class="label-row"><span>Yield Stress (MPa)</span><span id="v-ys">290</span></div>
-        <input type="range" id="s-ys" min="50" max="1100" value="290">
-        <div class="label-row" style="margin-top:10px;"><span>Yield Strain</span><span id="v-ye">0.0015</span></div>
-        <input type="range" id="s-ye" min="0.0005" max="0.01" step="0.0001" value="0.0015">
+    <h1>Parameter Adjustment</h1>
+    <div class="control-group">
+        <div class="label-box"><span>Yield Stress (&sigma;<sub>y</sub>)</span><span id="txt-ys">--</span></div>
+        <input type="range" id="sl-ys" min="100" max="1100">
     </div>
 
-    <div class="control-block">
-        <div class="label-row"><span>UTS Stress (MPa)</span><span id="v-uts">580</span></div>
-        <input type="range" id="s-uts" min="100" max="1300" value="580">
-        <div class="label-row" style="margin-top:10px;"><span>UTS Strain</span><span id="v-utse">0.40</span></div>
-        <input type="range" id="s-utse" min="0.05" max="0.6" step="0.01" value="0.4">
+    <div class="control-group">
+        <div class="label-box"><span>UTS Stress (&sigma;<sub>uts</sub>)</span><span id="txt-uts">--</span></div>
+        <input type="range" id="sl-uts" min="200" max="1300">
+        <div class="label-box" style="margin-top:8px;"><span>UTS Strain (&epsilon;<sub>uts</sub>)</span><span id="txt-utse">--</span></div>
+        <input type="range" id="sl-utse" min="0.05" max="0.5" step="0.01">
     </div>
 
-    <div class="control-block">
-        <div class="label-row"><span>Fracture Stress (MPa)</span><span id="v-fs">450</span></div>
-        <input type="range" id="s-fs" min="50" max="1200" value="450">
-        <div class="label-row" style="margin-top:10px;"><span>Fracture Strain</span><span id="v-fe">0.55</span></div>
-        <input type="range" id="s-fe" min="0.1" max="0.8" step="0.01" value="0.55">
+    <div class="control-group">
+        <div class="label-box"><span>Fracture Strain (&epsilon;<sub>f</sub>)</span><span id="txt-fe">--</span></div>
+        <input type="range" id="sl-fe" min="0.1" max="0.8" step="0.01">
     </div>
 
-    <div id="metrics">
-        <div class="m-row"><span>Modulus (E):</span><span id="out-e">--</span></div>
-        <div class="m-row"><span>Ductility:</span><span id="out-el">--</span></div>
+    <div id="readouts">
+        <div class="stat"><span>Modulus (E):</span><span id="val-e">--</span></div>
+        <div class="stat"><span>Ductility (%EL):</span><span id="val-el">--</span></div>
     </div>
 </div>
 
-<div id="graph-area">
-    <svg id="canvas"></svg>
+<div id="stage">
+    <svg id="plot"></svg>
 </div>
 
 <script>
-const materials = {
-    "316ss": { ys: 290, ye: 0.0015, uts: 580, utse: 0.45, fs: 480, fe: 0.60, disc: false },
-    "mild":  { ys: 250, ye: 0.0012, uts: 400, utse: 0.20, fs: 300, fe: 0.35, disc: true },
-    "6061":  { ys: 275, ye: 0.004,  uts: 310, utse: 0.12, fs: 250, fe: 0.17, disc: false },
-    "ti64":  { ys: 880, ye: 0.0075, uts: 950, utse: 0.10, fs: 700, fe: 0.14, disc: false }
+// Material Presets - Literature Defaults
+const LIB = {
+    "316ss": { ys: 290, e: 193, uts: 580, utse: 0.45, fe: 0.60, fs: 480, disc: false },
+    "mild":  { ys: 250, e: 200, uts: 400, utse: 0.22, fe: 0.35, fs: 320, disc: true },
+    "6061":  { ys: 275, e: 69,  uts: 310, utse: 0.12, fe: 0.17, fs: 250, disc: false },
+    "ti64":  { ys: 880, e: 114, uts: 950, utse: 0.10, fe: 0.14, fs: 750, disc: false }
 };
 
-let currentMat = "316ss";
-const svg = document.getElementById('canvas');
+let state = {...LIB["316ss"]};
+const svg = document.getElementById('plot');
 
-function updateInputs(key) {
-    const m = materials[key];
-    document.getElementById('s-ys').value = m.ys;
-    document.getElementById('s-ye').value = m.ye;
-    document.getElementById('s-uts').value = m.uts;
-    document.getElementById('s-utse').value = m.utse;
-    document.getElementById('s-fs').value = m.fs;
-    document.getElementById('s-fe').value = m.fe;
-    draw();
+function syncInputs(key) {
+    state = {...LIB[key]};
+    document.getElementById('sl-ys').value = state.ys;
+    document.getElementById('sl-uts').value = state.uts;
+    document.getElementById('sl-utse').value = state.utse;
+    document.getElementById('sl-fe').value = state.fe;
+    render();
 }
 
-document.getElementById('mat-select').onchange = (e) => {
-    currentMat = e.target.value;
-    updateInputs(currentMat);
-};
+function updateState() {
+    state.ys = parseInt(document.getElementById('sl-ys').value);
+    state.uts = parseInt(document.getElementById('sl-uts').value);
+    state.utse = parseFloat(document.getElementById('sl-utse').value);
+    state.fe = parseFloat(document.getElementById('sl-fe').value);
 
-// Physics/Hierarchy Constraints
-function getValidState() {
-    let s = {
-        ys: parseInt(document.getElementById('s-ys').value),
-        ye: parseFloat(document.getElementById('s-ye').value),
-        uts: parseInt(document.getElementById('s-uts').value),
-        utse: parseFloat(document.getElementById('s-utse').value),
-        fs: parseInt(document.getElementById('s-fs').value),
-        fe: parseFloat(document.getElementById('s-fe').value),
-        disc: materials[currentMat].disc
-    };
+    // Physical Constraints
+    if (state.uts <= state.ys) state.uts = state.ys + 20;
+    if (state.fe <= state.utse) state.fe = state.utse + 0.05;
+    state.fs = state.uts * 0.85; // Simple necking approx for visuals
 
-    if(s.uts < s.ys) s.uts = s.ys + 10;
-    if(s.fs > s.uts) s.fs = s.uts - 10;
-    if(s.utse < s.ye + 0.02) s.utse = s.ye + 0.02;
-    if(s.fe < s.utse + 0.02) s.fe = s.utse + 0.02;
+    // Output Text
+    document.getElementById('txt-ys').innerText = state.ys + " MPa";
+    document.getElementById('txt-uts').innerText = state.uts + " MPa";
+    document.getElementById('txt-utse').innerText = state.utse.toFixed(2);
+    document.getElementById('txt-fe').innerText = state.fe.toFixed(2);
+    document.getElementById('val-e').innerText = state.e + " GPa";
+    document.getElementById('val-el').innerText = (state.fe * 100).toFixed(1) + "%";
+}
 
-    document.getElementById('v-ys').innerText = s.ys;
-    document.getElementById('v-ye').innerText = s.ye.toFixed(4);
-    document.getElementById('v-uts').innerText = s.uts;
-    document.getElementById('v-utse').innerText = s.utse.toFixed(2);
-    document.getElementById('v-fs').innerText = s.fs;
-    document.getElementById('v-fe').innerText = s.fe.toFixed(2);
+function generateCurvePoints(s) {
+    let pts = [];
+    const ye = (s.ys / (s.e * 1000)); // Elastic limit strain
     
-    document.getElementById('out-e').innerText = (s.ys / s.ye / 1000).toFixed(1) + " GPa";
-    document.getElementById('out-el').innerText = (s.fe * 100).toFixed(1) + " %";
-
-    return s;
-}
-
-function draw() {
-    svg.innerHTML = '';
-    const s = getValidState();
-    const w = svg.clientWidth, h = svg.clientHeight;
-    const pad = { l: 80, r: 50, t: 50, b: 80 };
-
-    const mX = (val) => pad.l + (val / 0.7) * (w - pad.l - pad.r);
-    const mY = (val) => h - pad.b - (val / 1400) * (h - pad.t - pad.b);
-
-    // Axes
-    const ax = (x1, y1, x2, y2) => {
-        const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
-        l.setAttribute("class", "axis"); svg.appendChild(l);
-    };
-    ax(pad.l, pad.t, pad.l, h-pad.b);
-    ax(pad.l, h-pad.b, w-pad.r, h-pad.b);
-
-    // --- CURVE GENERATION ---
-    let points = [];
     // 1. Elastic Linear
-    points.push({x: 0, y: 0});
-    
+    for(let x=0; x <= ye; x += ye/10) pts.push({x, y: x * (s.e * 1000)});
+
     if(s.disc) {
-        // Discontinuous Yield Path (Mild Steel)
-        const upperY = s.ys + 30;
-        const lowerY = s.ys;
-        points.push({x: s.ye * 0.95, y: upperY}); // Upper Yield
-        points.push({x: s.ye * 1.05, y: lowerY}); // Drop to Lower
-        points.push({x: s.ye + 0.02, y: lowerY}); // Plateau
-    } else {
-        points.push({x: s.ye, y: s.ys});
+        // Lüders Bands / Discontinuous Yield
+        let lastX = pts[pts.length-1].x;
+        pts.push({x: lastX + 0.0005, y: s.ys + 40}); // Upper Yield
+        pts.push({x: lastX + 0.0015, y: s.ys - 10}); // Lower Yield Drop
+        pts.push({x: lastX + 0.03, y: s.ys});       // Plateau
     }
 
-    // 2. Plastic Arches
-    // Sample points for the spline
-    const steps = 100;
-    let d = `M ${mX(0)} ${mY(0)} L ${mX(points[1].x)} ${mY(points[1].y)}`;
-
-    // Spline from Yield End to UTS to Fracture
-    const startX = points[points.length-1].x;
-    const startY = points[points.length-1].y;
-    
-    // Cubic Hermite Interpolation for smooth plastic flow
+    // 2. Strain Hardening (Power Law: sigma = K * eps^n)
+    // We approximate to hit the UTS at utse
+    let startX = pts[pts.length-1].x;
+    let startY = pts[pts.length-1].y;
+    let steps = 100;
     for(let i=1; i<=steps; i++) {
-        const t = i/steps;
-        let currX, currY;
-        if(t < 0.5) { // To UTS
-            const localT = t / 0.5;
-            currX = startX + (s.utse - startX) * localT;
-            // Parabolic hardening
-            currY = startY + (s.uts - startY) * (1 - Math.pow(1-localT, 2));
-        } else { // To Fracture
-            const localT = (t - 0.5) / 0.5;
-            currX = s.utse + (s.fe - s.utse) * localT;
-            // Necking drop
-            currY = s.uts - (s.uts - s.fs) * Math.pow(localT, 2);
-        }
-        d += ` L ${mX(currX)} ${mY(currY)}`;
+        let t = i/steps;
+        let x = startX + (s.utse - startX) * t;
+        // Smooth parabolic-ish hardening
+        let y = startY + (s.uts - startY) * Math.sin((Math.PI/2) * t);
+        pts.push({x, y});
     }
 
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", d); path.setAttribute("class", "main-curve");
-    svg.appendChild(path);
+    // 3. Necking (UTS to Fracture)
+    for(let i=1; i<=50; i++) {
+        let t = i/50;
+        let x = s.utse + (s.fe - s.utse) * t;
+        let y = s.uts - (s.uts - s.fs) * (t * t);
+        pts.push({x, y});
+    }
+    return pts;
+}
 
-    // --- INSET ---
+function render() {
+    svg.innerHTML = '';
+    updateState();
+    const w = svg.clientWidth, h = svg.clientHeight;
+    const pad = { l: 80, r: 60, t: 60, b: 80 };
+
+    // Mappers
+    const mX = (v) => pad.l + (v / 0.7) * (w - pad.l - pad.r);
+    const mY = (v) => h - pad.b - (v / 1400) * (h - pad.t - pad.b);
+
+    // --- GRID & AXES ---
+    // Horizontal Grid
+    for(let s=200; s<=1200; s+=200) {
+        let y = mY(s);
+        let l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        l.setAttribute("x1", pad.l); l.setAttribute("y1", y); l.setAttribute("x2", w-pad.r); l.setAttribute("y2", y);
+        l.setAttribute("class", "grid-line"); svg.appendChild(l);
+        let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", pad.l - 10); t.setAttribute("y", y+5); t.setAttribute("text-anchor", "end");
+        t.textContent = s; svg.appendChild(t);
+    }
+    // Vertical Grid
+    for(let e=0.1; e<=0.6; e+=0.1) {
+        let x = mX(e);
+        let l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        l.setAttribute("x1", x); l.setAttribute("y1", pad.t); l.setAttribute("x2", x); l.setAttribute("y2", h-pad.b);
+        l.setAttribute("class", "grid-line"); svg.appendChild(l);
+        let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", x); t.setAttribute("y", h-pad.b + 25); t.setAttribute("text-anchor", "middle");
+        t.textContent = e.toFixed(1); svg.appendChild(t);
+    }
+
+    // Main Axes
+    let xAxis = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    xAxis.setAttribute("x1", pad.l); xAxis.setAttribute("y1", h-pad.b); xAxis.setAttribute("x2", w-pad.r); xAxis.setAttribute("y2", h-pad.b);
+    xAxis.setAttribute("class", "axis-main"); svg.appendChild(xAxis);
+    
+    let yAxis = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    yAxis.setAttribute("x1", pad.l); yAxis.setAttribute("y1", pad.t); yAxis.setAttribute("x2", pad.l); yAxis.setAttribute("y2", h-pad.b);
+    yAxis.setAttribute("class", "axis-main"); svg.appendChild(yAxis);
+
+    // Curve
+    const pts = generateCurvePoints(state);
+    let d = `M ${mX(pts[0].x)} ${mY(pts[0].y)}`;
+    for(let i=1; i<pts.length; i++) d += ` L ${mX(pts[i].x)} ${mY(pts[i].y)}`;
+    let path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d); path.setAttribute("class", "curve"); svg.appendChild(path);
+
+    // --- INSET (ELASTIC ZOOM) ---
     const iW = 350, iH = 220;
-    const iX0 = w - iW - 70, iY0 = pad.t + 20;
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", iX0); rect.setAttribute("y", iY0); rect.setAttribute("width", iW); rect.setAttribute("height", iH);
-    rect.setAttribute("class", "inset-box"); svg.appendChild(rect);
+    const iX0 = w - iW - 80, iY0 = pad.t + 20;
+    let box = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    box.setAttribute("x", iX0); box.setAttribute("y", iY0); box.setAttribute("width", iW); box.setAttribute("height", iH);
+    box.setAttribute("class", "inset-rect"); svg.appendChild(box);
 
-    const inX = (val) => iX0 + 50 + (val / 0.012) * (iW - 70);
-    const inY = (val) => iY0 + iH - 40 - (val / (s.ys + 150)) * (iH - 60);
+    const inX = (v) => iX0 + 50 + (v / 0.012) * (iW - 70);
+    const inY = (v) => iY0 + iH - 40 - (v / 1100) * (iH - 60);
 
-    // Offset Line (Yellow)
-    const offL = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    const E = s.ys / s.ye;
-    offL.setAttribute("x1", inX(0.002)); offL.setAttribute("y1", inY(0));
-    offL.setAttribute("x2", inX(0.002 + (s.ys/E))); offL.setAttribute("y2", inY(s.ys));
-    offL.setAttribute("class", "offset-line"); svg.appendChild(offL);
+    // Inset 0.2% Offset Line
+    let off = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    off.setAttribute("x1", inX(0.002)); off.setAttribute("y1", inY(0));
+    off.setAttribute("x2", inX(0.002 + 0.006)); off.setAttribute("y2", inY(0.006 * state.e * 1000));
+    off.setAttribute("class", "offset"); svg.appendChild(off);
 
     // Inset Curve
-    let iD = `M ${inX(0)} ${inY(0)} L ${inX(points[1].x)} ${inY(points[1].y)}`;
-    if(s.disc) iD += ` L ${inX(s.ye*1.05)} ${inY(s.ys)} L ${inX(0.012)} ${inY(s.ys)}`;
-    else iD += ` L ${inX(0.012)} ${inY(s.ys + (0.012-s.ye)*2000)}`; // Slight curve extension
+    let id = `M ${inX(pts[0].x)} ${inY(pts[0].y)}`;
+    for(let i=1; i<pts.length; i++) {
+        if(pts[i].x > 0.012) break;
+        id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
+    }
+    let ipath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    ipath.setAttribute("d", id); ipath.setAttribute("class", "curve");
+    ipath.setAttribute("stroke-width", "2"); svg.appendChild(ipath);
 
-    const iPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    iPath.setAttribute("d", iD); iPath.setAttribute("class", "main-curve");
-    iPath.setAttribute("stroke-width", "3");
-    svg.appendChild(iPath);
-
-    // Labels
-    const label = (txt, x, y, size="14px", color="#ff00ff") => {
-        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        t.textContent = txt; t.setAttribute("x", x); t.setAttribute("y", y);
-        t.setAttribute("font-size", size); t.setAttribute("fill", color);
-        svg.appendChild(t);
-    };
-    label("ELASTIC ZOOM", iX0 + 10, iY0 + 20, "12px", "#fff");
-    label("STRAIN (ε)", w/2, h-30);
-    label("STRESS (σ)", 20, h/2);
+    // Inset Ticks
+    for(let s=0; s<=1000; s+=200) {
+        let ty = inY(s);
+        let t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", iX0 + 45); t.setAttribute("y", ty+4); t.setAttribute("text-anchor", "end");
+        t.setAttribute("font-size", "10px"); t.textContent = s; svg.appendChild(t);
+    }
 }
 
-window.onresize = draw;
-document.querySelectorAll('input').forEach(i => i.oninput = draw);
-updateInputs("316ss");
+document.getElementById('mat-select').onchange = (e) => syncInputs(e.target.value);
+document.querySelectorAll('input').forEach(i => i.oninput = render);
+window.onresize = render;
+syncInputs("316ss");
 </script>
-
 </body>
 </html>
