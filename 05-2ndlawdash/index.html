@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ch 5: Diffusion Dashboard // Industrial Kinetic Engine</title>
     <style>
-        /* Bold, High-Contrast UI */
+        /* Bold, Industrial UI Architecture */
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; background: #000; color: #00ffff; font-family: 'Arial Black', 'Arial', sans-serif; overflow: hidden; font-weight: 900; }
         
         #viewport-container { flex: 1; position: relative; min-height: 0; border-bottom: 3px solid #ff00ff; }
         canvas { display: block; width: 100%; height: 100%; outline: none; }
 
-        #ui-layer { position: absolute; top: 15px; left: 15px; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 10px; }
+        #ui-layer { position: absolute; top: 15px; left: 15px; z-index: 100; pointer-events: none; display: flex; flex-direction: column; gap: 12px; }
 
         .panel {
             background: rgba(0, 0, 0, 0.95);
@@ -25,32 +25,35 @@
 
         h2 { margin: 0 0 8px 0; font-size: 1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 5px; font-weight: 900; }
 
-        #equation-display { font-size: 1.1rem; margin: 10px 0; font-weight: 900; line-height: 1.4; color: #fff; }
+        /* Equation Displays */
+        #kinetic-eq { font-size: 1.5rem; margin: 10px 0; font-weight: 900; color: #fff; }
+        .exponent { display: inline-block; vertical-align: super; font-size: 0.9rem; font-weight: 900; }
         
-        .control-group { margin: 10px 0; }
+        .control-group { margin: 12px 0; }
         label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: #ff00ff; text-transform: uppercase; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
         
         .target-inputs { display: flex; gap: 15px; margin-top: 5px; }
-        input[type=number] { background: #111; border: 2px solid #00ffff; color: #00ffff; padding: 4px; font-weight: 900; width: 80px; font-size: 1rem; }
+        input[type=number] { background: #111; border: 2px solid #00ffff; color: #00ffff; padding: 4px; font-weight: 900; width: 85px; font-size: 1.1rem; }
 
-        /* Custom Toggle Switch */
-        .toggle-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; cursor: pointer; }
-        .toggle-container input { cursor: pointer; width: 18px; height: 18px; }
+        /* Auto-Rotate Toggle */
+        .toggle-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; cursor: pointer; }
+        .toggle-row input { width: 20px; height: 20px; cursor: pointer; }
 
-        .readout { font-size: 1rem; margin-top: 6px; color: #00f2ff; }
+        .readout { font-size: 1.1rem; margin-top: 8px; color: #00f2ff; font-weight: 900; }
         
+        /* Status Feedback */
         #status-panel { transition: all 0.3s ease; text-align: center; }
-        #status-text { font-size: 1.2rem; letter-spacing: 1px; font-weight: 900; }
-        
-        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; box-shadow: 0 0 30px #00ff00 !important; }
-        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 30px #ff0000 !important; }
-        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; box-shadow: 0 0 30px #ffff00 !important; }
+        #status-text { font-size: 1.3rem; letter-spacing: 1px; font-weight: 900; }
+        .status-achieved { border-color: #00ff00 !important; color: #00ff00 !important; box-shadow: 0 0 35px #00ff00 !important; }
+        .status-over { border-color: #ff0000 !important; color: #ff0000 !important; box-shadow: 0 0 35px #ff0000 !important; }
+        .status-under { border-color: #ffff00 !important; color: #ffff00 !important; box-shadow: 0 0 35px #ffff00 !important; }
 
+        /* Graph Area */
         #graph-area { flex: 0 0 320px; background: #000; position: relative; border-top: 1px solid #333; }
         svg { width: 100%; height: 100%; display: block; }
         
-        #system-status { position: absolute; bottom: 10px; right: 15px; font-size: 0.75rem; color: #ff00ff; text-align: right; pointer-events: none; opacity: 0.7; font-weight: 900; }
+        #system-status { position: absolute; bottom: 10px; right: 15px; font-size: 0.8rem; color: #ff00ff; text-align: right; pointer-events: none; opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -59,9 +62,8 @@
         <div id="ui-layer">
             <div class="panel">
                 <h2>Kinetic Engine</h2>
-                <div id="equation-display">
-                    C(x,t) = C<sub>s</sub> [1 - erf(x / 2&radic;Dt)]
-                </div>
+                <div id="kinetic-eq">D = D₀e<span class="exponent">-Q<sub>d</sub>/RT</span></div>
+                
                 <div class="control-group">
                     <label>Temp (T): <span id="val-temp">1032</span> °C</label>
                     <input type="range" id="slider-temp" min="800" max="1250" value="1032">
@@ -70,9 +72,10 @@
                     <label>Time (t): <span id="val-time">10</span> Hours</label>
                     <input type="range" id="slider-time" min="1" max="100" value="10">
                 </div>
-                <label class="toggle-container">
+
+                <label class="toggle-row">
                     <input type="checkbox" id="toggle-rotate" checked>
-                    <span>AUTO-ROTATE VIEW</span>
+                    <span>AUTO-ROTATE VIEWPORT</span>
                 </label>
             </div>
 
@@ -82,19 +85,19 @@
                     <div><label>Depth [mm]</label><input type="number" id="input-target-depth" step="0.1" value="1.0"></div>
                     <div><label>Target %C</label><input type="number" id="input-target-conc" step="0.01" value="0.45"></div>
                 </div>
-                <div class="readout" style="margin-top:12px; border-top:1px solid #333; padding-top:8px;">
-                    Actual at Depth: <span id="readout-conc-at-target">--</span> wt% C
+                <div class="readout">
+                    Actual: <span id="readout-conc-at-target">--</span> wt% C
                 </div>
             </div>
 
             <div id="status-panel" class="panel">
-                <div id="status-text">SYSTEM STANDBY</div>
+                <div id="status-text">INITIALIZING...</div>
             </div>
         </div>
 
         <div id="system-status">
-            FCC AUSTENITE // DIFFUSANT: CARBON (OCTAHEDRAL)<br>
-            BOUNDARY: SEMI-INFINITE // C<sub>s</sub>=1.2% // C<sub>0</sub>=0%
+            FCC AUSTENITE // DIFFUSANT: CARBON<br>
+            C<sub>s</sub>=1.2% // C<sub>0</sub>=0%
         </div>
     </div>
 
@@ -121,7 +124,7 @@
 
         let state = { tempC: 1032, timeHrs: 10, targetX: 1.0, targetC: 0.45, autoRotate: true };
 
-        // --- 3D Scene ---
+        // --- 3D Scene Initialization ---
         const container = document.getElementById('viewport-container');
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -178,12 +181,12 @@
             return z >= 0 ? ans : -ans;
         }
 
-        // --- SVG Graph ---
+        // --- SVG Graph Engine with Axes/Ticks ---
         const svg = document.getElementById('diffusion-svg');
         function updateGraph(D, tSec, statusColor) {
             svg.innerHTML = '';
             const w = svg.clientWidth, h = svg.clientHeight;
-            const pad = { l: 80, r: 40, t: 60, b: 60 };
+            const pad = { l: 80, r: 40, t: 70, b: 60 };
             const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
 
             const drawLine = (x1, y1, x2, y2, color, stroke, dash="") => {
@@ -194,17 +197,33 @@
                 svg.appendChild(l);
             };
 
-            const drawText = (txt, x, y, anchor="start", weight="900", size="14px") => {
+            const drawText = (txt, x, y, anchor="start", size="14px") => {
                 const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
                 t.textContent = txt; t.setAttribute("x", x); t.setAttribute("y", y);
                 t.setAttribute("fill", "#ff00ff"); t.setAttribute("font-size", size);
-                t.setAttribute("text-anchor", anchor); t.setAttribute("font-weight", weight);
+                t.setAttribute("text-anchor", anchor); t.setAttribute("font-weight", "900");
                 svg.appendChild(t);
             };
 
             // Axes
-            drawLine(pad.l, pad.t, pad.l, h-pad.b, "#ff00ff", "2"); 
-            drawLine(pad.l, h-pad.b, w-pad.r, h-pad.b, "#ff00ff", "2");
+            drawLine(pad.l, pad.t, pad.l, h-pad.b, "#ff00ff", "3"); 
+            drawLine(pad.l, h-pad.b, w-pad.r, h-pad.b, "#ff00ff", "3");
+
+            // Ticks X (Depth)
+            for(let mm=0; mm<=10; mm+=2) {
+                const tx = pad.l + (mm/10)*iw;
+                drawLine(tx, h-pad.b, tx, h-pad.b+8, "#ff00ff", "2");
+                drawText(mm, tx, h-pad.b+25, "middle");
+            }
+            // Ticks Y (Conc)
+            [0, 0.4, 0.8, 1.2].forEach(val => {
+                const ty = pad.t + ih - (val/1.3)*ih;
+                drawLine(pad.l, ty, pad.l-8, ty, "#ff00ff", "2");
+                drawText(val.toFixed(1), pad.l-15, ty+5, "end");
+            });
+
+            // Solution Equation label on graph
+            drawText("C(x,t) = Cs [1 - erf(x / 2\u221ADt)]", pad.l + 15, pad.t - 20, "start", "18px");
 
             // Main Curve
             let pts = "";
@@ -216,30 +235,29 @@
             }
             const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
             path.setAttribute("points", pts); path.setAttribute("fill", "none");
-            path.setAttribute("stroke", "#00ffff"); path.setAttribute("stroke-width", "4");
+            path.setAttribute("stroke", "#00ffff"); path.setAttribute("stroke-width", "5");
             svg.appendChild(path);
 
-            // Cross-hair lines
+            // Cross-hair lines (Dotted)
             const tx = pad.l + (state.targetX / 10) * iw;
             const ty = pad.t + ih - (state.targetC / 1.3) * ih;
-            drawLine(tx, pad.t, tx, h-pad.b, "#ff00ff", "1.5", "6,4"); // Vertical
-            drawLine(pad.l, ty, w-pad.r, ty, "#00ffff", "1.5", "6,4"); // Horizontal Target
+            drawLine(tx, pad.t, tx, h-pad.b, "#ff00ff", "1.5", "8,5"); // Vertical
+            drawLine(pad.l, ty, w-pad.r, ty, "#00ffff", "1.5", "8,5"); // Horizontal
 
-            // Tracker Dot on the Curve
+            // Tracker Glow Dot
             const currentZ = (state.targetX / 1000) / (2 * Math.sqrt(D * tSec));
             const currentC = Cs * (1 - erf(currentZ));
             const cy = pad.t + ih - (currentC / 1.3) * ih;
             
             const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            dot.setAttribute("cx", tx); dot.setAttribute("cy", cy); dot.setAttribute("r", "8");
+            dot.setAttribute("cx", tx); dot.setAttribute("cy", cy); dot.setAttribute("r", "9");
             dot.setAttribute("fill", statusColor);
-            dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", "2");
-            dot.style.filter = `drop-shadow(0 0 10px ${statusColor})`;
+            dot.setAttribute("stroke", "#fff"); dot.setAttribute("stroke-width", "3");
+            dot.style.filter = `drop-shadow(0 0 15px ${statusColor})`;
             svg.appendChild(dot);
 
-            drawText("DEPTH [mm]", w/2, h-10, "middle", "900");
-            drawText("CONC. [wt% C]", 10, pad.t - 10, "start", "900", "12px");
-            drawText(`TARGET: ${state.targetC}% @ ${state.targetX}mm`, w-pad.r, pad.t - 10, "end", "900");
+            drawText("DEPTH [mm]", w/2, h-10, "middle");
+            drawText("CONC. [wt% C]", 12, pad.t - 40, "start", "12px");
         }
 
         function updateSim() {
@@ -256,7 +274,7 @@
             
             let statusColor = "#ffffff";
             const diff = actualC - state.targetC;
-            if(Math.abs(diff) < 0.03) {
+            if(Math.abs(diff) < 0.025) {
                 statusText.innerText = "TARGET ACHIEVED";
                 statusPanel.classList.add('status-achieved');
                 statusColor = "#00ff00";
@@ -272,10 +290,11 @@
 
             updateGraph(D, tSec, statusColor);
 
+            // Update Carbon population (Octahedral sites)
             let cIdx = 0;
             const octa = [[1,0,0], [0,1,0], [0,0,1], [1,1,1]];
             for(let x=0; x<nx; x++) {
-                const localZ = (x * 0.00015) / (2 * Math.sqrt(D * tSec));
+                const localZ = (x * 0.00014) / (2 * Math.sqrt(D * tSec));
                 const p = Cs * (1 - erf(localZ));
                 for(let y=0; y<ny; y++) for(let z=0; z<nz; z++) {
                     octa.forEach(o => {
@@ -289,6 +308,7 @@
             carbonMesh.instanceMatrix.needsUpdate = true;
         }
 
+        // --- Event Listeners ---
         document.getElementById('slider-temp').addEventListener('input', (e) => {
             state.tempC = parseFloat(e.target.value);
             document.getElementById('val-temp').innerText = e.target.value;
@@ -317,7 +337,7 @@
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
             const freq = 1 + ((state.tempC - 800) / 450) * 8; 
-            sourcePlane.material.opacity = 0.2 + 0.15 * Math.sin(time * freq);
+            sourcePlane.material.opacity = 0.15 + 0.2 * Math.sin(time * freq);
             controls.update();
             renderer.render(scene, camera);
         }
