@@ -1,1 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 6: Mechanical Properties // Parametric Curve Builder</title>
+    <style>
+        /* Neon Industrial UI Architecture */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Arial Black', 'Arial', sans-serif; background: #050505; color: #00ffff; overflow: hidden; font-weight: 900; }
+        
+        #ui-panel { width: 380px; background: rgba(0, 0, 0, 0.95); border-right: 3px solid #ff00ff; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; z-index: 10; box-shadow: 5px 0 20px rgba(255, 0, 255, 0.2); overflow-y: auto; }
+        
+        h2 { margin: 0 0 15px 0; font-size: 1.1rem; color: #ff00ff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid rgba(255,0,255,0.5); padding-bottom: 8px; }
 
+        .control-block { border: 1px solid #333; padding: 12px; margin-bottom: 15px; border-radius: 4px; background: #111; }
+        .block-title { font-size: 0.9rem; color: #fff; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .block-title span { color: #00ffff; }
+
+        .control-group { margin-bottom: 10px; }
+        label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; color: #ff00ff; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #00ffff; }
+
+        /* Dynamic Readouts */
+        #metrics-panel { margin-top: auto; border: 2px solid #00ffff; padding: 15px; background: #001111; box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+        .metric { display: flex; justify-content: space-between; font-size: 1.1rem; margin-bottom: 8px; }
+        .metric-val { color: #fff; }
+
+        #graph-area { flex: 1; position: relative; background: #000; }
+        svg { width: 100%; height: 100%; display: block; }
+
+        /* Typography & Glows for SVG */
+        text { font-family: 'Arial Black', sans-serif; font-weight: 900; fill: #ff00ff; }
+        .axis-line { stroke: #ff00ff; stroke-width: 3; }
+        .tick-line { stroke: #ff00ff; stroke-width: 2; }
+        
+        .main-curve { fill: none; stroke: #00ffff; stroke-width: 5; filter: drop-shadow(0 0 8px #00ffff); }
+        .offset-line { fill: none; stroke: #ffff00; stroke-width: 3; stroke-dasharray: 6,4; filter: drop-shadow(0 0 6px #ffff00); }
+        
+        .node-yield { fill: #000; stroke: #00ffff; stroke-width: 4; cursor: pointer; }
+        .node-uts { fill: #000; stroke: #ff00ff; stroke-width: 4; cursor: pointer; }
+        .node-frac { fill: #000; stroke: #ff0000; stroke-width: 4; cursor: pointer; }
+        
+        .inset-bg { fill: rgba(10, 10, 10, 0.95); stroke: #333; stroke-width: 2; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h2>Curve Parameters</h2>
+        
+        <div class="control-block" style="border-color: #00ffff;">
+            <div class="block-title">Yield Point (Offset) <span>Cyan Node</span></div>
+            <div class="control-group">
+                <label><span>Stress (&sigma;<sub>y</sub>)</span> <span id="val-ys">250 MPa</span></label>
+                <input type="range" id="slider-ys" min="50" max="800" step="5" value="250">
+            </div>
+            <div class="control-group">
+                <label><span>Strain (&epsilon;<sub>y</sub>)</span> <span id="val-ye">0.0020</span></label>
+                <input type="range" id="slider-ye" min="0.001" max="0.008" step="0.0001" value="0.002">
+            </div>
+        </div>
+
+        <div class="control-block" style="border-color: #ff00ff;">
+            <div class="block-title">Ultimate Tensile (UTS) <span>Magenta Node</span></div>
+            <div class="control-group">
+                <label><span>Stress (&sigma;<sub>UTS</sub>)</span> <span id="val-utss">450 MPa</span></label>
+                <input type="range" id="slider-utss" min="250" max="1000" step="5" value="450">
+            </div>
+            <div class="control-group">
+                <label><span>Strain (&epsilon;<sub>UTS</sub>)</span> <span id="val-utse">0.20</span></label>
+                <input type="range" id="slider-utse" min="0.05" max="0.4" step="0.01" value="0.2">
+            </div>
+        </div>
+
+        <div class="control-block" style="border-color: #ff0000;">
+            <div class="block-title">Fracture Point <span>Red Node</span></div>
+            <div class="control-group">
+                <label><span>Stress (&sigma;<sub>f</sub>)</span> <span id="val-fs">350 MPa</span></label>
+                <input type="range" id="slider-fs" min="50" max="450" step="5" value="350">
+            </div>
+            <div class="control-group">
+                <label><span>Strain (&epsilon;<sub>f</sub>)</span> <span id="val-fe">0.35</span></label>
+                <input type="range" id="slider-fe" min="0.21" max="0.5" step="0.01" value="0.35">
+            </div>
+        </div>
+
+        <div id="metrics-panel">
+            <h2 style="color: #00ffff; border-bottom: none; margin-bottom: 10px;">Calculated Properties</h2>
+            <div class="metric">Modulus (E): <span class="metric-val" id="out-modulus">-- GPa</span></div>
+            <div class="metric">Ductility (%EL): <span class="metric-val" id="out-ductility">-- %</span></div>
+        </div>
+    </div>
+
+    <div id="graph-area">
+        <svg id="svg-canvas"></svg>
+    </div>
+
+    <script>
+        // Data State
+        let state = {
+            yStress: 250, yStrain: 0.002,
+            utsStress: 450, utsStrain: 0.20,
+            fStress: 350, fStrain: 0.35
+        };
+
+        const svg = document.getElementById('svg-canvas');
+
+        // References to UI
+        const sliders = {
+            ys: document.getElementById('slider-ys'), ye: document.getElementById('slider-ye'),
+            utss: document.getElementById('slider-utss'), utse: document.getElementById('slider-utse'),
+            fs: document.getElementById('slider-fs'), fe: document.getElementById('slider-fe')
+        };
+        const labels = {
+            ys: document.getElementById('val-ys'), ye: document.getElementById('val-ye'),
+            utss: document.getElementById('val-utss'), utse: document.getElementById('val-utse'),
+            fs: document.getElementById('val-fs'), fe: document.getElementById('val-fe')
+        };
+
+        // --- Core Logic: The Hard Limits ---
+        function enforcePhysics() {
+            // Read raw
+            state.yStress = parseFloat(sliders.ys.value);
+            state.yStrain = parseFloat(sliders.ye.value);
+            state.utsStress = parseFloat(sliders.utss.value);
+            state.utsStrain = parseFloat(sliders.utse.value);
+            state.fStress = parseFloat(sliders.fs.value);
+            state.fStrain = parseFloat(sliders.fe.value);
+
+            // Force physical hierarchy
+            if (state.utsStress < state.yStress) state.utsStress = state.yStress;
+            if (state.fStress > state.utsStress) state.fStress = state.utsStress;
+            
+            if (state.utsStrain < state.yStrain + 0.02) state.utsStrain = state.yStrain + 0.02;
+            if (state.fStrain < state.utsStrain + 0.02) state.fStrain = state.utsStrain + 0.02;
+
+            // Dynamically update slider bounds to prevent cross-over
+            sliders.utss.min = state.yStress;
+            sliders.fs.max = state.utsStress;
+            sliders.utse.min = state.yStrain + 0.02;
+            sliders.fe.min = state.utsStrain + 0.02;
+
+            // Write back clean values
+            sliders.utss.value = state.utsStress;
+            sliders.fs.value = state.fStress;
+            sliders.utse.value = state.utsStrain;
+            sliders.fe.value = state.fStrain;
+
+            // Update Labels
+            labels.ys.innerText = state.yStress + " MPa";
+            labels.ye.innerText = state.yStrain.toFixed(4);
+            labels.utss.innerText = state.utsStress + " MPa";
+            labels.utse.innerText = state.utsStrain.toFixed(2);
+            labels.fs.innerText = state.fStress + " MPa";
+            labels.fe.innerText = state.fStrain.toFixed(2);
+
+            // Update Metrics
+            const E_MPa = state.yStress / state.yStrain;
+            document.getElementById('out-modulus').innerText = (E_MPa / 1000).toFixed(1) + " GPa";
+            document.getElementById('out-ductility').innerText = (state.fStrain * 100).toFixed(1) + " %";
+        }
+
+        // --- SVG Constructor ---
+        function createSVGElement(tag, attrs) {
+            const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+            for (let k in attrs) el.setAttribute(k, attrs[k]);
+            return el;
+        }
+
+        function buildSplinePath(mapX, mapY) {
+            const yX = mapX(state.yStrain), yY = mapY(state.yStress);
+            const uX = mapX(state.utsStrain), uY = mapY(state.utsStress);
+            const fX = mapX(state.fStrain), fY = mapY(state.fStress);
+            const oX = mapX(0), oY = mapY(0);
+
+            // Elastic Region (Linear)
+            let d = `M ${oX},${oY} L ${yX},${yY} `;
+
+            // Strain Hardening (Yield to UTS)
+            // Control points: initial slope continues slightly, final slope is horizontal at UTS
+            const cp1X = yX + (uX - yX) * 0.2;
+            const cp1Y = yY - (yY - uY) * 0.4;
+            const cp2X = uX - (uX - yX) * 0.3;
+            const cp2Y = uY;
+            d += `C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${uX},${uY} `;
+
+            // Necking (UTS to Fracture)
+            // Control points: starts horizontal from UTS, ends falling towards Fracture
+            const cp3X = uX + (fX - uX) * 0.4;
+            const cp3Y = uY;
+            const cp4X = fX - (fX - uX) * 0.1;
+            const cp4Y = fY + (uY - fY) * 0.2;
+            d += `C ${cp3X},${cp3Y} ${cp4X},${cp4Y} ${fX},${fY}`;
+
+            return { path: d, nodes: [ {x:yX, y:yY, t:'yield'}, {x:uX, y:uY, t:'uts'}, {x:fX, y:fY, t:'frac'} ] };
+        }
+
+        function drawGraph() {
+            svg.innerHTML = '';
+            enforcePhysics();
+
+            const w = svg.clientWidth, h = svg.clientHeight;
+            
+            // Layout Paddings
+            const pMain = { l: 80, r: 40, t: 40, b: 70 };
+            const mData = { xMax: 0.5, yMax: 1000 };
+            
+            // Mappers for Main Graph
+            const mX = (strain) => pMain.l + (strain / mData.xMax) * (w - pMain.l - pMain.r);
+            const mY = (stress) => h - pMain.b - (stress / mData.yMax) * (h - pMain.t - pMain.b);
+
+            // --- Main Graph Axes & Ticks ---
+            svg.appendChild(createSVGElement('line', { x1: pMain.l, y1: pMain.t, x2: pMain.l, y2: h-pMain.b, class: 'axis-line' }));
+            svg.appendChild(createSVGElement('line', { x1: pMain.l, y1: h-pMain.b, x2: w-pMain.r, y2: h-pMain.b, class: 'axis-line' }));
+
+            for(let i=0; i<=5; i++) {
+                let s = i * 0.1; let px = mX(s);
+                svg.appendChild(createSVGElement('line', { x1: px, y1: h-pMain.b, x2: px, y2: h-pMain.b+8, class: 'tick-line' }));
+                let txt = createSVGElement('text', { x: px, y: h-pMain.b+25, 'text-anchor': 'middle', 'font-size': '14px' }); txt.textContent = s.toFixed(1); svg.appendChild(txt);
+            }
+            for(let i=0; i<=10; i+=2) {
+                let st = i * 100; let py = mY(st);
+                svg.appendChild(createSVGElement('line', { x1: pMain.l-8, y1: py, x2: pMain.l, y2: py, class: 'tick-line' }));
+                let txt = createSVGElement('text', { x: pMain.l-15, y: py+5, 'text-anchor': 'end', 'font-size': '14px' }); txt.textContent = st; svg.appendChild(txt);
+            }
+
+            let xLabel = createSVGElement('text', { x: w/2, y: h-15, 'text-anchor': 'middle', 'font-size': '16px' }); xLabel.textContent = "ENGINEERING STRAIN (ε)"; svg.appendChild(xLabel);
+            let yLabel = createSVGElement('text', { x: 25, y: h/2, 'text-anchor': 'middle', 'font-size': '16px', transform: `rotate(-90 25 ${h/2})` }); yLabel.textContent = "ENGINEERING STRESS (MPa)"; svg.appendChild(yLabel);
+
+            // --- Main Curve ---
+            const mainSpline = buildSplinePath(mX, mY);
+            svg.appendChild(createSVGElement('path', { d: mainSpline.path, class: 'main-curve' }));
+
+            // --- Nodes ---
+            const classes = { 'yield': 'node-yield', 'uts': 'node-uts', 'frac': 'node-frac' };
+            mainSpline.nodes.forEach(n => {
+                svg.appendChild(createSVGElement('circle', { cx: n.x, cy: n.y, r: 7, class: classes[n.t] }));
+            });
+
+            // ==========================================
+            // --- Inset Graph (Elastic Focus) ---
+            // ==========================================
+            const inW = 380, inH = 220;
+            const inX = w - inW - pMain.r - 20, inY = pMain.t + 20;
+            
+            // Inset Background
+            svg.appendChild(createSVGElement('rect', { x: inX, y: inY, width: inW, height: inH, class: 'inset-bg' }));
+            
+            const pIn = { l: 60, r: 20, t: 30, b: 40 };
+            const iData = { xMax: 0.01, yMax: Math.max(500, state.yStress + 50) };
+            
+            const iX = (strain) => inX + pIn.l + (strain / iData.xMax) * (inW - pIn.l - pIn.r);
+            const iY = (stress) => inY + inH - pIn.b - (stress / iData.yMax) * (inH - pIn.t - pIn.b);
+
+            // Inset Title
+            let inTitle = createSVGElement('text', { x: inX + inW/2, y: inY + 20, 'text-anchor': 'middle', 'font-size': '12px', fill: '#fff' }); inTitle.textContent = "ELASTIC REGIME (HOOKES LAW)"; svg.appendChild(inTitle);
+
+            // Inset Axes
+            svg.appendChild(createSVGElement('line', { x1: iX(0), y1: iY(iData.yMax), x2: iX(0), y2: iY(0), class: 'axis-line', stroke: '#fff' }));
+            svg.appendChild(createSVGElement('line', { x1: iX(0), y1: iY(0), x2: iX(iData.xMax), y2: iY(0), class: 'axis-line', stroke: '#fff' }));
+
+            // Inset Ticks (Strain)
+            for(let i=0; i<=5; i++) {
+                let s = i * 0.002; let px = iX(s);
+                svg.appendChild(createSVGElement('line', { x1: px, y1: iY(0), x2: px, y2: iY(0)+5, stroke: '#fff', 'stroke-width': 1 }));
+                let txt = createSVGElement('text', { x: px, y: iY(0)+18, 'text-anchor': 'middle', 'font-size': '10px', fill: '#aaa' }); txt.textContent = s.toFixed(3); svg.appendChild(txt);
+            }
+            // Inset Ticks (Stress)
+            for(let i=0; i<=iData.yMax; i+=100) {
+                let py = iY(i);
+                svg.appendChild(createSVGElement('line', { x1: iX(0)-5, y1: py, x2: iX(0), y2: py, stroke: '#fff', 'stroke-width': 1 }));
+                let txt = createSVGElement('text', { x: iX(0)-8, y: py+4, 'text-anchor': 'end', 'font-size': '10px', fill: '#aaa' }); txt.textContent = i; svg.appendChild(txt);
+            }
+
+            // Inset Curve
+            const insetSpline = buildSplinePath(iX, iY);
+            
+            // Masking so the inset curve doesn't bleed out of the 0.01 box
+            const maskId = 'inset-clip';
+            const clipPath = createSVGElement('clipPath', { id: maskId });
+            clipPath.appendChild(createSVGElement('rect', { x: inX+pIn.l, y: inY+pIn.t, width: inW-pIn.l-pIn.r, height: inH-pIn.t-pIn.b }));
+            svg.appendChild(clipPath);
+
+            const insetG = createSVGElement('g', { 'clip-path': `url(#${maskId})` });
+            insetG.appendChild(createSVGElement('path', { d: insetSpline.path, class: 'main-curve', 'stroke-width': 3 }));
+            
+            // The 0.002 (0.2%) Offset Line (Yellow)
+            const E = state.yStress / state.yStrain;
+            // Line eq: stress = E * (strain - 0.002)
+            const x0 = 0.002;
+            const xEnd = iData.xMax;
+            const yEnd = E * (xEnd - 0.002);
+            insetG.appendChild(createSVGElement('line', { x1: iX(x0), y1: iY(0), x2: iX(xEnd), y2: iY(yEnd), class: 'offset-line' }));
+            
+            let offsetLabel = createSVGElement('text', { x: iX(0.0025), y: iY(0)-30, 'font-size': '11px', fill: '#ffff00' });
+            offsetLabel.textContent = "0.2% Offset";
+            insetG.appendChild(offsetLabel);
+
+            svg.appendChild(insetG);
+
+            // Inset Yield Node
+            svg.appendChild(createSVGElement('circle', { cx: iX(state.yStrain), cy: iY(state.yStress), r: 5, class: 'node-yield' }));
+        }
+
+        // Attach Listeners
+        Object.values(sliders).forEach(slider => {
+            slider.addEventListener('input', drawGraph);
+        });
+
+        window.addEventListener('resize', drawGraph);
+
+        // Init
+        drawGraph();
+    </script>
+</body>
+</html>
