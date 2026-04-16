@@ -1,275 +1,328 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Materials Simulator // Pro-Grade</title>
+    <meta charset="utf-8">
+    <title>Kinetic Explorer: Self-Diffusion vs Interstitial</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --grid: rgba(255, 0, 255, 0.15); }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; }
+        body { margin: 0; background: #020205; color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; }
-        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
-        
-        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 10px; margin-bottom: 20px; font-weight: bold; width: 100%; cursor: pointer; }
-        
-        .control-group { background: #0a0a0a; border: 1px solid #222; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
-        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--magenta); margin-bottom: 8px; font-weight: bold;}
-        input[type=range] { width: 100%; accent-color: var(--cyan); cursor: pointer; }
+        #ui { 
+            width: 420px; background: rgba(5, 5, 15, 0.98); border-right: 1px solid #ff8c00; 
+            display: flex; flex-direction: column; padding: 25px; box-sizing: border-box; z-index: 100;
+            overflow-y: auto;
+        }
 
-        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
-        .stat { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 5px 0; font-weight: bold;}
-
-        #stage { flex: 1; position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); }
-        svg { width: 100%; height: 100%; }
+        .header { font-weight: 900; font-size: 1.1rem; color: #fff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .sub-header { font-size: 0.7rem; color: #ff8c00; margin-bottom: 20px; opacity: 0.8; border-bottom: 1px solid #331a00; padding-bottom: 10px; }
         
-        .curve-main { fill: none; stroke: var(--cyan); stroke-width: 4; filter: drop-shadow(0 0 6px rgba(0,255,255,0.5)); stroke-linejoin: round; }
-        .curve-inset { fill: none; stroke: var(--cyan); stroke-width: 3; stroke-linejoin: round; }
-        .offset-line { fill: none; stroke: var(--yellow); stroke-width: 2; stroke-dasharray: 6,4; }
-        .grid-line { stroke: var(--grid); stroke-width: 1; }
-        .axis-line { stroke: var(--magenta); stroke-width: 2; }
-        text { fill: var(--magenta); font-size: 11px; font-weight: bold; font-family: 'Consolas', monospace; }
-        .axis-label { fill: var(--yellow); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .inset-bg { fill: rgba(0,0,0,0.8); stroke: rgba(0,255,255,0.3); stroke-width: 2; rx: 5; }
+        .stat-card { background: #000; border: 1px solid #331a00; padding: 12px; border-radius: 8px; margin-bottom: 10px; position: relative; }
+        .stat-label { font-size: 0.6rem; color: #888; text-transform: uppercase; }
+        .stat-val { font-size: 1.4rem; font-weight: 900; font-family: 'Courier New', monospace; }
+
+        .slider-wrap { margin: 18px 0; }
+        label { display: flex; justify-content: space-between; font-size: 0.75rem; color: #ff8c00; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ff8c00; height: 4px; }
+        
+        select { width: 100%; padding: 10px; background: #0a0500; border: 1px solid #442200; color: #ff8c00; border-radius: 6px; font-weight: bold; margin-bottom: 20px; outline: none; }
+
+        button { 
+            width: 100%; padding: 12px; background: #0a0a1a; border: 1px solid #445; color: #fff; 
+            cursor: pointer; border-radius: 6px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; transition: 0.2s;
+        }
+        #btn-start { background: #ff8c00; color: #000; border: none; box-shadow: 0 0 15px rgba(255, 140, 0, 0.3); }
+
+        .remember-box {
+            background: rgba(255, 140, 0, 0.05);
+            border-left: 3px solid #ff8c00;
+            padding: 15px;
+            margin-top: 10px;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            color: #ccc;
+            border-radius: 0 6px 6px 0;
+        }
+        .remember-box strong { color: #ff8c00; display: block; margin-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; }
+        .math-text { font-family: 'Courier New', monospace; color: #ff8c00; display: block; margin: 6px 0; font-weight: bold; background: #000; padding: 6px; border-radius: 4px; text-align: center; border: 1px solid #331a00;}
+        
+        #main-content { flex-grow: 1; display: flex; flex-direction: column; background: #05050a; }
+        #canvas-wrap { flex: 4; position: relative; border-bottom: 1px solid #1a1a3a; }
+        #graph-wrap { flex: 1.5; padding: 15px 30px; box-sizing: border-box; background: #020205; }
+        canvas { display: block; width: 100%; height: 100%; }
     </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h1>Material Selector</h1>
-    <select id="mat-select">
-        <option value="mild">A36 Mild Steel (Discontinuous)</option>
-        <option value="6061">6061-T6 Aluminum</option>
-        <option value="316ss">316 Stainless Steel</option>
-        <option value="ti64">Ti-6Al-4V (Grade 5)</option>
-    </select>
-
-    <h1>Fine-Tune Curve</h1>
-    <div class="control-group">
-        <div class="label-row"><span>Yield Stress (&sigma;<sub>y</sub>)</span><span id="txt-ys">--</span></div>
-        <input type="range" id="sl-ys" min="100" max="1100">
+<div id="ui">
+    <div class="header">Kinetic Explorer</div>
+    <div class="sub-header">Self-Diffusion & Activation Barriers</div>
+    
+    <div class="stat-card">
+        <div class="stat-label">Interstitial (Cyan) Laps</div>
+        <div class="stat-val" id="int-val" style="color: #00ffff;">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Self-Diffusion (Orange) Laps</div>
+        <div class="stat-val" id="vac-val" style="color: #ff8c00;">0</div>
     </div>
 
-    <div class="control-group">
-        <div class="label-row"><span>UTS Stress (&sigma;<sub>uts</sub>)</span><span id="txt-uts">--</span></div>
-        <input type="range" id="sl-uts" min="200" max="1300">
-        <div class="label-row" style="margin-top:10px;"><span>UTS Strain (&epsilon;<sub>uts</sub>)</span><span id="txt-utse">--</span></div>
-        <input type="range" id="sl-utse" min="0.05" max="0.5" step="0.01">
+    <div class="slider-wrap">
+        <label>Temperature (K) <b id="disp-t">1000</b></label>
+        <input type="range" id="in-t" min="600" max="1600" step="10" value="1000">
     </div>
 
-    <div class="control-group">
-        <div class="label-row"><span>Fracture Strain (&epsilon;<sub>f</sub>)</span><span id="txt-fe">--</span></div>
-        <input type="range" id="sl-fe" min="0.1" max="0.8" step="0.01">
+    <div class="slider-wrap">
+        <label>Simulation Speed Scaling</label>
+        <select id="boost-select">
+            <option value="1">2,500x Base</option>
+            <option value="4">25,000x Base</option>
+            <option value="12">125,000x Base</option>
+            <option value="25" selected>250,000x (Simulation Mode)</option>
+        </select>
     </div>
 
-    <div id="readouts">
-        <div class="stat"><span>Modulus (E):</span><span id="val-e">--</span></div>
-        <div class="stat"><span>Ductility:</span><span id="val-el">--</span></div>
+    <button id="btn-start" onclick="toggleSim()">▶ Start Simulation</button>
+    <button onclick="resetSim()">Reset Lattice</button>
+
+    <div class="remember-box">
+        <strong>The Arrhenius Barrier</strong>
+        Vacancy concentration ($N_v$) increases exponentially with temperature:
+        <span class="math-text">N<sub>v</sub> = N exp(-Q<sub>v</sub> / kT)</span>
+        
+        The overall Diffusion Coefficient ($D$):
+        <span class="math-text">D = D₀ exp(-Q / RT)</span>
+        
+        <br>
+        <strong>Activation Energy ($Q$):</strong><br>
+        <b>Interstitials:</b> Only migration energy.
+        <span class="math-text">Q<sub>total</sub> = Q<sub>m</sub></span>
+        
+        <b>Self-Diffusion:</b> Formation + Migration.
+        <span class="math-text">Q<sub>total</sub> = Q<sub>v</sub> + Q<sub>m</sub></span>
     </div>
 </div>
 
-<div id="stage">
-    <svg id="plot"></svg>
+<div id="main-content">
+    <div id="canvas-wrap">
+        <canvas id="sim-canvas"></canvas>
+    </div>
+    <div id="graph-wrap">
+        <canvas id="chart-canvas"></canvas>
+    </div>
 </div>
 
 <script>
-const LIB = {
-    "mild":  { ys: 250, e: 200, uts: 400, utse: 0.22, fe: 0.35, fs: 320, disc: true },
-    "6061":  { ys: 275, e: 69,  uts: 310, utse: 0.12, fe: 0.17, fs: 250, disc: false },
-    "316ss": { ys: 290, e: 193, uts: 580, utse: 0.45, fe: 0.60, fs: 480, disc: false },
-    "ti64":  { ys: 880, e: 114, uts: 950, utse: 0.10, fe: 0.14, fs: 750, disc: false }
-};
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    let chart;
 
-let state = {...LIB["mild"]};
-const svg = document.getElementById('plot');
+    let T = 1000;
+    let isRunning = false;
+    let time = 0;
+    let animationId;
 
-function sync(key) {
-    state = {...LIB[key]};
-    document.getElementById('sl-ys').value = state.ys;
-    document.getElementById('sl-uts').value = state.uts;
-    document.getElementById('sl-utse').value = state.utse;
-    document.getElementById('sl-fe').value = state.fe;
-    render();
-}
+    const spacing = 34;
+    const atomRadius = 11;
+    const gridRows = 8;
+    let gridCols;
 
-function update() {
-    state.ys = parseInt(document.getElementById('sl-ys').value);
-    state.uts = parseInt(document.getElementById('sl-uts').value);
-    state.utse = parseFloat(document.getElementById('sl-utse').value);
-    state.fe = parseFloat(document.getElementById('sl-fe').value);
-    if(state.uts <= state.ys) state.uts = state.ys + 20;
-    if(state.fe <= state.utse) state.fe = state.utse + 0.05;
-    state.fs = state.uts * 0.82;
+    let intAtom = { c: 0, r: 3, laps: 0 }; 
+    let vacTracer = { c: 0, r: 4, laps: 0 };
+    let vacancies = [];
 
-    document.getElementById('txt-ys').innerText = state.ys + " MPa";
-    document.getElementById('txt-uts').innerText = state.uts + " MPa";
-    document.getElementById('txt-utse').innerText = state.utse.toFixed(2);
-    document.getElementById('txt-fe').innerText = state.fe.toFixed(2);
-    document.getElementById('val-e').innerText = state.e + " GPa";
-    document.getElementById('val-el').innerText = (state.fe * 100).toFixed(1) + "% EL";
-}
+    function init() {
+        window.addEventListener('resize', resize);
+        document.getElementById('in-t').oninput = (e) => {
+            T = parseInt(e.target.value);
+            document.getElementById('disp-t').innerText = T;
+            updateVacancyConcentration(); 
+        };
+        resize();
+        initChart();
+        resetSim();
+    }
 
-function solveCurve(s) {
-    let pts = [];
-    const ye = (s.ys / (s.e * 1000));
-    
-    if(s.disc) {
-        // Discontinuous Yield (A36 profile: UYP, LYP, Plateau)
-        const propLimit = ye * 0.90;
-        const uyp = s.ys + 25;
-        const lyp = s.ys - 15;
-        const plateauEnd = ye + 0.015;
+    function resize() {
+        const wrap = document.getElementById('canvas-wrap');
+        canvas.width = wrap.clientWidth;
+        canvas.height = wrap.clientHeight;
+        gridCols = Math.floor((canvas.width - 120) / spacing);
+        draw();
+    }
 
-        for(let x=0; x <= propLimit; x += propLimit/10) pts.push({x, y: x * s.e * 1000});
-        pts.push({x: ye * 0.98, y: uyp}); // Spike to UYP
-        pts.push({x: ye * 1.02, y: lyp}); // Drop to LYP
+    function toggleSim() {
+        isRunning = !isRunning;
+        document.getElementById('btn-start').innerText = isRunning ? "|| Pause" : "▶ Resume";
+        if (isRunning) animate();
+    }
+
+    function updateVacancyConcentration() {
+        // Exponential scaling for visual vacancy count
+        const baseN = 4;
+        const targetN = Math.floor(baseN * Math.exp(0.0022 * (T - 600)));
         
-        // Jagged Plateau effect
-        for(let x=ye*1.02; x<=plateauEnd; x+=0.003) {
-            pts.push({x, y: lyp + (Math.random() * 6 - 3)});
+        while (vacancies.length < targetN) {
+            let nc = Math.floor(Math.random() * gridCols);
+            let nr = Math.floor(Math.random() * gridRows);
+            if ((nc !== vacTracer.c || nr !== vacTracer.r) && !vacancies.find(v => v.c === nc && v.r === nr)) {
+                vacancies.push({ c: nc, r: nr });
+            }
         }
-        pts.push({x: plateauEnd, y: lyp});
-    } else {
-        // Continuous Yield (Gradual Proportional Fillet)
-        const propLimit = ye * 0.75;
-        for(let x=0; x <= propLimit; x += propLimit/10) pts.push({x, y: x * s.e * 1000});
-        
-        for(let i=1; i<=15; i++) {
-            let t = i/15;
-            let x = propLimit + (ye - propLimit) * t;
-            let linearY = x * s.e * 1000;
-            // Sine blend to round off the corner
-            let blend = Math.sin(t * Math.PI/2);
-            pts.push({x, y: linearY * (1 - blend*0.1) }); 
+        while (vacancies.length > targetN) vacancies.pop();
+    }
+
+    function resetSim() {
+        isRunning = false;
+        time = 0;
+        gridCols = Math.floor((canvas.width - 120) / spacing);
+        intAtom = { c: 0, r: 3, laps: 0 };
+        vacTracer = { c: 0, r: 4, laps: 0 };
+        vacancies = [];
+        updateVacancyConcentration();
+        updateUI();
+        draw();
+        updateChart();
+    }
+
+    function updateUI() {
+        document.getElementById('int-val').innerText = intAtom.laps;
+        document.getElementById('vac-val').innerText = vacTracer.laps;
+    }
+
+    function animate() {
+        if (!isRunning) return;
+        time += 0.05;
+
+        const vacPasses = parseInt(document.getElementById('boost-select').value);
+        const tempFactor = Math.max(0.1, (T - 400) / 1200); 
+
+        // --- INTERSTITIAL (Cyan) ---
+        for(let i=0; i<20; i++) {
+            if (Math.random() < 0.25 * tempFactor) {
+                let nc = intAtom.c, nr = intAtom.r;
+                const move = Math.random();
+                if (move < 0.55) nc++; else if (move < 0.70) nc--; else if (move < 0.85) nr++; else nr--;                  
+                if (nr >= 0 && nr <= gridRows - 2 && nc >= 0) { intAtom.c = nc; intAtom.r = nr; }
+                if (intAtom.c >= gridCols - 1) { intAtom.c = 0; intAtom.laps++; updateUI(); }
+            }
         }
+
+        // --- VACANCY/SELF-DIFFUSION (Orange) ---
+        for (let p = 0; p < vacPasses; p++) {
+            vacancies.forEach(v => {
+                if (Math.random() < 0.5 * tempFactor) {
+                    let dc=0, dr=0;
+                    const move = Math.random();
+                    if (move < 0.60) dc = -1; else if (move < 0.70) dc = 1; else if (move < 0.85) dr = 1; else dr = -1;
+
+                    let nc = v.c + dc, nr = v.r + dr;
+                    if (nc < 0) nc = gridCols - 1;
+                    if (nc >= gridCols) nc = 0;
+
+                    if (nr >= 0 && nr < gridRows) {
+                        if (nc === vacTracer.c && nr === vacTracer.r) {
+                            vacTracer.c = v.c; vacTracer.r = v.r;
+                            v.c = nc; v.r = nr;
+                        } else if (!vacancies.find(o => o.c === nc && o.r === nr)) {
+                            v.c = nc; v.r = nr;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (vacTracer.c >= gridCols - 1) { vacTracer.c = 0; vacTracer.laps++; updateUI(); }
+        if (Math.floor(time * 10) % 5 === 0) updateChart();
+        draw();
+        animationId = requestAnimationFrame(animate);
     }
 
-    // Plastic Strain Hardening
-    let startX = pts[pts.length-1].x;
-    let startY = pts[pts.length-1].y;
-    for(let i=1; i<=100; i++) {
-        let t = i/100;
-        let x = startX + (s.utse - startX) * t;
-        let y = startY + (s.uts - startY) * Math.pow(t, 0.45); 
-        pts.push({x, y});
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const ox = 60, oy = canvas.height/2 - (gridRows * spacing)/2;
+
+        ctx.strokeStyle = "#111";
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.moveTo(ox + (gridCols - 1) * spacing, 0); ctx.lineTo(ox + (gridCols - 1) * spacing, canvas.height); ctx.stroke();
+
+        for(let r=0; r<gridRows; r++) {
+            for(let c=0; c<gridCols; c++) {
+                let isV = vacancies.find(v => v.c === c && v.r === r);
+                let isT = vacTracer.c === c && vacTracer.r === r;
+                let x = ox + c * spacing, y = oy + r * spacing;
+                
+                if (isT) drawAtom(x, y, atomRadius*1.3, "#ff8c00", true, true);
+                else if (isV) drawAtom(x, y, atomRadius, "#ff00ff", false, false);
+                else drawAtom(x, y, atomRadius, "#1a0d00", true, false); 
+            }
+        }
+        drawAtom(ox + intAtom.c * spacing + spacing/2, oy + intAtom.r * spacing + spacing/2, atomRadius * 0.65, "#00ffff", true, true);
     }
 
-    // Necking to Fracture
-    for(let i=1; i<=50; i++) {
-        let t = i/50;
-        let x = s.utse + (s.fe - s.utse) * t;
-        let y = s.uts - (s.uts - s.fs) * (t * t);
-        pts.push({x, y});
-    }
-    return pts;
-}
-
-function render() {
-    svg.innerHTML = '';
-    update();
-    const w = svg.clientWidth, h = svg.clientHeight;
-    const pad = { l: 80, r: 40, t: 40, b: 80 }; // Reduced padding to maximize space
-
-    // Main Plot Scales
-    const maxStrain = Math.max(0.6, Math.ceil(state.fe * 10) / 10);
-    const maxStress = 1200;
-    
-    const mX = (v) => pad.l + (v / maxStrain) * (w - pad.l - pad.r);
-    const mY = (v) => h - pad.b - (v / maxStress) * (h - pad.t - pad.b);
-
-    // --- MAIN GRID & LABELS ---
-    for(let s=200; s<=maxStress; s+=200) {
-        let y = mY(s);
-        svg.innerHTML += `<line class="grid-line" x1="${pad.l}" y1="${y}" x2="${w-pad.r}" y2="${y}"/>`;
-        svg.innerHTML += `<text x="${pad.l - 10}" y="${y+4}" text-anchor="end">${s}</text>`;
-    }
-    for(let e=0.1; e<=maxStrain; e+=0.1) {
-        let x = mX(e);
-        svg.innerHTML += `<line class="grid-line" x1="${x}" y1="${pad.t}" x2="${x}" y2="${h-pad.b}"/>`;
-        svg.innerHTML += `<text x="${x}" y="${h-pad.b + 20}" text-anchor="middle">${e.toFixed(1)}</text>`;
-    }
-
-    // Axes
-    svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
-    svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
-    
-    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Engineering Strain (mm/mm)</text>`;
-    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Engineering Stress (MPa)</text>`;
-
-    // Main Curve
-    const pts = solveCurve(state);
-    let d = `M ${mX(pts[0].x)} ${mY(pts[0].y)}`;
-    for(let i=1; i<pts.length; i++) d += ` L ${mX(pts[i].x)} ${mY(pts[i].y)}`;
-    svg.innerHTML += `<path class="curve-main" d="${d}"/>`;
-
-    // --- MASSIVE DYNAMIC INSET ---
-    // Make inset take up ~35% of the upper right area
-    const iW = Math.min(450, w * 0.35);
-    const iH = Math.min(350, h * 0.45);
-    const iX0 = w - pad.r - iW - 20; 
-    const iY0 = pad.t + 20;
-
-    svg.innerHTML += `<rect class="inset-bg" x="${iX0}" y="${iY0}" width="${iW}" height="${iH}"/>`;
-
-    // Inset Scales: Strict micro-strain domain
-    const ye = (state.ys / (state.e * 1000));
-    // Domain goes to at least 0.008, or slightly past the yield point for Titanium
-    const inMaxE = Math.max(0.008, ye * 1.5); 
-    const inMaxS = state.ys * 1.3;
-
-    const inPad = {l: 50, r: 20, t: 30, b: 40};
-    const inX = (v) => iX0 + inPad.l + (v / inMaxE) * (iW - inPad.l - inPad.r);
-    const inY = (v) => iY0 + iH - inPad.b - (v / inMaxS) * (iH - inPad.t - inPad.b);
-
-    // Inset Axes
-    svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(0)}" x2="${inX(inMaxE)}" y2="${inY(0)}"/>`;
-    svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(inMaxS)}" x2="${inX(0)}" y2="${inY(0)}"/>`;
-
-    // Inset Ticks (Micro-strain)
-    for(let se=0.001; se<=inMaxE; se+=0.001) {
-        let ix = inX(se);
-        svg.innerHTML += `<line class="axis-line" x1="${ix}" y1="${inY(0)}" x2="${ix}" y2="${inY(0)+5}"/>`;
-        // Label every 0.002 to avoid crowding
-        if(Math.round(se*1000) % 2 === 0) {
-            svg.innerHTML += `<text x="${ix}" y="${inY(0)+18}" text-anchor="middle" font-size="9px">${se.toFixed(3)}</text>`;
+    function drawAtom(x, y, r, col, fill, glow) {
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+        if (fill) { 
+            ctx.fillStyle = col; 
+            if (glow) { ctx.shadowBlur = 20; ctx.shadowColor = col; } else { ctx.shadowBlur = 0; }
+            ctx.fill(); 
+        } else { 
+            ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur = 0; 
         }
     }
-    // Inset Stress Ticks
-    for(let ss=100; ss<=inMaxS; ss+=100) {
-        let iy = inY(ss);
-        svg.innerHTML += `<text x="${inX(0)-5}" y="${iy+4}" text-anchor="end" font-size="9px">${ss}</text>`;
+
+    function initChart() {
+        const ctxChart = document.getElementById('chart-canvas').getContext('2d');
+        chart = new Chart(ctxChart, {
+            type: 'line',
+            data: { 
+                labels: Array.from({length: 200}, (_, i) => i), 
+                datasets: [{ 
+                    label: 'C(x,t)', borderColor: '#ff8c00', data: [], borderWeight: 2, pointRadius: 0, fill: true, backgroundColor: 'rgba(255, 140, 0, 0.05)' 
+                }]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { 
+                    y: { 
+                        min: 0, max: 1.1, grid: { color: '#111' }, 
+                        title: { display: true, text: 'Concentration (C)', color: '#888', font: { size: 10 } },
+                        ticks: { display: false }
+                    }, 
+                    x: { 
+                        grid: { display: false }, 
+                        title: { display: true, text: 'Distance (x)', color: '#888', font: { size: 10 } },
+                        ticks: { display: false } 
+                    } 
+                }, 
+                plugins: { legend: { display: false } } 
+            }
+        });
     }
 
-    // 0.2% Offset Line
-    const x1_off = 0.002;
-    const y1_off = 0;
-    const x2_off = inMaxE;
-    const y2_off = (inMaxE - 0.002) * state.e * 1000;
-    svg.innerHTML += `<line class="offset-line" x1="${inX(x1_off)}" y1="${inY(y1_off)}" x2="${inX(x2_off)}" y2="${inY(y2_off)}"/>`;
-    svg.innerHTML += `<text x="${inX(0.002)}" y="${inY(0)-10}" text-anchor="middle" fill="var(--yellow)">0.2%</text>`;
+    function erf(x) {
+        const a = [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429];
+        const p = 0.3275911;
+        const sign = (x < 0) ? -1 : 1;
+        x = Math.abs(x);
+        const t = 1.0 / (1.0 + p * x);
+        const y = 1.0 - (((((a[4] * t + a[3]) * t) + a[2]) * t + a[1]) * t + a[0]) * t * Math.exp(-x * x);
+        return sign * y;
+    }
 
-    // Inset Curve
-    let id = `M ${inX(pts[0].x)} ${inY(pts[0].y)}`;
-    for(let i=1; i<pts.length; i++) {
-        if(pts[i].x > inMaxE || pts[i].y > inMaxS) {
-            // Draw one more point past the boundary so it doesn't gap
-            id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
-            break;
+    function updateChart() {
+        const Cs = 1.0, C0 = 0.05;
+        const D = 1e-4 * Math.exp(-85000 / (8.314 * T));
+        const effectiveTime = time * 5000;
+        const newData = [];
+        for (let x = 0; x < 200; x++) {
+            const val = Cs - (Cs - C0) * erf(x / (2 * Math.sqrt(D * effectiveTime + 0.1) * 2));
+            newData.push(val);
         }
-        id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
+        chart.data.datasets[0].data = newData;
+        chart.update('none');
     }
-    svg.innerHTML += `<path class="curve-inset" d="${id}"/>`;
 
-    // Yield Point Marker
-    if(!state.disc) {
-        svg.innerHTML += `<circle cx="${inX(ye + 0.002)}" cy="${inY(state.ys)}" r="4" fill="var(--magenta)"/>`;
-        svg.innerHTML += `<text x="${inX(ye + 0.002) - 10}" y="${inY(state.ys) - 10}" text-anchor="end" font-size="12px">&sigma;y = ${state.ys} MPa</text>`;
-    }
-}
-
-document.getElementById('mat-select').onchange = (e) => sync(e.target.value);
-document.querySelectorAll('input').forEach(i => i.oninput = render);
-window.onresize = render;
-sync("mild");
+    init();
 </script>
 </body>
 </html>
