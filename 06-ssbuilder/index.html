@@ -4,53 +4,59 @@
     <meta charset="UTF-8">
     <title>Materials Simulator // Pro-Grade</title>
     <style>
-        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --grid: rgba(255, 0, 255, 0.15); }
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --orange: #ffaa00; --red: #ff3333; --purple: #cc00ff; --grid: rgba(255, 0, 255, 0.1); }
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; }
         
         #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
-        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 15px 0 10px; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        h1:first-of-type { margin-top: 0; }
         
-        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 10px; margin-bottom: 15px; font-weight: bold; width: 100%; cursor: pointer; }
+        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 10px; margin-bottom: 10px; font-weight: bold; width: 100%; cursor: pointer; }
         
         .control-group { background: #0a0a0a; border: 1px solid #222; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
         .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--magenta); margin-bottom: 8px; font-weight: bold;}
         input[type=range] { width: 100%; accent-color: var(--cyan); cursor: pointer; }
 
-        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
-        .stat { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 5px 0; font-weight: bold;}
+        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 10px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 0.8rem; margin: 6px 0; font-weight: bold;}
+        .stat.orange { color: var(--orange); }
+        .stat.red { color: var(--red); }
+        .stat.purple { color: var(--purple); border-top: 1px solid #333; padding-top: 5px; font-size: 0.9rem;}
+        .sub-stat { font-size: 0.7rem; color: #888; margin-top: -4px; margin-bottom: 6px; text-align: right; }
 
         #stage { flex: 1; position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); }
         svg { width: 100%; height: 100%; }
         
-        .curve-main { fill: none; stroke: var(--cyan); stroke-width: 4; filter: drop-shadow(0 0 6px rgba(0,255,255,0.5)); stroke-linejoin: round; }
-        .curve-inset { fill: none; stroke: var(--cyan); stroke-width: 3; stroke-linejoin: round; }
-        .offset-line { fill: none; stroke: var(--yellow); stroke-width: 2; stroke-dasharray: 6,4; }
+        .curve-main { fill: none; stroke: var(--cyan); stroke-width: 4; filter: drop-shadow(0 0 6px rgba(0,255,255,0.4)); }
+        .curve-inset { fill: none; stroke: var(--cyan); stroke-width: 3; }
+        .offset-line { fill: none; stroke: var(--yellow); stroke-width: 1.5; stroke-dasharray: 4,3; }
+        .indicator-line { fill: none; stroke-width: 2; stroke-dasharray: 4,4; }
         .grid-line { stroke: var(--grid); stroke-width: 1; }
         .axis-line { stroke: var(--magenta); stroke-width: 2; }
         text { fill: var(--magenta); font-size: 11px; font-weight: bold; font-family: 'Consolas', monospace; }
-        .axis-label { fill: var(--yellow); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .inset-bg { fill: #0a0a0a; stroke: rgba(0,255,255,0.4); stroke-width: 2; rx: 8; }
+        .axis-label { fill: var(--yellow); font-size: 14px; text-transform: uppercase; }
+        .inset-bg { fill: #080808; stroke: rgba(0,255,255,0.3); stroke-width: 2; rx: 4; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h1>Material Selector</h1>
+    <h1>Material</h1>
     <select id="mat-select">
-        <option value="mild">A36 Mild Steel (Discontinuous)</option>
         <option value="ti64">Ti-6Al-4V (Grade 5)</option>
+        <option value="mild">A36 Mild Steel</option>
         <option value="6061">6061-T6 Aluminum</option>
         <option value="316ss">316 Stainless Steel</option>
     </select>
 
     <h1>Inset Layout</h1>
     <select id="aspect-toggle">
-        <option value="tall">Tall & Narrow (75% Height)</option>
-        <option value="wide">Wide Screen (16:9)</option>
+        <option value="tall" selected>Tall (75% Viewport)</option>
+        <option value="wide">Wide (16:9)</option>
         <option value="square">Square (1:1)</option>
     </select>
 
-    <h1>Fine-Tune Curve</h1>
+    <h1>Geometry Control</h1>
     <div class="control-group">
         <div class="label-row"><span>Yield Stress (&sigma;<sub>y</sub>)</span><span id="txt-ys">--</span></div>
         <input type="range" id="sl-ys" min="100" max="1100">
@@ -69,8 +75,11 @@
     </div>
 
     <div id="readouts">
-        <div class="stat"><span>Modulus (E):</span><span id="val-e">--</span></div>
-        <div class="stat"><span>Ductility:</span><span id="val-el">--</span></div>
+        <div class="stat red"><span>&epsilon;<sub>fracture</sub> (Total):</span><span id="val-ef">--</span></div>
+        <div class="stat orange"><span>&epsilon;<sub>P</sub> (Prop. Limit):</span><span id="val-ep">--</span></div>
+        <div class="sub-stat">Opt 1 Approx: <span id="val-opt1">--</span></div>
+        <div class="stat orange"><span>&epsilon;<sub>recovery</sub> (Unloading):</span><span id="val-er">--</span></div>
+        <div class="stat purple"><span>True Ductility (%EL):</span><span id="val-el">--</span></div>
     </div>
 </div>
 
@@ -86,7 +95,7 @@ const LIB = {
     "ti64":  { ys: 880, e: 114, uts: 950, utse: 0.10, fe: 0.14, fs: 750, disc: false }
 };
 
-let state = {...LIB["mild"]};
+let state = {...LIB["ti64"]};
 const svg = document.getElementById('plot');
 
 function sync(key) {
@@ -98,7 +107,7 @@ function sync(key) {
     render();
 }
 
-function update() {
+function updateCalculations() {
     state.ys = parseInt(document.getElementById('sl-ys').value);
     state.uts = parseInt(document.getElementById('sl-uts').value);
     state.utse = parseFloat(document.getElementById('sl-utse').value);
@@ -107,12 +116,28 @@ function update() {
     if(state.fe <= state.utse) state.fe = state.utse + 0.05;
     state.fs = state.uts * 0.82;
 
+    const eMod = state.e * 1000;
+    
+    // Method 1: Strain at Proportional Limit
+    const epsP = state.disc ? (state.ys * 0.90) / eMod : (state.ys * 0.50) / eMod;
+    const opt1Plastic = state.fe - epsP;
+
+    // Method 2: True Elastic Recovery at Failure
+    const epsRecovery = state.fs / eMod; 
+    const truePlastic = state.fe - epsRecovery;
+
     document.getElementById('txt-ys').innerText = state.ys + " MPa";
     document.getElementById('txt-uts').innerText = state.uts + " MPa";
     document.getElementById('txt-utse').innerText = state.utse.toFixed(2);
     document.getElementById('txt-fe').innerText = state.fe.toFixed(2);
-    document.getElementById('val-e').innerText = state.e + " GPa";
-    document.getElementById('val-el').innerText = (state.fe * 100).toFixed(1) + "% EL";
+    
+    document.getElementById('val-ef').innerText = state.fe.toFixed(3);
+    document.getElementById('val-ep').innerText = epsP.toFixed(4);
+    document.getElementById('val-opt1').innerText = (opt1Plastic * 100).toFixed(2) + "%";
+    document.getElementById('val-er').innerText = epsRecovery.toFixed(4);
+    document.getElementById('val-el').innerText = (truePlastic * 100).toFixed(2) + "%";
+
+    return { epsP, truePlastic };
 }
 
 function solveCurve(s) {
@@ -121,36 +146,24 @@ function solveCurve(s) {
     let startX = 0, startY = 0;
     
     if(s.disc) {
-        // Discontinuous Yield
         const ye = s.ys / eMod;
-        const propLimit = ye * 0.90;
+        const propLimitX = ye * 0.90;
         const uyp = s.ys + 25;
-        const lyp = s.ys - 15; // This acts as our mean for the flatband
+        const lyp = s.ys - 15; 
         const plateauEnd = ye + 0.015;
-
-        for(let x=0; x <= propLimit; x += propLimit/10) pts.push({x, y: x * eMod});
+        for(let x=0; x <= propLimitX; x += propLimitX/10) pts.push({x, y: x * eMod});
         pts.push({x: ye * 0.98, y: uyp});
         pts.push({x: ye * 1.02, y: lyp});
-        
-        // Jittered flatband region 
-        for(let x=ye*1.02; x<=plateauEnd; x+=0.002) {
-            pts.push({x, y: lyp + (Math.random() * 6 - 3)});
-        }
+        for(let x=ye*1.02; x<=plateauEnd; x+=0.002) pts.push({x, y: lyp + (Math.random() * 6 - 3)});
         pts.push({x: plateauEnd, y: lyp});
         startX = plateauEnd; startY = lyp;
     } else {
-        // Continuous Yield - Strict Bezier Intersect Logic
         const yieldY = s.ys;
         const hookeX = s.ys / eMod;
         const yieldX = hookeX + 0.002;
-
         const propLimitY = s.ys * 0.50; 
         const propLimitX = propLimitY / eMod;
-
-        // 1. Hooke's Law Region
         for(let x=0; x <= propLimitX; x += propLimitX/10) pts.push({x, y: x * eMod});
-        
-        // 2. Proportional Fillet (Quadratic Bezier)
         for(let i=1; i<=20; i++) {
             let t = i/20;
             let x = (1-t)*(1-t)*propLimitX + 2*(1-t)*t*hookeX + t*t*yieldX;
@@ -159,18 +172,14 @@ function solveCurve(s) {
         }
         startX = yieldX; startY = yieldY;
     }
-
-    // 3. Plastic Strain Hardening
-    for(let i=1; i<=100; i++) {
-        let t = i/100;
+    for(let i=1; i<=80; i++) {
+        let t = i/80;
         let x = startX + (s.utse - startX) * t;
         let y = startY + (s.uts - startY) * Math.pow(t, 0.45); 
         pts.push({x, y});
     }
-
-    // 4. Necking to Fracture
-    for(let i=1; i<=50; i++) {
-        let t = i/50;
+    for(let i=1; i<=40; i++) {
+        let t = i/40;
         let x = s.utse + (s.fe - s.utse) * t;
         let y = s.uts - (s.uts - s.fs) * (t * t);
         pts.push({x, y});
@@ -180,147 +189,93 @@ function solveCurve(s) {
 
 function render() {
     svg.innerHTML = '';
-    update();
+    const { epsP, truePlastic } = updateCalculations();
     const w = svg.clientWidth, h = svg.clientHeight;
     const pad = { l: 80, r: 40, t: 40, b: 80 }; 
 
-    // Main Plot Scales
     const maxStrain = Math.max(0.6, Math.ceil(state.fe * 10) / 10);
     const maxStress = 1200;
-    
     const mX = (v) => pad.l + (v / maxStrain) * (w - pad.l - pad.r);
     const mY = (v) => h - pad.b - (v / maxStress) * (h - pad.t - pad.b);
 
-    // Main Grid
-    for(let s=200; s<=maxStress; s+=200) {
-        let y = mY(s);
-        svg.innerHTML += `<line class="grid-line" x1="${pad.l}" y1="${y}" x2="${w-pad.r}" y2="${y}"/>`;
-        svg.innerHTML += `<text x="${pad.l - 10}" y="${y+4}" text-anchor="end">${s}</text>`;
-    }
-    for(let e=0.1; e<=maxStrain; e+=0.1) {
-        let x = mX(e);
-        svg.innerHTML += `<line class="grid-line" x1="${x}" y1="${pad.t}" x2="${x}" y2="${h-pad.b}"/>`;
-        svg.innerHTML += `<text x="${x}" y="${h-pad.b + 20}" text-anchor="middle">${e.toFixed(1)}</text>`;
-    }
-
-    // Main Axes
+    // Axes
     svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
     svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
-    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Engineering Strain (mm/mm)</text>`;
-    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Engineering Stress (MPa)</text>`;
+    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Strain &epsilon;</text>`;
+    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Stress &sigma; (MPa)</text>`;
 
-    // Main Curve
     const pts = solveCurve(state);
     let d = `M ${mX(pts[0].x)} ${mY(pts[0].y)}`;
     for(let i=1; i<pts.length; i++) d += ` L ${mX(pts[i].x)} ${mY(pts[i].y)}`;
-    
-    // Main curve clip path to prevent edge spill
-    svg.innerHTML += `
-        <defs>
-            <clipPath id="main-clip">
-                <rect x="${pad.l}" y="${pad.t}" width="${w - pad.l - pad.r}" height="${h - pad.t - pad.b}" />
-            </clipPath>
-        </defs>
-    `;
-    svg.innerHTML += `<path class="curve-main" d="${d}" clip-path="url(#main-clip)"/>`;
+    svg.innerHTML += `<path class="curve-main" d="${d}" fill="none" stroke="var(--cyan)" stroke-width="3"/>`;
 
-    // --- DYNAMIC INSET LAYOUT ---
+    // --- MAIN PLOT INDICATORS ---
+    // Total Fracture Strain Line (Red)
+    svg.innerHTML += `<line class="indicator-line" stroke="var(--red)" x1="${mX(state.fe)}" y1="${mY(state.fs)}" x2="${mX(state.fe)}" y2="${mY(0)}"/>`;
+    svg.innerHTML += `<text x="${mX(state.fe) + 5}" y="${mY(0) - 25}" fill="var(--red)" font-size="12px">&epsilon;_f</text>`;
+
+    // True Plastic Strain Unloading Line (Orange)
+    svg.innerHTML += `<line class="indicator-line" stroke="var(--orange)" x1="${mX(state.fe)}" y1="${mY(state.fs)}" x2="${mX(truePlastic)}" y2="${mY(0)}"/>`;
+    svg.innerHTML += `<text x="${mX(truePlastic) - 5}" y="${mY(0) - 10}" fill="var(--purple)" font-size="13px" font-weight="bold" text-anchor="end">&epsilon;_plastic (%EL)</text>`;
+
+    // Mark the x-intercept
+    svg.innerHTML += `<circle cx="${mX(truePlastic)}" cy="${mY(0)}" r="4" fill="var(--purple)"/>`;
+
+
+    // --- INSET LAYOUT ---
     const aspect = document.getElementById('aspect-toggle').value;
     let iW, iH;
-    
-    if (aspect === 'tall') {
-        iH = h * 0.75; // 75% of viewport height
-        iW = Math.min(w * 0.40, iH * 0.60); // Narrower width
-    } else if (aspect === 'wide') {
-        iW = w * 0.45; // Take up 45% of width
-        iH = iW * (9/16); // 16:9 ratio
-    } else { // square
-        iH = Math.min(w * 0.35, h * 0.55);
-        iW = iH;
-    }
+    if (aspect === 'tall') { iH = h * 0.75; iW = Math.min(w * 0.40, iH * 0.60); }
+    else if (aspect === 'wide') { iW = w * 0.45; iH = iW * (9/16); }
+    else { iH = Math.min(w * 0.35, h * 0.55); iW = iH; }
 
     const iX0 = w - pad.r - iW - 20; 
     const iY0 = pad.t + 20;
-
     svg.innerHTML += `<rect class="inset-bg" x="${iX0}" y="${iY0}" width="${iW}" height="${iH}"/>`;
 
-    // Inset Scales
     const inMaxE = 0.008; 
     const inMaxS = Math.ceil(state.ys * 1.3 / 100) * 100;
-
-    const inPad = {l: 50, r: 20, t: 40, b: 40};
+    const inPad = {l: 55, r: 20, t: 40, b: 40};
     const inX = (v) => iX0 + inPad.l + (v / inMaxE) * (iW - inPad.l - inPad.r);
     const inY = (v) => iY0 + iH - inPad.b - (v / inMaxS) * (iH - inPad.t - inPad.b);
+
+    // Inset Dynamic Indicators
+    const eMod = state.e * 1000;
+    
+    // 1. Orange: Elastic Limit Line (Method 1 Indicator)
+    const yAtP = state.disc ? state.ys * 0.90 : state.ys * 0.50;
+    svg.innerHTML += `<line class="indicator-line" stroke="var(--orange)" x1="${inX(epsP)}" y1="${inY(0)}" x2="${inX(epsP)}" y2="${inY(yAtP)}"/>`;
+    svg.innerHTML += `<text x="${inX(epsP)}" y="${inY(0)+15}" fill="var(--orange)" text-anchor="middle" font-size="9px">Prop Limit (P)</text>`;
+
+    if(!state.disc) {
+        const yieldX = (state.ys / eMod) + 0.002;
+        // 0.2% Offset Line (Yellow)
+        svg.innerHTML += `<line class="offset-line" x1="${inX(0.002)}" y1="${inY(0)}" x2="${inX((inMaxS/eMod)+0.002)}" y2="${inY(inMaxS)}"/>`;
+        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(state.ys)}" x2="${inX(yieldX)}" y2="${inY(state.ys)}"/>`;
+        svg.innerHTML += `<circle cx="${inX(yieldX)}" cy="${inY(state.ys)}" r="5" fill="var(--magenta)"/>`;
+        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(state.ys)-5}" fill="var(--magenta)" font-weight="bold">&sigma;y = ${state.ys}</text>`;
+    } else {
+        const lyp = state.ys - 15;
+        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(lyp)}" x2="${inX(inMaxE)}" y2="${inY(lyp)}"/>`;
+        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(lyp)-5}" fill="var(--yellow)" font-weight="bold">&sigma;y,LYP = ${lyp}</text>`;
+    }
 
     // Inset Axes
     svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(0)}" x2="${inX(inMaxE)}" y2="${inY(0)}"/>`;
     svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(inMaxS)}" x2="${inX(0)}" y2="${inY(0)}"/>`;
 
-    // Inset Ticks
-    for(let se=0.002; se<=inMaxE; se+=0.002) {
-        let ix = inX(se);
-        svg.innerHTML += `<line class="axis-line" x1="${ix}" y1="${inY(0)}" x2="${ix}" y2="${inY(0)+5}"/>`;
-        svg.innerHTML += `<text x="${ix}" y="${inY(0)+18}" text-anchor="middle" font-size="10px">${se.toFixed(3)}</text>`;
-    }
-    for(let ss=100; ss<=inMaxS; ss+=100) {
-        let iy = inY(ss);
-        svg.innerHTML += `<text x="${inX(0)-5}" y="${iy+4}" text-anchor="end" font-size="10px">${ss}</text>`;
-    }
-
-    // Material Specific Annotations (0.2% Offset vs LYP)
-    if(!state.disc) {
-        const eMod = state.e * 1000;
-        const intersectX = (state.ys / eMod) + 0.002;
-        const intersectY = state.ys;
-
-        // Diagonal 0.2% Offset Line
-        const x2_off = (inMaxS / eMod) + 0.002;
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0.002)}" y1="${inY(0)}" x2="${inX(x2_off)}" y2="${inY(inMaxS)}"/>`;
-        svg.innerHTML += `<text x="${inX(0.0025)}" y="${inY(0)-10}" text-anchor="middle" fill="var(--magenta)" font-size="11px">0.2%</text>`;
-
-        // Horizontal Yield Line
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(intersectY)}" x2="${inX(intersectX)}" y2="${inY(intersectY)}"/>`;
-        svg.innerHTML += `<text x="${inX(0) + 12}" y="${inY(intersectY) - 10}" text-anchor="start" fill="var(--magenta)" font-size="13px" font-weight="bold">&sigma;y = ${state.ys} MPa</text>`;
-    } else {
-        // Discontinuous Material (A36 Mild Steel) - Lower Yield Point Line
-        const lypMean = state.ys - 15; // Mean value of the generated flatband
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(lypMean)}" x2="${inX(inMaxE)}" y2="${inY(lypMean)}" stroke-dasharray="4,4"/>`;
-        svg.innerHTML += `<text x="${inX(0) + 12}" y="${inY(lypMean) - 10}" text-anchor="start" fill="var(--yellow)" font-size="13px" font-weight="bold">&sigma;y,LYP = ${lypMean} MPa</text>`;
-    }
-
-    // Inset Clip Path (Fixes the Cutoff Issue cleanly)
-    svg.innerHTML += `
-        <defs>
-            <clipPath id="inset-clip">
-                <rect x="${inX(0)}" y="${inY(inMaxS)}" width="${inX(inMaxE) - inX(0)}" height="${inY(0) - inY(inMaxS)}" />
-            </clipPath>
-        </defs>
-    `;
-
-    // Inset Curve Render
+    // Clip & Curve
+    svg.innerHTML += `<defs><clipPath id="cp"><rect x="${inX(0)}" y="${inY(inMaxS)}" width="${inX(inMaxE)-inX(0)}" height="${inY(0)-inY(inMaxS)}"/></clipPath></defs>`;
     let id = `M ${inX(pts[0].x)} ${inY(pts[0].y)}`;
-    for(let i=1; i<pts.length; i++) {
-        id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
-    }
-    // Apply clip path to prevent the line from spilling outside the inset axes
-    svg.innerHTML += `<path class="curve-inset" d="${id}" clip-path="url(#inset-clip)"/>`;
-
-    // Yield Marker
-    if(!state.disc) {
-        const eMod = state.e * 1000;
-        const intersectX = (state.ys / eMod) + 0.002;
-        const intersectY = state.ys;
-        svg.innerHTML += `<circle cx="${inX(intersectX)}" cy="${inY(intersectY)}" r="6" fill="var(--magenta)" stroke="var(--cyan)" stroke-width="2"/>`;
-    }
+    for(let i=1; i<pts.length; i++) id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
+    svg.innerHTML += `<path class="curve-inset" d="${id}" clip-path="url(#cp)"/>`;
 }
 
 document.getElementById('mat-select').onchange = (e) => sync(e.target.value);
 document.getElementById('aspect-toggle').onchange = render;
 document.querySelectorAll('input').forEach(i => i.oninput = render);
 window.onresize = render;
-
-// Init with default
-sync("mild");
+sync("ti64");
 </script>
 </body>
 </html>
