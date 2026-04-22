@@ -49,7 +49,7 @@
         text { fill: var(--magenta); font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
         .axis-lbl { fill: var(--yellow); font-size: 14px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
 
-        /* News Feed Area */
+        /* Enhanced News Feed Area */
         .news-card { background: #111; border-left: 4px solid var(--cyan); padding: 20px; margin-bottom: 15px; border-radius: 0 8px 8px 0; transition: transform 0.2s; }
         .news-card:hover { transform: translateX(3px); background: #141414; border-left-color: var(--magenta); }
         .news-header { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
@@ -221,13 +221,13 @@
         });
     }
 
-    // --- Physics Models (Completely Overhauled Base Equations) ---
+    // --- Physics Models (Overhauled to Match Callister) ---
     const MODELS = {
         hp: {
             title: "Grain Size (d)", unit: "μm", xLabel: "d⁻¹/² (μm⁻¹/²)",
-            minRaw: 100, maxRaw: 1,  // Slider 0-100 maps to 100um down to 1um
+            minRaw: 100, maxRaw: 1,  
             sigma0: 50, k: 150,
-            calcX: (raw) => Math.pow(raw, -0.5), // Linear X-axis
+            calcX: (raw) => Math.pow(raw, -0.5), 
             calcY: function(x) { return this.sigma0 + this.k * x; }, 
             formatRaw: (r) => r.toFixed(1), formatX: (x) => x.toFixed(2),
             yAxisMax: 250, xAxisMin: 0, xAxisMax: 1.0
@@ -235,20 +235,20 @@
         ss: {
             title: "Ni Concentration (C)", unit: "wt%", xLabel: "Ni Concentration (wt%)",
             minRaw: 0, maxRaw: 100,
-            sigmaCu: 60, sigmaNi: 120, k: 800,
-            calcX: (raw) => raw, // Raw Parabolic Dome X-axis
+            sigmaCu: 65, sigmaNi: 140, k: 600, // Matches Callister Fig 7.16 exactly (peaks around ~250 MPa)
+            calcX: (raw) => raw, 
             calcY: function(x) { 
                 let f = x/100; 
                 return this.sigmaCu*(1-f) + this.sigmaNi*(f) + this.k * f * (1-f); 
             }, 
             formatRaw: (r) => r.toFixed(1), formatX: (x) => x.toFixed(0),
-            yAxisMax: 350, xAxisMin: 0, xAxisMax: 100
+            yAxisMax: 300, xAxisMin: 0, xAxisMax: 100
         },
         cw: {
             title: "Cold Work (%CW)", unit: "%", xLabel: "Cold Work (%CW)",
             minRaw: 0, maxRaw: 50,
             sigma0: 50, k: 45,
-            calcX: (raw) => raw, // Raw Sqrt Curve X-axis
+            calcX: (raw) => raw, 
             calcY: function(x) { return this.sigma0 + this.k * Math.sqrt(x); }, 
             formatRaw: (r) => r.toFixed(1), formatX: (x) => x.toFixed(0),
             yAxisMax: 400, xAxisMin: 0, xAxisMax: 50
@@ -257,6 +257,7 @@
 
     let mode = 'hp';
     let sliderNorm = 0;
+    const sigma0 = 50;
 
     const select = document.getElementById('mode-select');
     const slider = document.getElementById('main-slider');
@@ -274,7 +275,7 @@
         const rawVal = m.minRaw + sliderNorm * (m.maxRaw - m.minRaw);
         const xVal = m.calcX(rawVal);
         const totalSigma = m.calcY(xVal);
-        const baseSigma = m.calcY(m.calcX(m.minRaw)); // Base is value at slider = 0
+        const baseSigma = m.calcY(m.calcX(m.minRaw)); 
         const deltaSigma = totalSigma - baseSigma;
 
         document.getElementById('param-lbl').innerText = m.title;
@@ -294,7 +295,7 @@
         }
     }
 
-    // --- Analytical Plot (With Explicit Math Callouts) ---
+    // --- Analytical Plot ---
     function renderPlot(m, currentX, currentY) {
         svgPlot.innerHTML = '';
         const w = svgPlot.clientWidth, h = svgPlot.clientHeight;
@@ -306,41 +307,34 @@
         const mX = (x) => pad.l + ((x - xMin) / (xMax - xMin)) * (w - pad.l - pad.r);
         const mY = (y) => h - pad.b - (y / yMax) * (h - pad.t - pad.b);
 
-        // Grid
         for(let y=0; y<=yMax; y+=50) {
             let py = mY(y);
             svgPlot.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
-            if(y % 100 === 0) svgPlot.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
+            if(y % 100 === 0 || y === yMax) svgPlot.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
         }
 
-        // Axes
         svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
         svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
         svgPlot.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
-        svgPlot.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
+        svgPlot.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
 
-        // Draw Specific Math Callouts based on Mode
         if(mode === 'hp') {
-            // Draw Intercept dashed line
             svgPlot.innerHTML += `<line stroke="rgba(255,255,255,0.5)" stroke-width="1" stroke-dasharray="4,4" x1="${pad.l}" y1="${mY(m.sigma0)}" x2="${w-pad.r}" y2="${mY(m.sigma0)}"/>`;
             svgPlot.innerHTML += `<text x="${pad.l + 10}" y="${mY(m.sigma0) - 5}" class="math-lbl" fill="#fff">&sigma;&#x2080;</text>`;
             
-            // Draw Slope Triangle
             const triX1 = 0.4, triX2 = 0.7;
             const triY1 = m.calcY(triX1), triY2 = m.calcY(triX2);
             svgPlot.innerHTML += `<line stroke="var(--yellow)" stroke-width="2" x1="${mX(triX1)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY1)}"/>`;
             svgPlot.innerHTML += `<line stroke="var(--yellow)" stroke-width="2" x1="${mX(triX2)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY2)}"/>`;
             svgPlot.innerHTML += `<text x="${mX(triX2) + 8}" y="${mY((triY1+triY2)/2)}" class="math-lbl" fill="var(--yellow)">k_y</text>`;
             
-            // Equation
-            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 20}" class="math-eq">&sigma;y = &sigma;&#x2080; + k_y d&#x207B;&#x00B9;&#x141F;&#x00B2;</text>`;
+            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 10}" class="math-eq">&sigma;y = &sigma;&#x2080; + k_y d&#x207B;&#x00B9;&#x141F;&#x00B2;</text>`;
         } else if (mode === 'cw') {
-            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 20}" class="math-eq">&sigma;y = &sigma;&#x2080; + A&radic;(%CW)</text>`;
+            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 10}" class="math-eq">&sigma;y = &sigma;&#x2080; + A&radic;(%CW)</text>`;
         } else if (mode === 'ss') {
-            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 20}" class="math-eq">&sigma;y &propto; c(1-c)</text>`;
+            svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 10}" class="math-eq">&sigma;y &propto; c(1-c)</text>`;
         }
 
-        // Draw Mathematical Curve
         let pts = "";
         for(let i=0; i<=100; i++) {
             let sn = i/100;
@@ -351,7 +345,6 @@
         }
         svgPlot.innerHTML += `<polyline class="curve" points="${pts}"/>`;
 
-        // Tracker Node
         let tx = mX(currentX), ty = mY(currentY);
         svgPlot.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
         svgPlot.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
@@ -361,7 +354,7 @@
     // --- Microscopic Simulation ---
     let obstacles = [];
     let grains = [];
-    let atomTypes = []; // For SS alloy mix
+    let atomTypes = []; 
     let dislocation = { x: 0, state: 'moving', pauseTimer: 0, activeObs: null };
     const rows = 12, cols = 40;
     let slipPath = [];
@@ -372,7 +365,6 @@
 
         if (mode === 'hp') {
             document.getElementById('sim-hint').innerText = "Watch lattice misorientation at Grain Boundaries (dashed yellow)";
-            // Map grain size (100 to 1) to number of displayed grains (1 to 6)
             let numGrains = Math.floor(1 + ((100 - rawVal) / 99) * 5); 
             let grainWidth = 1.0 / numGrains;
             for(let i=0; i<numGrains; i++) {
@@ -382,16 +374,16 @@
         } else {
             grains = [{ left: 0, right: 1, theta: 0 }];
             if (mode === 'ss') {
-                document.getElementById('sim-hint').innerText = "Copper (Orange) lattice with Nickel (Grey) solutes. Click stalled dislocation to view Solute Pinning schematic.";
-                // rawVal is wt% Ni. Generate array for random atom drawing
+                document.getElementById('sim-hint').innerText = "Copper (Orange) lattice with Nickel (Silver) solutes. Click stalled dislocation to view Solute Pinning schematic.";
+                // Generate wide array bound to prevent rotation out-of-bounds error
                 for(let r = -rows; r < rows; r++) {
                     let rowArr = [];
-                    for(let c = -2; c < cols+4; c++) {
+                    for(let c = -40; c < cols + 40; c++) {
                         rowArr.push((Math.random() * 100 < rawVal) ? 'Ni' : 'Cu');
                     }
                     atomTypes.push(rowArr);
                 }
-                let numSolutes = Math.floor(sliderNorm * 40); // Actual glide path obstacles
+                let numSolutes = Math.floor(sliderNorm * 40); 
                 for(let i=0; i<numSolutes; i++) obstacles.push({ type: 'solute', col: Math.floor(Math.random()*(cols-4))+2, passed: false });
             } else if (mode === 'cw') {
                 document.getElementById('sim-hint').innerText = "Click stalled dislocation to view Jog Formation schematic";
@@ -426,7 +418,6 @@
         const cellH = h / rows;
         if(slipPath.length === 0) calculateSlipPath(w, h);
 
-        // Draw Grains (Tiled Arrays oriented to slip path)
         grains.forEach((g, i) => {
             const pxLeft = g.left * w;
             const pxRight = g.right * w;
@@ -436,13 +427,14 @@
             ctx.beginPath(); ctx.rect(pxLeft, 0, pxRight - pxLeft, h); ctx.clip();
             ctx.translate(pStart.x, pStart.y); ctx.rotate(g.theta);
             
-            const overdrawCols = Math.ceil((pxRight - pxLeft) / cellW) + 4;
+            const overdrawCols = Math.ceil((pxRight - pxLeft) / cellW) + 8;
             for(let r = -rows; r < rows; r++) {
-                for(let c = -2; c < overdrawCols; c++) {
+                for(let c = -4; c < overdrawCols; c++) {
                     ctx.beginPath(); ctx.arc(c * cellW, r * cellH, 2.5, 0, Math.PI*2);
                     if(mode === 'ss') {
-                        // Use pre-generated array to keep colors stable
-                        let aType = atomTypes[r + rows][c + 2];
+                        let rIdx = r + rows;
+                        let cIdx = c + 40; // Offset matches generated atomTypes array
+                        let aType = (atomTypes[rIdx] && atomTypes[rIdx][cIdx]) ? atomTypes[rIdx][cIdx] : 'Cu';
                         ctx.fillStyle = aType === 'Ni' ? 'var(--silver)' : 'var(--orange)';
                     } else {
                         ctx.fillStyle = '#555';
@@ -461,13 +453,11 @@
             }
         });
 
-        // Continuous Slip Path
         ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(slipPath[0].x, slipPath[0].y);
         for(let i=1; i<slipPath.length; i++) ctx.lineTo(slipPath[i].x, slipPath[i].y);
         ctx.stroke();
 
-        // Draw Interactive Obstacles (SS & CW)
         obstacles.forEach(obs => {
             if(obs.type === 'gb') return; 
             let ox = obs.col * cellW + cellW/2;
@@ -484,7 +474,6 @@
             }
         });
 
-        // Dislocation Logic
         if (dislocation.state === 'moving') {
             dislocation.x += cellW * 0.15; 
             obstacles.forEach(obs => {
