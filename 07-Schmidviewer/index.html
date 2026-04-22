@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ch 7: Schmid's Law // 3D Slip System Engine</title>
+    <title>Ch 7: Schmid's Law & Dislocation Mechanics</title>
     <style>
         :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --red: #ff3333; --green: #00ff00; }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', 'Arial Black', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
         
-        #sidebar { width: 360px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 15px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
-        h1 { font-size: 0.9rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 10px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 15px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 10px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
         
         .control-block { background: #0a0a0a; border: 1px solid #333; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
         .block-header { font-size: 0.75rem; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
@@ -32,7 +32,7 @@
         .slider-group label { display: flex; justify-content: space-between; font-size: 0.7rem; color: #fff; margin-bottom: 4px; }
         input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
-        .hotkey-hint { font-size: 0.7rem; color: #888; text-align: center; margin-bottom: 10px; font-weight: normal; background: #111; padding: 8px; border-radius: 4px; border: 1px solid #333; }
+        .hotkey-hint { font-size: 0.65rem; color: #888; text-align: center; margin-bottom: 10px; font-weight: normal; background: #111; padding: 8px; border-radius: 4px; border: 1px solid #333; }
         .hotkey-hint strong { color: var(--cyan); }
 
         #readout-panel { margin-top: auto; border: 2px solid var(--magenta); padding: 12px; background: rgba(255, 0, 255, 0.05); }
@@ -46,6 +46,18 @@
 
         #stage { flex: 1; position: relative; background: #000; }
         canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+        /* HUD OVERLAYS */
+        #hud-container { position: absolute; right: 20px; top: 20px; width: 320px; height: 90%; display: flex; flex-direction: column; gap: 20px; pointer-events: none; }
+        .hud-panel { background: rgba(0,0,0,0.85); border: 1px solid #444; border-radius: 8px; flex: 1; display: flex; flex-direction: column; padding: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); }
+        .hud-title { font-size: 0.75rem; color: var(--yellow); text-transform: uppercase; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; letter-spacing: 1px; }
+        .hud-svg { flex: 1; width: 100%; }
+        
+        .atom { fill: #888; stroke: #444; stroke-width: 1; }
+        .atom-core { fill: var(--cyan); filter: drop-shadow(0 0 3px var(--cyan)); }
+        .bond { stroke: #444; stroke-width: 2; stroke-linecap: round; }
+        .slip-plane-line { stroke: var(--yellow); stroke-width: 2; stroke-dasharray: 5,5; }
+        .tau-arrow { stroke: var(--magenta); stroke-width: 3; marker-end: url(#arrowM); }
     </style>
 </head>
 <body>
@@ -70,8 +82,8 @@
 
     <div class="control-block">
         <div class="slider-group">
-            <label><span>Applied Stress (&sigma;)</span><span id="txt-stress">50 MPa</span></label>
-            <input type="range" id="sl-stress" min="10" max="200" value="50">
+            <label><span>Applied Stress (&sigma;)</span><span id="txt-stress">0 MPa</span></label>
+            <input type="range" id="sl-stress" min="0" max="250" value="0">
         </div>
     </div>
 
@@ -91,7 +103,24 @@
     </div>
 </div>
 
-<div id="stage"></div>
+<div id="stage">
+    <div id="hud-container">
+        <div class="hud-panel">
+            <div class="hud-title">Conventional View (Edge Dislocation &perp;)</div>
+            <svg class="hud-svg" id="svg-std">
+                <defs>
+                    <marker id="arrowM" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                        <polygon points="0,0 6,3 0,6" fill="var(--magenta)" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+        <div class="hud-panel">
+            <div class="hud-title">In-Situ View (Rotated by &phi;)</div>
+            <svg class="hud-svg" id="svg-rot"></svg>
+        </div>
+    </div>
+</div>
 
 <script type="importmap">
     {
@@ -106,7 +135,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    // --- UI Generation ---
+    // --- UI Setup ---
     function generateSelects(containerId, defaults) {
         const container = document.getElementById(containerId);
         defaults.forEach((def, idx) => {
@@ -124,7 +153,6 @@
         });
     }
 
-    // Default: Tensile=[0,0,1], Plane=(1,1,1), Slip=[1,-1,0]
     generateSelects('inputs-t', [0, 0, 1]);
     generateSelects('inputs-n', [1, 1, 1]);
     generateSelects('inputs-s', [1, -1, 0]);
@@ -137,12 +165,11 @@
     // --- Three.js Setup ---
     const container = document.getElementById('stage');
     const scene = new THREE.Scene();
-    
-    // Core Reference Center for the entire system
     const center = new THREE.Vector3(0.5, 0.5, 0.5);
     
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(4, 3, 5);
+    // Shift camera slightly left to accommodate the HUD
+    camera.position.set(3, 2.5, 4.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -150,115 +177,140 @@
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.target.copy(center); // Focus strictly on the center of the unit cell
+    controls.target.copy(center); 
+    // Shift target slightly left
+    controls.target.x -= 0.5;
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(5, 10, 7);
     scene.add(dirLight);
 
-    // Group for dynamic elements
     const crystalGroup = new THREE.Group();
+    crystalGroup.position.x -= 0.5; // Offset the whole system left to clear the HUD
     scene.add(crystalGroup);
 
-    // --- Helper Functions ---
+    // --- Static Unit Cell & FCC Atoms ---
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+    boxGeo.translate(0.5, 0.5, 0.5); 
+    const boxEdges = new THREE.EdgesGeometry(boxGeo);
+    const boxMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.4 });
+    const unitCell = new THREE.LineSegments(boxEdges, boxMat);
+    crystalGroup.add(unitCell);
 
-    // Coordinate Mapper: User (X:out, Y:right, Z:up) -> ThreeJS (X:right, Y:up, Z:out)
-    function toThree(u, v, w) {
-        return new THREE.Vector3(v, w, u);
-    }
+    // FCC Atoms (Instanced Mesh for performance)
+    const atomRadius = 0.08;
+    const atomGeo = new THREE.SphereGeometry(atomRadius, 16, 16);
+    const atomMat = new THREE.MeshPhysicalMaterial({ color: 0x00ffff, roughness: 0.2, metalness: 0.8, clearcoat: 0.5 });
+    
+    // 8 Corners + 6 Face Centers = 14 atoms
+    const fccPositions = [
+        [0,0,0], [1,0,0], [0,1,0], [1,1,0], [0,0,1], [1,0,1], [0,1,1], [1,1,1], // Corners
+        [0.5,0.5,0], [0.5,0.5,1], [0.5,0,0.5], [0.5,1,0.5], [0,0.5,0.5], [1,0.5,0.5] // Faces
+    ];
+    
+    const atomMesh = new THREE.InstancedMesh(atomGeo, atomMat, 14);
+    const dummy = new THREE.Object3D();
+    fccPositions.forEach((pos, i) => {
+        dummy.position.set(pos[0], pos[1], pos[2]);
+        dummy.updateMatrix();
+        atomMesh.setMatrixAt(i, dummy.matrix);
+    });
+    crystalGroup.add(atomMesh);
 
-    // 3D Text Sprite Generator
-    function createTextSprite(message, color, size = 64) {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = 256;
-        canvas.height = 128;
-        context.font = `bold ${size}px Arial Black`;
-        context.fillStyle = color;
-        context.textAlign = "center";
-        context.fillText(message, 128, 80);
+    // User Axes
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x555555 });
+    crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)]), axisMat));
+    crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)]), axisMat));
+    crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)]), axisMat));
 
-        const texture = new THREE.CanvasTexture(canvas);
-        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-        const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(1.5, 0.75, 1);
-        return sprite;
-    }
+    function toThree(u, v, w) { return new THREE.Vector3(v, w, u); }
 
     function createArrow(dir, origin, color, length = 1.5) {
         return new THREE.ArrowHelper(dir, origin, length, color, 0.2, 0.1);
     }
 
-    function createAngleArc(v1, v2, origin, color, radius = 0.5) {
-        const points = [];
-        const segments = 20;
-        const angle = v1.angleTo(v2);
+    // --- 2D Dislocation Mechanics Render ---
+    function render2DDislocation(tauR, phiDeg) {
+        const svg1 = document.getElementById('svg-std');
+        const svg2 = document.getElementById('svg-rot');
+        const w = svg1.clientWidth, h = svg1.clientHeight;
         
-        const axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
-        if(axis.lengthSq() < 0.001) return new THREE.Group(); 
+        // Critical Resolved Shear Stress (Arbitrary for simulation)
+        const CRSS = 30; 
+        
+        // Calculate shift based on Tau_R
+        // If Tau is low, elastic stretch. If Tau > CRSS, plastic slip.
+        let slipFactor = 0;
+        if(tauR > 0) {
+            slipFactor = tauR / 100; // Continuous push
+        }
+        
+        const cols = 8;
+        const rows = 6;
+        const spacingX = w / (cols + 1);
+        const spacingY = h / (rows + 1);
+        const slipPlaneY = h / 2;
 
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const currentAngle = angle * t;
-            const pt = v1.clone().applyAxisAngle(axis, currentAngle).multiplyScalar(radius);
-            points.push(pt);
+        let content = `<line class="slip-plane-line" x1="0" y1="${slipPlaneY}" x2="${w}" y2="${slipPlaneY}"/>`;
+        
+        // Render Atoms
+        for(let r=0; r<rows; r++) {
+            let isTopHalf = r < rows/2;
+            let y = (r+1) * spacingY;
+            
+            // The extra half plane is essentially an extra column injected into the top half
+            let rowCols = isTopHalf ? cols + 1 : cols;
+            
+            for(let c=0; c<rowCols; c++) {
+                let x = (c+0.5) * spacingX;
+                
+                // If top half, apply slip shift
+                if(isTopHalf) {
+                    x += slipFactor * spacingX;
+                }
+
+                // If it goes off screen, wrap it (simulating continuous slip)
+                if(x > w) x -= (cols+1)*spacingX;
+
+                // Extra half plane marker logic
+                let isCore = (isTopHalf && Math.abs(x - w/2) < spacingX/2 && r === Math.floor(rows/2)-1);
+
+                content += `<circle cx="${x}" cy="${y}" r="4" class="atom ${isCore ? 'atom-core' : ''}"/>`;
+                
+                // Draw perpendicular T symbol for the core
+                if(isCore) {
+                    content += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y+spacingY*0.8}" stroke="var(--cyan)" stroke-width="2"/>`;
+                    content += `<line x1="${x-spacingX*0.3}" y1="${y+spacingY*0.8}" x2="${x+spacingX*0.3}" y2="${y+spacingY*0.8}" stroke="var(--cyan)" stroke-width="2"/>`;
+                }
+            }
         }
 
-        const geo = new THREE.BufferGeometry().setFromPoints(points);
-        const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2, depthTest: false });
-        const arcMesh = new THREE.Line(geo, mat);
-        arcMesh.position.copy(origin);
-        return arcMesh;
+        // Draw Tau Arrow
+        if(tauR > 5) {
+            content += `<line class="tau-arrow" x1="${w*0.1}" y1="${h*0.2}" x2="${w*0.1 + Math.min(tauR/2, 40)}" y2="${h*0.2}"/>`;
+            content += `<text x="${w*0.1}" y="${h*0.2 - 10}" fill="var(--magenta)" font-size="10px">&tau; = ${tauR.toFixed(1)}</text>`;
+        }
+
+        // Standard View
+        svg1.innerHTML = svg1.querySelector('defs').outerHTML + content;
+
+        // Rotated View (Rotate group based on Phi)
+        // Adjust Phi so it visually tilts relative to the horizontal
+        let visualTilt = -phiDeg; 
+        svg2.innerHTML = `<g transform="translate(${w/2}, ${h/2}) rotate(${visualTilt}) translate(${-w/2}, ${-h/2})">${content}</g>`;
     }
 
-    // --- Static Crystal Frame ---
-    // Box is placed from 0,0,0 to 1,1,1
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-    boxGeo.translate(0.5, 0.5, 0.5); 
-    const boxEdges = new THREE.EdgesGeometry(boxGeo);
-    const boxMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3 });
-    const unitCell = new THREE.LineSegments(boxEdges, boxMat);
-    scene.add(unitCell);
 
-    // Custom Axes (User coordinates) radiating from (0,0,0)
-    const axisMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-    
-    // User X (Out / Three Z)
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)]), axisMat));
-    let lblX = createTextSprite("x", "#ff00ff", 40); lblX.position.set(0, 0, 1.3); scene.add(lblX);
-
-    // User Y (Right / Three X)
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)]), axisMat));
-    let lblY = createTextSprite("y", "#ff00ff", 40); lblY.position.set(1.3, 0, 0); scene.add(lblY);
-
-    // User Z (Up / Three Y)
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)]), axisMat));
-    let lblZ = createTextSprite("z", "#ff00ff", 40); lblZ.position.set(0, 1.3, 0); scene.add(lblZ);
-
+    const dynamicGeo = new THREE.Group();
+    crystalGroup.add(dynamicGeo);
 
     function updateSimulation() {
-        while(crystalGroup.children.length > 0){ 
-            crystalGroup.remove(crystalGroup.children[0]); 
-        }
+        while(dynamicGeo.children.length > 0) dynamicGeo.remove(dynamicGeo.children[0]); 
 
-        const rawT = [
-            parseInt(document.getElementById('inputs-t-0').value),
-            parseInt(document.getElementById('inputs-t-1').value),
-            parseInt(document.getElementById('inputs-t-2').value)
-        ];
-        const rawN = [
-            parseInt(document.getElementById('inputs-n-0').value),
-            parseInt(document.getElementById('inputs-n-1').value),
-            parseInt(document.getElementById('inputs-n-2').value)
-        ];
-        const rawS = [
-            parseInt(document.getElementById('inputs-s-0').value),
-            parseInt(document.getElementById('inputs-s-1').value),
-            parseInt(document.getElementById('inputs-s-2').value)
-        ];
-
+        const rawT = [parseInt(document.getElementById('inputs-t-0').value), parseInt(document.getElementById('inputs-t-1').value), parseInt(document.getElementById('inputs-t-2').value)];
+        const rawN = [parseInt(document.getElementById('inputs-n-0').value), parseInt(document.getElementById('inputs-n-1').value), parseInt(document.getElementById('inputs-n-2').value)];
+        const rawS = [parseInt(document.getElementById('inputs-s-0').value), parseInt(document.getElementById('inputs-s-1').value), parseInt(document.getElementById('inputs-s-2').value)];
         const sigma = parseFloat(document.getElementById('sl-stress').value);
 
         let T = toThree(...rawT);
@@ -269,23 +321,18 @@
         if(N.lengthSq() === 0) N = toThree(0,1,0);
         if(S.lengthSq() === 0) S = toThree(1,0,0);
 
-        // Validation Math
         const dotProduct = (rawN[0]*rawS[0]) + (rawN[1]*rawS[1]) + (rawN[2]*rawS[2]);
         let isValid = (dotProduct === 0);
         
         const msg = document.getElementById('validation-msg');
         msg.style.display = 'block';
         if(isValid) {
-            msg.className = 'valid';
-            msg.innerHTML = `VALID SLIP SYSTEM (N &middot; S = 0)`;
+            msg.className = 'valid'; msg.innerHTML = `VALID SLIP SYSTEM`;
         } else {
-            msg.className = 'invalid';
-            msg.innerHTML = `INVALID SYSTEM: S does not lie on Plane! (N &middot; S = ${dotProduct})`;
+            msg.className = 'invalid'; msg.innerHTML = `INVALID: N &middot; S = ${dotProduct}`;
         }
 
-        T.normalize();
-        N.normalize();
-        S.normalize();
+        T.normalize(); N.normalize(); S.normalize();
 
         let cosPhi = Math.abs(T.dot(N));
         let cosLam = Math.abs(T.dot(S));
@@ -296,33 +343,33 @@
         let tauR = sigma * schmidFactor;
 
         if(!isValid) tauR = 0;
-        if(phiDeg > 89.9) { phiDeg = 90; cosPhi = 0; schmidFactor = 0; tauR = 0; }
-        if(lamDeg > 89.9) { lamDeg = 90; cosLam = 0; schmidFactor = 0; tauR = 0; }
+        if(phiDeg > 89.9) { phiDeg = 90; schmidFactor = 0; tauR = 0; }
+        if(lamDeg > 89.9) { lamDeg = 90; schmidFactor = 0; tauR = 0; }
 
         document.getElementById('out-phi').innerText = phiDeg.toFixed(1) + '°';
         document.getElementById('out-lam').innerText = lamDeg.toFixed(1) + '°';
         document.getElementById('out-m').innerText = schmidFactor.toFixed(3);
         document.getElementById('out-tau').innerText = tauR.toFixed(1) + ' MPa';
 
-        // --- Generate 3D Geometry ---
-        const cylRadius = 0.8;
+        // Update 2D SVG
+        render2DDislocation(tauR, phiDeg);
+
+        // --- 3D Geometry ---
+        const cylRadius = 1.0;
         
-        // 1. Tensile Cylinder (Centered on Unit Cell)
         const cylGeo = new THREE.CylinderGeometry(cylRadius, cylRadius, 3.8, 32);
         const cylMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
         const cylinderMesh = new THREE.Mesh(cylGeo, cylMat);
         cylinderMesh.position.copy(center);
         cylinderMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T);
-        crystalGroup.add(cylinderMesh);
+        dynamicGeo.add(cylinderMesh);
         
-        // 2. Slip Plane (Perfectly Clamped to Cylinder Edges via Scaling Math)
         const planeColor = isValid ? 0x00ffff : 0xff0000;
         const pGeo = new THREE.CircleGeometry(cylRadius, 64);
         const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
         const planeMesh = new THREE.Mesh(pGeo, pMat);
         planeMesh.position.copy(center);
         
-        // Construct Basis to stretch plane into exact ellipse
         let U = new THREE.Vector3().crossVectors(T, N);
         if(U.lengthSq() < 0.0001) {
             planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), N);
@@ -331,66 +378,27 @@
             let V = new THREE.Vector3().crossVectors(N, U).normalize();
             let mat = new THREE.Matrix4().makeBasis(U, V, N);
             planeMesh.quaternion.setFromRotationMatrix(mat);
-            
-            let stretch = 1.0 / Math.max(0.001, cosPhi);
-            stretch = Math.min(stretch, 4.0); // Safe Cap
+            let stretch = Math.min(1.0 / Math.max(0.001, cosPhi), 4.0);
             planeMesh.scale.set(1.0, stretch, 1.0);
         }
-        crystalGroup.add(planeMesh);
+        dynamicGeo.add(planeMesh);
 
-        // 3. Arrows & Labels (Emanating from Center)
         const tLen = 2.0;
-        const tArrow = new THREE.ArrowHelper(T, center, tLen, 0xff3333, 0.2, 0.1);
-        const tArrowNeg = new THREE.ArrowHelper(T.clone().negate(), center, tLen, 0xff3333, 0.2, 0.1);
-        crystalGroup.add(tArrow, tArrowNeg);
-        let lblT = createTextSprite("T", "#ff3333"); lblT.position.copy(T).multiplyScalar(tLen + 0.2).add(center); crystalGroup.add(lblT);
+        dynamicGeo.add(new THREE.ArrowHelper(T, center, tLen, 0xff3333, 0.2, 0.1));
+        dynamicGeo.add(new THREE.ArrowHelper(T.clone().negate(), center, tLen, 0xff3333, 0.2, 0.1));
 
-        const nLen = 1.4;
-        const nArrow = createArrow(N, center, 0xffff00, nLen);
-        crystalGroup.add(nArrow);
-        let lblN = createTextSprite("N", "#ffff00"); lblN.position.copy(N).multiplyScalar(nLen + 0.2).add(center); crystalGroup.add(lblN);
-
-        const sLen = 1.4;
-        const sArrow = createArrow(S, center, 0x00ffff, sLen);
-        crystalGroup.add(sArrow);
-        let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2).add(center); crystalGroup.add(lblS);
-
-        // 4. Angle Arcs
-        if(phiDeg > 1 && phiDeg < 89) {
-            const arcPhi = createAngleArc(T, N, center, 0xffff00, 0.6);
-            crystalGroup.add(arcPhi);
-            let lblPhi = createTextSprite("φ", "#ffff00", 48); 
-            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7).add(center);
-            crystalGroup.add(lblPhi);
-        }
-
-        if(lamDeg > 1 && lamDeg < 89) {
-            const arcLam = createAngleArc(T, S, center, 0x00ffff, 0.5);
-            crystalGroup.add(arcLam);
-            let lblLam = createTextSprite("λ", "#00ffff", 48); 
-            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6).add(center);
-            crystalGroup.add(lblLam);
-        }
+        dynamicGeo.add(createArrow(N, center, 0xffff00, 1.4));
+        dynamicGeo.add(createArrow(S, center, 0x00ffff, 1.4));
     }
 
-    // --- Camera Hotkeys (Fixed Distances) ---
+    // Camera Hotkeys
     window.addEventListener('keydown', (e) => {
-        const dist = 6.0; // Pushed back to keep cylinder in view
-
-        // User X is Three Z (Front = looking down -X)
-        if (e.key === '1') {
-            camera.position.set(center.x, center.y, center.z + dist); 
-        } 
-        // User Y is Three X (Right/Side = looking down -Y)
-        else if (e.key === '3') {
-            camera.position.set(center.x + dist, center.y, center.z);
-        } 
-        // User Z is Three Y (Top = looking down -Z)
-        else if (e.key === '7') {
-            camera.position.set(center.x, center.y + dist, center.z);
-        }
-        
-        controls.target.copy(center);
+        const dist = 6.5; 
+        const target = new THREE.Vector3(0, 0.5, 0.5); // Adjusted for group offset
+        if (e.key === '1') camera.position.set(target.x, target.y, target.z + dist); 
+        else if (e.key === '3') camera.position.set(target.x + dist, target.y, target.z);
+        else if (e.key === '7') camera.position.set(target.x, target.y + dist, target.z);
+        controls.target.copy(target);
     });
 
     window.addEventListener('resize', () => {
@@ -399,7 +407,6 @@
         renderer.setSize(container.clientWidth, container.clientHeight);
     });
 
-    // Animation Loop
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
