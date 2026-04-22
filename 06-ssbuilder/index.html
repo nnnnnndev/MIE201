@@ -2,330 +2,410 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Materials Simulator // Pro-Grade</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 7: Schmid's Law // 3D Slip System Engine</title>
     <style>
-        :root { 
-            --bg: #050505; 
-            --cyan: #00ffff; 
-            --magenta: #ff00ff; 
-            --yield: #ffff00;   /* Yellow */
-            --uts: #ffaa00;     /* Orange */
-            --frac: #ff3333;    /* Red */
-            --plast: #cc66ff;   /* Lavender/Purple */
-            --silver: #cccccc;  /* Silver for Elastic Recovery */
-            --grid: rgba(255, 0, 255, 0.1); 
-        }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; }
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --red: #ff3333; --green: #00ff00; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', 'Arial Black', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
         
-        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
-        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 15px 0 10px; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
-        h1:first-of-type { margin-top: 0; }
+        #sidebar { width: 360px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 15px; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
+        h1 { font-size: 0.9rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 10px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
         
-        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 10px; margin-bottom: 10px; font-weight: bold; width: 100%; cursor: pointer; }
+        .control-block { background: #0a0a0a; border: 1px solid #333; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
+        .block-header { font-size: 0.75rem; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
         
-        .control-group { background: #0a0a0a; border: 1px solid #222; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
-        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 8px; font-weight: bold;}
+        .vector-inputs { display: flex; gap: 5px; justify-content: space-between; }
+        .vector-inputs select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 5px; width: 30%; font-weight: bold; text-align: center; cursor: pointer; }
         
-        .lbl-yield { color: var(--yield); text-shadow: 0 0 5px rgba(255,255,0,0.3); }
-        .lbl-uts { color: var(--uts); text-shadow: 0 0 5px rgba(255,170,0,0.3); }
-        .lbl-frac { color: var(--frac); text-shadow: 0 0 5px rgba(255,51,51,0.3); }
+        .theme-t { border-color: var(--red); }
+        .theme-t .block-header span { color: var(--red); }
+        .theme-t select { color: var(--red); border-color: var(--red); }
 
-        input[type=range] { width: 100%; cursor: pointer; }
-        #sl-ys { accent-color: var(--yield); }
-        #sl-uts, #sl-utse { accent-color: var(--uts); }
-        #sl-fe { accent-color: var(--frac); }
+        .theme-n { border-color: var(--yellow); }
+        .theme-n .block-header span { color: var(--yellow); }
+        .theme-n select { color: var(--yellow); border-color: var(--yellow); }
 
-        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 10px; background: rgba(0, 255, 255, 0.05); }
-        .stat { display: flex; justify-content: space-between; font-size: 0.8rem; margin: 6px 0; font-weight: bold;}
-        .stat.cyan { color: var(--cyan); }
-        .stat.silver { color: var(--silver); }
-        .stat.red { color: var(--frac); }
-        .stat.purple { color: var(--plast); text-shadow: 0 0 8px rgba(204,102,255,0.4); border-top: 1px solid #333; padding-top: 8px; font-size: 0.95rem;}
-        .sub-stat { font-size: 0.7rem; color: #888; margin-top: -4px; margin-bottom: 6px; text-align: right; }
+        .theme-s { border-color: var(--cyan); }
+        .theme-s .block-header span { color: var(--cyan); }
 
-        #stage { flex: 1; position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); }
-        svg { width: 100%; height: 100%; }
+        .slider-group { margin-top: 10px; }
+        .slider-group label { display: flex; justify-content: space-between; font-size: 0.7rem; color: #fff; margin-bottom: 4px; }
+        input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
+
+        .hotkey-hint { font-size: 0.65rem; color: #888; text-align: center; margin-bottom: 10px; font-weight: normal; }
+
+        #readout-panel { margin-top: auto; border: 2px solid var(--magenta); padding: 12px; background: rgba(255, 0, 255, 0.05); }
+        .eq { font-size: 1.1rem; color: #fff; text-align: center; margin-bottom: 10px; font-family: 'Times New Roman', serif; font-style: italic; font-weight: normal; }
+        .stat { display: flex; justify-content: space-between; font-size: 0.9rem; margin: 4px 0; }
+        .val { color: #fff; }
         
-        .curve-main { fill: none; stroke: var(--cyan); stroke-width: 4; filter: drop-shadow(0 0 6px rgba(0,255,255,0.4)); }
-        .curve-inset { fill: none; stroke: var(--cyan); stroke-width: 3; }
-        .offset-line { fill: none; stroke: var(--yield); stroke-width: 1.5; stroke-dasharray: 4,3; }
-        .indicator-line { fill: none; stroke-width: 2; stroke-dasharray: 4,4; }
-        
-        .node-yield { fill: var(--bg); stroke: var(--yield); stroke-width: 3; filter: drop-shadow(0 0 5px var(--yield)); }
-        .node-uts { fill: var(--bg); stroke: var(--uts); stroke-width: 3; filter: drop-shadow(0 0 5px var(--uts)); }
-        .node-frac { fill: var(--bg); stroke: var(--frac); stroke-width: 3; filter: drop-shadow(0 0 5px var(--frac)); }
-        .node-plast { fill: var(--plast); filter: drop-shadow(0 0 5px var(--plast)); }
-        .node-p { fill: none; stroke: #fff; stroke-width: 2; }
+        #validation-msg { font-size: 0.85rem; text-align: center; margin-top: 10px; padding: 5px; border-radius: 3px; display: none; }
+        .valid { background: rgba(0,255,0,0.2); color: var(--green); border: 1px solid var(--green); }
+        .invalid { background: rgba(255,0,0,0.2); color: var(--red); border: 1px solid var(--red); text-shadow: 0 0 5px red; }
 
-        .grid-line { stroke: var(--grid); stroke-width: 1; }
-        .axis-line { stroke: var(--magenta); stroke-width: 2; }
-        text { fill: var(--magenta); font-size: 11px; font-weight: bold; font-family: 'Consolas', monospace; }
-        .axis-label { fill: var(--yield); font-size: 14px; text-transform: uppercase; }
-        .inset-bg { fill: #080808; stroke: rgba(0,255,255,0.3); stroke-width: 2; rx: 4; }
+        #stage { flex: 1; position: relative; background: #000; }
+        canvas { display: block; width: 100%; height: 100%; outline: none; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h1>Material</h1>
-    <select id="mat-select">
-        <option value="6061">6061-T6 Aluminum</option>
-        <option value="ti64">Ti-6Al-4V (Grade 5)</option>
-        <option value="mild">A36 Mild Steel</option>
-        <option value="316ss">316 Stainless Steel</option>
-    </select>
+    <h1>Crystallographic Vectors</h1>
 
-    <h1>Inset Layout</h1>
-    <select id="aspect-toggle">
-        <option value="tall" selected>Tall (75% Viewport)</option>
-        <option value="wide">Wide (16:9)</option>
-        <option value="square">Square (1:1)</option>
-    </select>
-
-    <h1>Geometry Control</h1>
-    <div class="control-group">
-        <div class="label-row lbl-yield"><span>Yield Stress (&sigma;<sub>y</sub>)</span><span id="txt-ys">--</span></div>
-        <input type="range" id="sl-ys" min="100" max="1100">
+    <div class="control-block theme-t">
+        <div class="block-header"><span>Tensile Axis [u v w]</span> <span>Force Direction</span></div>
+        <div class="vector-inputs" id="inputs-t"></div>
     </div>
 
-    <div class="control-group">
-        <div class="label-row lbl-uts"><span>UTS Stress (&sigma;<sub>uts</sub>)</span><span id="txt-uts">--</span></div>
-        <input type="range" id="sl-uts" min="200" max="1300">
-        <div class="label-row lbl-uts" style="margin-top:10px;"><span>UTS Strain (&epsilon;<sub>uts</sub>)</span><span id="txt-utse">--</span></div>
-        <input type="range" id="sl-utse" min="0.05" max="0.5" step="0.01">
+    <div class="control-block theme-n">
+        <div class="block-header"><span>Slip Plane (h k l)</span> <span>Plane Normal</span></div>
+        <div class="vector-inputs" id="inputs-n"></div>
     </div>
 
-    <div class="control-group">
-        <div class="label-row lbl-frac"><span>Fracture Strain (&epsilon;<sub>f</sub>)</span><span id="txt-fe">--</span></div>
-        <input type="range" id="sl-fe" min="0.1" max="0.8" step="0.01">
+    <div class="control-block theme-s">
+        <div class="block-header"><span>Slip Direction [u v w]</span> <span>Dislocation Path</span></div>
+        <div class="vector-inputs" id="inputs-s"></div>
     </div>
 
-    <div id="readouts">
-        <div class="stat cyan"><span>Modulus (E):</span><span id="val-e">--</span></div>
-        <div class="stat red"><span>&epsilon;<sub>fracture</sub> (Total):</span><span id="val-ef">--</span></div>
-        <div class="stat silver"><span>&epsilon;<sub>recovery</sub> (Unloading):</span><span id="val-er">--</span></div>
-        <div class="stat purple"><span>True Ductility (%EL):</span><span id="val-el">--</span></div>
+    <div class="control-block">
+        <div class="slider-group">
+            <label><span>Applied Stress (&sigma;)</span><span id="txt-stress">50 MPa</span></label>
+            <input type="range" id="sl-stress" min="10" max="200" value="50">
+        </div>
+    </div>
+
+    <div class="hotkey-hint">CAMERA HOTKEYS: NUMPAD 1 (Front) | 3 (Side) | 7 (Top)</div>
+
+    <div id="readout-panel">
+        <div class="eq">&tau;<sub>R</sub> = &sigma; cos(&phi;) cos(&lambda;)</div>
+        <div class="stat" style="color: var(--yellow)"><span>Normal Angle (&phi;):</span><span class="val" id="out-phi">--&deg;</span></div>
+        <div class="stat" style="color: var(--cyan)"><span>Slip Angle (&lambda;):</span><span class="val" id="out-lam">--&deg;</span></div>
+        <div class="stat" style="color: var(--magenta); margin-top: 8px; padding-top: 8px; border-top: 1px solid #555;">
+            <span>Schmid Factor (m):</span><span class="val" id="out-m">--</span>
+        </div>
+        <div class="stat" style="color: var(--green); font-size: 1.1rem; margin-top: 8px;">
+            <span>Resolved Shear (&tau;<sub>R</sub>):</span><span class="val" id="out-tau">-- MPa</span>
+        </div>
+        <div id="validation-msg"></div>
     </div>
 </div>
 
-<div id="stage">
-    <svg id="plot">
-        <defs>
-            <marker id="arrowL" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto">
-                <polygon points="6,0 0,3 6,6" fill="var(--silver)" />
-            </marker>
-            <marker id="arrowR" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
-                <polygon points="0,0 6,3 0,6" fill="var(--silver)" />
-            </marker>
-        </defs>
-    </svg>
-</div>
+<div id="stage"></div>
 
-<script>
-const LIB = {
-    "mild":  { ys: 250, e: 200, uts: 400, utse: 0.22, fe: 0.35, fs: 320, disc: true },
-    "6061":  { ys: 275, e: 69,  uts: 310, utse: 0.12, fe: 0.17, fs: 250, disc: false },
-    "316ss": { ys: 290, e: 193, uts: 580, utse: 0.45, fe: 0.60, fs: 480, disc: false },
-    "ti64":  { ys: 880, e: 114, uts: 950, utse: 0.10, fe: 0.14, fs: 750, disc: false }
-};
-
-let state = {...LIB["6061"]};
-const svg = document.getElementById('plot');
-const defsHTML = svg.innerHTML; // preserve markers
-
-function sync(key) {
-    state = {...LIB[key]};
-    document.getElementById('sl-ys').value = state.ys;
-    document.getElementById('sl-uts').value = state.uts;
-    document.getElementById('sl-utse').value = state.utse;
-    document.getElementById('sl-fe').value = state.fe;
-    render();
-}
-
-function updateCalculations() {
-    state.ys = parseInt(document.getElementById('sl-ys').value);
-    state.uts = parseInt(document.getElementById('sl-uts').value);
-    state.utse = parseFloat(document.getElementById('sl-utse').value);
-    state.fe = parseFloat(document.getElementById('sl-fe').value);
-    
-    if(state.uts <= state.ys) state.uts = state.ys + 20;
-    if(state.fe <= state.utse) state.fe = state.utse + 0.05;
-    state.fs = state.uts * 0.82; 
-
-    const eMod = state.e * 1000;
-    
-    // True Elastic Recovery at Failure
-    const epsRecovery = state.fs / eMod; 
-    const truePlastic = state.fe - epsRecovery;
-
-    document.getElementById('txt-ys').innerText = state.ys + " MPa";
-    document.getElementById('txt-uts').innerText = state.uts + " MPa";
-    document.getElementById('txt-utse').innerText = state.utse.toFixed(2);
-    document.getElementById('txt-fe').innerText = state.fe.toFixed(2);
-    
-    document.getElementById('val-e').innerText = state.e + " GPa";
-    document.getElementById('val-ef').innerText = state.fe.toFixed(3);
-    document.getElementById('val-er').innerText = epsRecovery.toFixed(4);
-    document.getElementById('val-el').innerText = (truePlastic * 100).toFixed(2) + "%";
-
-    return { truePlastic, eMod, epsRecovery };
-}
-
-function solveCurve(s) {
-    let pts = [];
-    const eMod = s.e * 1000;
-    let startX = 0, startY = 0;
-    
-    if(s.disc) {
-        const ye = s.ys / eMod;
-        const propLimitX = ye * 0.90;
-        const uyp = s.ys + 25;
-        const lyp = s.ys - 15; 
-        const plateauEnd = ye + 0.015;
-        for(let x=0; x <= propLimitX; x += propLimitX/10) pts.push({x, y: x * eMod});
-        pts.push({x: ye * 0.98, y: uyp});
-        pts.push({x: ye * 1.02, y: lyp});
-        for(let x=ye*1.02; x<=plateauEnd; x+=0.002) pts.push({x, y: lyp + (Math.random() * 6 - 3)});
-        pts.push({x: plateauEnd, y: lyp});
-        startX = plateauEnd; startY = lyp;
-    } else {
-        const yieldY = s.ys;
-        const hookeX = s.ys / eMod;
-        const yieldX = hookeX + 0.002;
-        const propLimitY = s.ys * 0.70; // Set P distinctly below yield
-        const propLimitX = propLimitY / eMod;
-        
-        for(let x=0; x <= propLimitX; x += propLimitX/10) pts.push({x, y: x * eMod});
-        for(let i=1; i<=20; i++) {
-            let t = i/20;
-            let x = (1-t)*(1-t)*propLimitX + 2*(1-t)*t*hookeX + t*t*yieldX;
-            let y = (1-t)*(1-t)*propLimitY + 2*(1-t)*t*yieldY + t*t*yieldY;
-            pts.push({x, y});
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
         }
-        startX = yieldX; startY = yieldY;
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- UI Generation ---
+    function generateSelects(containerId, defaults) {
+        const container = document.getElementById(containerId);
+        defaults.forEach((def, idx) => {
+            let select = document.createElement('select');
+            select.id = `${containerId}-${idx}`;
+            for(let i = -2; i <= 2; i++) {
+                let opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = i < 0 ? `-${Math.abs(i)}` : i;
+                if(i === def) opt.selected = true;
+                select.appendChild(opt);
+            }
+            select.addEventListener('change', updateSimulation);
+            container.appendChild(select);
+        });
     }
 
-    for(let i=1; i<=100; i++) {
-        let t = i/100; 
-        let x = startX + (s.utse - startX) * t;
-        let y = startY + (s.uts - startY) * Math.sin(t * Math.PI / 2); 
-        pts.push({x, y});
-    }
+    // Default: Tensile=[0,0,1], Plane=(1,1,1), Slip=[1,-1,0]
+    generateSelects('inputs-t', [0, 0, 1]);
+    generateSelects('inputs-n', [1, 1, 1]);
+    generateSelects('inputs-s', [1, -1, 0]);
 
-    for(let i=1; i<=50; i++) {
-        let t = i/50; 
-        let x = s.utse + (s.fe - s.utse) * t;
-        let y = s.uts - (s.uts - s.fs) * (t * t);
-        pts.push({x, y});
-    }
-    return pts;
-}
+    document.getElementById('sl-stress').addEventListener('input', (e) => {
+        document.getElementById('txt-stress').innerText = e.target.value + ' MPa';
+        updateSimulation();
+    });
 
-function render() {
-    svg.innerHTML = defsHTML; // Reset but keep markers
-    const { truePlastic, eMod, epsRecovery } = updateCalculations();
-    const w = svg.clientWidth, h = svg.clientHeight;
-    const pad = { l: 80, r: 40, t: 40, b: 80 }; 
-
-    const maxStrain = Math.max(0.6, Math.ceil(state.fe * 10) / 10);
-    const maxStress = 1200;
-    const mX = (v) => pad.l + (v / maxStrain) * (w - pad.l - pad.r);
-    const mY = (v) => h - pad.b - (v / maxStress) * (h - pad.t - pad.b);
-
-    // Axes
-    svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
-    svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
-    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Engineering Strain (mm/mm)</text>`;
-    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Engineering Stress (MPa)</text>`;
-
-    const pts = solveCurve(state);
-    let d = `M ${mX(pts[0].x)} ${mY(pts[0].y)}`;
-    for(let i=1; i<pts.length; i++) d += ` L ${mX(pts[i].x)} ${mY(pts[i].y)}`;
-    svg.innerHTML += `<path class="curve-main" d="${d}"/>`;
-
-    // --- MAIN PLOT INDICATORS ---
-    // Unloading Line (Silver)
-    svg.innerHTML += `<line class="indicator-line" stroke="var(--silver)" x1="${mX(state.fe)}" y1="${mY(state.fs)}" x2="${mX(truePlastic)}" y2="${mY(0)}"/>`;
-    svg.innerHTML += `<text x="${mX(truePlastic) - 5}" y="${mY(0) - 10}" fill="var(--plast)" font-size="13px" text-anchor="end">&epsilon;_plastic (%EL)</text>`;
-
-    // Nodes
-    const yieldXCoord = state.disc ? (state.ys/eMod)*1.02 : (state.ys/eMod)+0.002;
-    const yieldYCoord = state.disc ? state.ys-15 : state.ys;
-    svg.innerHTML += `<circle class="node-yield" cx="${mX(yieldXCoord)}" cy="${mY(yieldYCoord)}" r="6"/>`; 
-    svg.innerHTML += `<circle class="node-uts" cx="${mX(state.utse)}" cy="${mY(state.uts)}" r="6"/>`; 
-    svg.innerHTML += `<circle class="node-frac" cx="${mX(state.fe)}" cy="${mY(state.fs)}" r="6"/>`; 
-    svg.innerHTML += `<circle class="node-plast" cx="${mX(truePlastic)}" cy="${mY(0)}" r="5"/>`; 
-
-    // --- INSET LAYOUT ---
-    const aspect = document.getElementById('aspect-toggle').value;
-    let iW, iH;
-    if (aspect === 'tall') { iH = h * 0.75; iW = Math.min(w * 0.40, iH * 0.60); }
-    else if (aspect === 'wide') { iW = w * 0.45; iH = iW * (9/16); }
-    else { iH = Math.min(w * 0.35, h * 0.55); iW = iH; }
-
-    const iX0 = w - pad.r - iW - 20; 
-    const iY0 = pad.t + 20;
-    svg.innerHTML += `<rect class="inset-bg" x="${iX0}" y="${iY0}" width="${iW}" height="${iH}"/>`;
-
-    const inMaxE = 0.008; 
-    const inMaxS = Math.ceil(state.ys * 1.3 / 100) * 100;
-    const inPad = {l: 50, r: 20, t: 40, b: 50};
-    const inX = (v) => iX0 + inPad.l + (v / inMaxE) * (iW - inPad.l - inPad.r);
-    const inY = (v) => iY0 + iH - inPad.b - (v / inMaxS) * (iH - inPad.t - inPad.b);
-
-    // Dynamic 'P' Node calculations
-    const pY = state.disc ? state.ys * 0.90 : state.ys * 0.70;
-    const pX = pY / eMod;
-
-    // Draw 'P' Node and Drop Line
-    svg.innerHTML += `<line class="indicator-line" stroke="#aaa" x1="${inX(pX)}" y1="${inY(pY)}" x2="${inX(pX)}" y2="${inY(0)}"/>`;
-    svg.innerHTML += `<circle class="node-p" cx="${inX(pX)}" cy="${inY(pY)}" r="4"/>`;
-    svg.innerHTML += `<text x="${inX(pX) - 10}" y="${inY(pY) - 10}" fill="#fff" font-size="12px" font-style="italic">P</text>`;
-
-    // Elastic / Plastic Arrows
-    const yArrow = inY(0) - 25;
-    svg.innerHTML += `<line x1="${inX(pX*0.2)}" y1="${yArrow}" x2="${inX(pX*0.8)}" y2="${yArrow}" stroke="var(--silver)" marker-start="url(#arrowL)" marker-end="url(#arrowR)"/>`;
-    svg.innerHTML += `<text x="${inX(pX*0.5)}" y="${yArrow - 5}" fill="var(--silver)" text-anchor="middle" font-size="10px">elastic</text>`;
+    // --- Three.js Setup ---
+    const container = document.getElementById('stage');
+    const scene = new THREE.Scene();
     
-    const plastEnd = Math.min(inMaxE * 0.9, pX * 2.5);
-    svg.innerHTML += `<line x1="${inX(pX*1.2)}" y1="${yArrow}" x2="${inX(plastEnd)}" y2="${yArrow}" stroke="var(--silver)" marker-start="url(#arrowL)" marker-end="url(#arrowR)"/>`;
-    svg.innerHTML += `<text x="${inX((pX*1.2 + plastEnd)/2)}" y="${yArrow - 5}" fill="var(--silver)" text-anchor="middle" font-size="10px">plastic</text>`;
+    // Adjusted camera to look at the new origin
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(4, 3, 5);
 
-    if(!state.disc) {
-        const yieldX = (state.ys / eMod) + 0.002;
-        // 0.2% Offset Line (Yellow)
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0.002)}" y1="${inY(0)}" x2="${inX((inMaxS/eMod)+0.002)}" y2="${inY(inMaxS)}"/>`;
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(state.ys)}" x2="${inX(yieldX)}" y2="${inY(state.ys)}"/>`;
-        svg.innerHTML += `<circle cx="${inX(yieldX)}" cy="${inY(state.ys)}" r="5" fill="var(--yield)"/>`;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0.5, 0.5, 0.5); // Focus on the center of the unit cell
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 7);
+    scene.add(dirLight);
+
+    // Group for dynamic elements
+    const crystalGroup = new THREE.Group();
+    scene.add(crystalGroup);
+
+    // --- Helper Functions ---
+
+    // Coordinate Mapper: User (X:out, Y:right, Z:up) -> ThreeJS (X:right, Y:up, Z:out)
+    // Three.X = User.Y
+    // Three.Y = User.Z
+    // Three.Z = User.X
+    function toThree(u, v, w) {
+        return new THREE.Vector3(v, w, u);
+    }
+
+    // 3D Text Sprite Generator
+    function createTextSprite(message, color, size = 64) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 128;
+        context.font = `bold ${size}px Arial Black`;
+        context.fillStyle = color;
+        context.textAlign = "center";
+        context.fillText(message, 128, 80);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.5, 0.75, 1);
+        return sprite;
+    }
+
+    function createArrow(dir, color, length = 1.5) {
+        return new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), length, color, 0.2, 0.1);
+    }
+
+    // Draws an arc between two unit vectors
+    function createAngleArc(v1, v2, color, radius = 0.5) {
+        const points = [];
+        const segments = 20;
+        const angle = v1.angleTo(v2);
         
-        // Explicit 0.002 and recovery text
-        svg.innerHTML += `<text x="${inX(0.002)}" y="${inY(0)+14}" fill="var(--yield)" text-anchor="middle" font-size="11px">0.002</text>`;
-        svg.innerHTML += `<text x="${inX(yieldX)}" y="${inY(0)+28}" fill="var(--silver)" text-anchor="middle" font-size="10px">&epsilon;_recov = ${yieldX.toFixed(4)}</text>`;
-    } else {
-        const lyp = state.ys - 15;
-        svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(lyp)}" x2="${inX(inMaxE)}" y2="${inY(lyp)}"/>`;
-        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(lyp)-5}" fill="var(--yield)">&sigma;y,LYP = ${lyp} MPa</text>`;
+        // Find axis of rotation between the two vectors
+        const axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        if(axis.lengthSq() < 0.001) return new THREE.Group(); // Co-linear
+
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const currentAngle = angle * t;
+            const pt = v1.clone().applyAxisAngle(axis, currentAngle).multiplyScalar(radius);
+            points.push(pt);
+        }
+
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2, depthTest: false });
+        return new THREE.Line(geo, mat);
     }
 
-    // Inset Axes & Basic Ticks
-    svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(0)}" x2="${inX(inMaxE)}" y2="${inY(0)}"/>`;
-    svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(inMaxS)}" x2="${inX(0)}" y2="${inY(0)}"/>`;
-    for(let ss=100; ss<=inMaxS; ss+=100) {
-        svg.innerHTML += `<text x="${inX(0)-5}" y="${inY(ss)+4}" text-anchor="end" font-size="10px">${ss}</text>`;
+    // --- Static Crystal Frame ---
+    // Shifted so corner is at (0,0,0)
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+    boxGeo.translate(0.5, 0.5, 0.5); 
+    const boxEdges = new THREE.EdgesGeometry(boxGeo);
+    const boxMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3 });
+    const unitCell = new THREE.LineSegments(boxEdges, boxMat);
+    scene.add(unitCell);
+
+    // Custom Axes (User coordinates)
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x555555 });
+    
+    // User X (Out / Three Z)
+    const pointsX = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsX), axisMat));
+    let lblX = createTextSprite("x", "#ff00ff", 40); lblX.position.set(0, 0, 1.3); scene.add(lblX);
+
+    // User Y (Right / Three X)
+    const pointsY = [new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsY), axisMat));
+    let lblY = createTextSprite("y", "#ff00ff", 40); lblY.position.set(1.3, 0, 0); scene.add(lblY);
+
+    // User Z (Up / Three Y)
+    const pointsZ = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)];
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsZ), axisMat));
+    let lblZ = createTextSprite("z", "#ff00ff", 40); lblZ.position.set(0, 1.3, 0); scene.add(lblZ);
+
+
+    function updateSimulation() {
+        // Clear previous dynamic objects
+        while(crystalGroup.children.length > 0){ 
+            crystalGroup.remove(crystalGroup.children[0]); 
+        }
+
+        // Read Raw Input Vectors
+        const rawT = [
+            parseInt(document.getElementById('inputs-t-0').value),
+            parseInt(document.getElementById('inputs-t-1').value),
+            parseInt(document.getElementById('inputs-t-2').value)
+        ];
+        const rawN = [
+            parseInt(document.getElementById('inputs-n-0').value),
+            parseInt(document.getElementById('inputs-n-1').value),
+            parseInt(document.getElementById('inputs-n-2').value)
+        ];
+        const rawS = [
+            parseInt(document.getElementById('inputs-s-0').value),
+            parseInt(document.getElementById('inputs-s-1').value),
+            parseInt(document.getElementById('inputs-s-2').value)
+        ];
+
+        const sigma = parseFloat(document.getElementById('sl-stress').value);
+
+        // Map to ThreeJS Space
+        let T = toThree(...rawT);
+        let N = toThree(...rawN);
+        let S = toThree(...rawS);
+
+        // Prevent Zero Vectors
+        if(T.lengthSq() === 0) T = toThree(0,0,1);
+        if(N.lengthSq() === 0) N = toThree(0,1,0);
+        if(S.lengthSq() === 0) S = toThree(1,0,0);
+
+        // Validation Math (Done in raw coordinates to ensure exact integer math)
+        const dotProduct = (rawN[0]*rawS[0]) + (rawN[1]*rawS[1]) + (rawN[2]*rawS[2]);
+        let isValid = (dotProduct === 0);
+        
+        const msg = document.getElementById('validation-msg');
+        msg.style.display = 'block';
+        if(isValid) {
+            msg.className = 'valid';
+            msg.innerHTML = `VALID SLIP SYSTEM (N &middot; S = 0)`;
+        } else {
+            msg.className = 'invalid';
+            msg.innerHTML = `INVALID SYSTEM: S does not lie on Plane! (N &middot; S = ${dotProduct})`;
+        }
+
+        T.normalize();
+        N.normalize();
+        S.normalize();
+
+        // Calculate Angles
+        let cosPhi = Math.abs(T.dot(N));
+        let cosLam = Math.abs(T.dot(S));
+        let phiDeg = Math.acos(cosPhi) * 180 / Math.PI;
+        let lamDeg = Math.acos(cosLam) * 180 / Math.PI;
+
+        let schmidFactor = cosPhi * cosLam;
+        let tauR = sigma * schmidFactor;
+
+        if(!isValid) tauR = 0;
+        if(phiDeg > 89.9) { phiDeg = 90; cosPhi = 0; schmidFactor = 0; tauR = 0; }
+        if(lamDeg > 89.9) { lamDeg = 90; cosLam = 0; schmidFactor = 0; tauR = 0; }
+
+        // Update Readouts
+        document.getElementById('out-phi').innerText = phiDeg.toFixed(1) + '°';
+        document.getElementById('out-lam').innerText = lamDeg.toFixed(1) + '°';
+        document.getElementById('out-m').innerText = schmidFactor.toFixed(3);
+        document.getElementById('out-tau').innerText = tauR.toFixed(1) + ' MPa';
+
+        // --- Generate 3D Geometry ---
+        
+        // 1. Slip Plane (Centered at Origin for now)
+        const planeColor = isValid ? 0x00ffff : 0xff0000;
+        const pGeo = new THREE.CircleGeometry(1.2, 32);
+        const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const planeMesh = new THREE.Mesh(pGeo, pMat);
+        planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), N); 
+        crystalGroup.add(planeMesh);
+
+        // 2. Tensile Cylinder
+        const cylGeo = new THREE.CylinderGeometry(0.7, 0.7, 3.5, 32);
+        const cylMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
+        const cylinderMesh = new THREE.Mesh(cylGeo, cylMat);
+        cylinderMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T);
+        crystalGroup.add(cylinderMesh);
+
+        // 3. Arrows & Labels
+        // Tensile
+        const tLen = 1.8;
+        const tArrow = new THREE.ArrowHelper(T, new THREE.Vector3(0,0,0), tLen, 0xff3333, 0.2, 0.1);
+        const tArrowNeg = new THREE.ArrowHelper(T.clone().negate(), new THREE.Vector3(0,0,0), tLen, 0xff3333, 0.2, 0.1);
+        crystalGroup.add(tArrow, tArrowNeg);
+        let lblT = createTextSprite("T", "#ff3333"); lblT.position.copy(T).multiplyScalar(tLen + 0.2); crystalGroup.add(lblT);
+
+        // Normal
+        const nLen = 1.4;
+        const nArrow = createArrow(N, 0xffff00, nLen);
+        crystalGroup.add(nArrow);
+        let lblN = createTextSprite("N", "#ffff00"); lblN.position.copy(N).multiplyScalar(nLen + 0.2); crystalGroup.add(lblN);
+
+        // Slip
+        const sLen = 1.4;
+        const sArrow = createArrow(S, 0x00ffff, sLen);
+        crystalGroup.add(sArrow);
+        let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2); crystalGroup.add(lblS);
+
+        // 4. Angle Arcs (Only if vectors aren't collinear)
+        if(phiDeg > 1 && phiDeg < 89) {
+            const arcPhi = createAngleArc(T, N, 0xffff00, 0.6);
+            crystalGroup.add(arcPhi);
+            let lblPhi = createTextSprite("φ", "#ffff00", 48); 
+            // Position label halfway along the arc
+            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7);
+            crystalGroup.add(lblPhi);
+        }
+
+        if(lamDeg > 1 && lamDeg < 89) {
+            const arcLam = createAngleArc(T, S, 0x00ffff, 0.5);
+            crystalGroup.add(arcLam);
+            let lblLam = createTextSprite("λ", "#00ffff", 48); 
+            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6);
+            crystalGroup.add(lblLam);
+        }
     }
 
-    // Clip & Curve
-    svg.innerHTML += `<defs><clipPath id="cp"><rect x="${inX(0)}" y="${inY(inMaxS)}" width="${inX(inMaxE)-inX(0)}" height="${inY(0)-inY(inMaxS)}"/></clipPath></defs>`;
-    let id = `M ${inX(pts[0].x)} ${inY(pts[0].y)}`;
-    for(let i=1; i<pts.length; i++) id += ` L ${inX(pts[i].x)} ${inY(pts[i].y)}`;
-    svg.innerHTML += `<path class="curve-inset" d="${id}" clip-path="url(#cp)"/>`;
-}
+    // --- Camera Hotkeys ---
+    window.addEventListener('keydown', (e) => {
+        // Look at center of unit cell
+        const target = new THREE.Vector3(0.5, 0.5, 0.5);
+        const dist = 3.5;
 
-document.getElementById('mat-select').onchange = (e) => sync(e.target.value);
-document.getElementById('aspect-toggle').onchange = render;
-document.querySelectorAll('input').forEach(i => i.oninput = render);
-window.onresize = render;
-sync("6061");
+        // User X is Three Z (Front = looking down -X / -Z in Three)
+        if (e.key === '1') {
+            camera.position.set(target.x, target.y, target.z + dist); 
+        } 
+        // User Y is Three X (Right/Side = looking down -Y / -X in Three)
+        else if (e.key === '3') {
+            camera.position.set(target.x + dist, target.y, target.z);
+        } 
+        // User Z is Three Y (Top = looking down -Z / -Y in Three)
+        else if (e.key === '7') {
+            camera.position.set(target.x, target.y + dist, target.z);
+        }
+        
+        controls.target.copy(target);
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    // Animation Loop
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    updateSimulation();
+    animate();
 </script>
 </body>
 </html>
