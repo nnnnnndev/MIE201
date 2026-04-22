@@ -324,9 +324,9 @@
             
             const triX1 = 0.4, triX2 = 0.7;
             const triY1 = m.calcY(triX1), triY2 = m.calcY(triX2);
-            svgPlot.innerHTML += `<line stroke="var(--yellow)" stroke-width="2" x1="${mX(triX1)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY1)}"/>`;
-            svgPlot.innerHTML += `<line stroke="var(--yellow)" stroke-width="2" x1="${mX(triX2)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY2)}"/>`;
-            svgPlot.innerHTML += `<text x="${mX(triX2) + 8}" y="${mY((triY1+triY2)/2)}" class="math-lbl" fill="var(--yellow)">k_y</text>`;
+            svgPlot.innerHTML += `<line stroke="#ffff00" stroke-width="2" x1="${mX(triX1)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY1)}"/>`;
+            svgPlot.innerHTML += `<line stroke="#ffff00" stroke-width="2" x1="${mX(triX2)}" y1="${mY(triY1)}" x2="${mX(triX2)}" y2="${mY(triY2)}"/>`;
+            svgPlot.innerHTML += `<text x="${mX(triX2) + 8}" y="${mY((triY1+triY2)/2)}" class="math-lbl" fill="#ffff00">k_y</text>`;
             
             svgPlot.innerHTML += `<text x="${w - 180}" y="${pad.t + 10}" class="math-eq">&sigma;y = &sigma;&#x2080; + k_y d&#x207B;&#x00B9;&#x141F;&#x00B2;</text>`;
         } else if (mode === 'cw') {
@@ -433,9 +433,9 @@
                     ctx.beginPath(); ctx.arc(c * cellW, r * cellH, 2.5, 0, Math.PI*2);
                     if(mode === 'ss') {
                         let rIdx = r + rows;
-                        let cIdx = c + 40; // Offset matches generated atomTypes array
+                        let cIdx = c + 40; 
                         let aType = (atomTypes[rIdx] && atomTypes[rIdx][cIdx]) ? atomTypes[rIdx][cIdx] : 'Cu';
-                        ctx.fillStyle = aType === 'Ni' ? 'var(--silver)' : 'var(--orange)';
+                        ctx.fillStyle = aType === 'Ni' ? '#cccccc' : '#ff8c00'; // Hardcoded hex for canvas rendering
                     } else {
                         ctx.fillStyle = '#555';
                     }
@@ -445,10 +445,10 @@
             ctx.restore();
 
             if (i > 0) {
-                ctx.strokeStyle = 'var(--yellow)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
                 ctx.beginPath(); ctx.moveTo(pxLeft, 0); ctx.lineTo(pxLeft, h); ctx.stroke(); ctx.setLineDash([]);
                 let diff = Math.abs((g.theta - grains[i-1].theta) * (180/Math.PI)).toFixed(1);
-                ctx.fillStyle = 'var(--yellow)'; ctx.font = "12px Consolas";
+                ctx.fillStyle = '#ffff00'; ctx.font = "12px Consolas";
                 ctx.fillText(`GB (Δθ≈${diff}°)`, pxLeft + 5, 20);
             }
         });
@@ -466,10 +466,10 @@
             let obsGlobalY = obsPStart.y + (ox - (obsGrain.left * w)) * Math.tan(obsGrain.theta);
             
             if (obs.type === 'solute') {
-                ctx.fillStyle = 'var(--silver)'; ctx.shadowColor = 'var(--silver)'; ctx.shadowBlur = 8;
+                ctx.fillStyle = '#cccccc'; ctx.shadowColor = '#cccccc'; ctx.shadowBlur = 8;
                 ctx.beginPath(); ctx.arc(ox, obsGlobalY + cellH*0.2, 5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
             } else if (obs.type === 'forest') {
-                ctx.strokeStyle = 'var(--magenta)'; ctx.lineWidth = 2; ctx.shadowColor = 'var(--magenta)'; ctx.shadowBlur = 5;
+                ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2; ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 5;
                 ctx.beginPath(); ctx.moveTo(ox-5, obsGlobalY-5); ctx.lineTo(ox+5, obsGlobalY+5); ctx.moveTo(ox-5, obsGlobalY+5); ctx.lineTo(ox+5, obsGlobalY-5); ctx.stroke(); ctx.shadowBlur = 0;
             }
         });
@@ -532,10 +532,10 @@
                     <line x1="-30" y1="5" x2="30" y2="5" stroke="#00ff00" stroke-width="6"/>
                     <path d="M -60 -40 Q 0 -10 60 -40" fill="none" stroke="#ff3333" stroke-width="4" stroke-dasharray="8,4"/>
                     <text x="0" y="-45" fill="#ff3333" font-size="14px" font-weight="bold" text-anchor="middle">Compressive Field (C)</text>
-                    <circle cx="0" cy="40" r="20" fill="var(--silver)"/>
+                    <circle cx="0" cy="40" r="20" fill="#cccccc"/>
                     <text x="0" y="45" fill="#000" font-size="14px" font-weight="bold" text-anchor="middle">Ni</text>
-                    <path d="M -60 40 Q 0 10 60 40" fill="none" stroke="var(--silver)" stroke-width="4" stroke-dasharray="8,4"/>
-                    <text x="0" y="75" fill="var(--silver)" font-size="14px" font-weight="bold" text-anchor="middle">Tensile Field (T) Neutralized</text>
+                    <path d="M -60 40 Q 0 10 60 40" fill="none" stroke="#cccccc" stroke-width="4" stroke-dasharray="8,4"/>
+                    <text x="0" y="75" fill="#cccccc" font-size="14px" font-weight="bold" text-anchor="middle">Tensile Field (T) Neutralized</text>
                 </g>
             `;
         } else if (type === 'forest') {
