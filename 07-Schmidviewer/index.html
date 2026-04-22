@@ -56,7 +56,7 @@
         .atom { fill: #888; stroke: #444; stroke-width: 1; }
         .atom-core { fill: var(--cyan); filter: drop-shadow(0 0 3px var(--cyan)); }
         .bond { stroke: #444; stroke-width: 2; stroke-linecap: round; }
-        .slip-plane-line { stroke: var(--yellow); stroke-width: 2; stroke-dasharray: 5,5; }
+        .slip-plane-line { stroke-width: 2; stroke-dasharray: 5,5; }
         .tau-arrow { stroke: var(--magenta); stroke-width: 3; marker-end: url(#arrowM); }
     </style>
 </head>
@@ -168,7 +168,6 @@
     const center = new THREE.Vector3(0.5, 0.5, 0.5);
     
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    // Shift camera slightly left to accommodate the HUD
     camera.position.set(3, 2.5, 4.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -178,7 +177,6 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.target.copy(center); 
-    // Shift target slightly left
     controls.target.x -= 0.5;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
@@ -187,8 +185,49 @@
     scene.add(dirLight);
 
     const crystalGroup = new THREE.Group();
-    crystalGroup.position.x -= 0.5; // Offset the whole system left to clear the HUD
+    crystalGroup.position.x -= 0.5; 
     scene.add(crystalGroup);
+
+    // 3D Text Sprite Generator
+    function createTextSprite(message, color, size = 64) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 128;
+        context.font = `bold ${size}px Arial Black`;
+        context.fillStyle = color;
+        context.textAlign = "center";
+        context.fillText(message, 128, 80);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.2, 0.6, 1);
+        return sprite;
+    }
+
+    function createArrow(dir, origin, color, length = 1.5) {
+        return new THREE.ArrowHelper(dir, origin, length, color, 0.2, 0.1);
+    }
+
+    function createAngleArc(v1, v2, origin, color, radius = 0.5) {
+        const points = [];
+        const segments = 20;
+        const angle = v1.angleTo(v2);
+        const axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        if(axis.lengthSq() < 0.001) return new THREE.Group(); 
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const currentAngle = angle * t;
+            const pt = v1.clone().applyAxisAngle(axis, currentAngle).multiplyScalar(radius);
+            points.push(pt);
+        }
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2, depthTest: false });
+        const arcMesh = new THREE.Line(geo, mat);
+        arcMesh.position.copy(origin);
+        return arcMesh;
+    }
 
     // --- Static Unit Cell & FCC Atoms ---
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -198,15 +237,13 @@
     const unitCell = new THREE.LineSegments(boxEdges, boxMat);
     crystalGroup.add(unitCell);
 
-    // FCC Atoms (Instanced Mesh for performance)
     const atomRadius = 0.08;
     const atomGeo = new THREE.SphereGeometry(atomRadius, 16, 16);
     const atomMat = new THREE.MeshPhysicalMaterial({ color: 0x00ffff, roughness: 0.2, metalness: 0.8, clearcoat: 0.5 });
     
-    // 8 Corners + 6 Face Centers = 14 atoms
     const fccPositions = [
-        [0,0,0], [1,0,0], [0,1,0], [1,1,0], [0,0,1], [1,0,1], [0,1,1], [1,1,1], // Corners
-        [0.5,0.5,0], [0.5,0.5,1], [0.5,0,0.5], [0.5,1,0.5], [0,0.5,0.5], [1,0.5,0.5] // Faces
+        [0,0,0], [1,0,0], [0,1,0], [1,1,0], [0,0,1], [1,0,1], [0,1,1], [1,1,1], 
+        [0.5,0.5,0], [0.5,0.5,1], [0.5,0,0.5], [0.5,1,0.5], [0,0.5,0.5], [1,0.5,0.5] 
     ];
     
     const atomMesh = new THREE.InstancedMesh(atomGeo, atomMat, 14);
@@ -218,32 +255,27 @@
     });
     crystalGroup.add(atomMesh);
 
-    // User Axes
+    // User Axes (x, y, z)
     const axisMat = new THREE.LineBasicMaterial({ color: 0x555555 });
     crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)]), axisMat));
     crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)]), axisMat));
     crystalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)]), axisMat));
+    
+    let lblX = createTextSprite("x", "#ff00ff", 40); lblX.position.set(0, 0, 1.3); crystalGroup.add(lblX);
+    let lblY = createTextSprite("y", "#ff00ff", 40); lblY.position.set(1.3, 0, 0); crystalGroup.add(lblY);
+    let lblZ = createTextSprite("z", "#ff00ff", 40); lblZ.position.set(0, 1.3, 0); crystalGroup.add(lblZ);
 
     function toThree(u, v, w) { return new THREE.Vector3(v, w, u); }
 
-    function createArrow(dir, origin, color, length = 1.5) {
-        return new THREE.ArrowHelper(dir, origin, length, color, 0.2, 0.1);
-    }
-
     // --- 2D Dislocation Mechanics Render ---
-    function render2DDislocation(tauR, phiDeg) {
+    function render2DDislocation(tauR, phiDeg, isValid, hklStr, uvwStr) {
         const svg1 = document.getElementById('svg-std');
         const svg2 = document.getElementById('svg-rot');
         const w = svg1.clientWidth, h = svg1.clientHeight;
         
-        // Critical Resolved Shear Stress (Arbitrary for simulation)
-        const CRSS = 30; 
-        
-        // Calculate shift based on Tau_R
-        // If Tau is low, elastic stretch. If Tau > CRSS, plastic slip.
         let slipFactor = 0;
-        if(tauR > 0) {
-            slipFactor = tauR / 100; // Continuous push
+        if(tauR > 0 && isValid) {
+            slipFactor = tauR / 100;
         }
         
         const cols = 8;
@@ -252,33 +284,24 @@
         const spacingY = h / (rows + 1);
         const slipPlaneY = h / 2;
 
-        let content = `<line class="slip-plane-line" x1="0" y1="${slipPlaneY}" x2="${w}" y2="${slipPlaneY}"/>`;
+        const planeColor = isValid ? "var(--cyan)" : "var(--red)";
+
+        let content = `<line class="slip-plane-line" stroke="${planeColor}" x1="0" y1="${slipPlaneY}" x2="${w}" y2="${slipPlaneY}"/>`;
+        content += `<text x="${w - 10}" y="${slipPlaneY - 8}" fill="${planeColor}" font-size="11px" font-weight="bold" text-anchor="end">${hklStr}</text>`;
         
-        // Render Atoms
         for(let r=0; r<rows; r++) {
             let isTopHalf = r < rows/2;
             let y = (r+1) * spacingY;
-            
-            // The extra half plane is essentially an extra column injected into the top half
             let rowCols = isTopHalf ? cols + 1 : cols;
             
             for(let c=0; c<rowCols; c++) {
                 let x = (c+0.5) * spacingX;
-                
-                // If top half, apply slip shift
-                if(isTopHalf) {
-                    x += slipFactor * spacingX;
-                }
-
-                // If it goes off screen, wrap it (simulating continuous slip)
+                if(isTopHalf) x += slipFactor * spacingX;
                 if(x > w) x -= (cols+1)*spacingX;
 
-                // Extra half plane marker logic
                 let isCore = (isTopHalf && Math.abs(x - w/2) < spacingX/2 && r === Math.floor(rows/2)-1);
 
                 content += `<circle cx="${x}" cy="${y}" r="4" class="atom ${isCore ? 'atom-core' : ''}"/>`;
-                
-                // Draw perpendicular T symbol for the core
                 if(isCore) {
                     content += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y+spacingY*0.8}" stroke="var(--cyan)" stroke-width="2"/>`;
                     content += `<line x1="${x-spacingX*0.3}" y1="${y+spacingY*0.8}" x2="${x+spacingX*0.3}" y2="${y+spacingY*0.8}" stroke="var(--cyan)" stroke-width="2"/>`;
@@ -286,17 +309,14 @@
             }
         }
 
-        // Draw Tau Arrow
-        if(tauR > 5) {
-            content += `<line class="tau-arrow" x1="${w*0.1}" y1="${h*0.2}" x2="${w*0.1 + Math.min(tauR/2, 40)}" y2="${h*0.2}"/>`;
-            content += `<text x="${w*0.1}" y="${h*0.2 - 10}" fill="var(--magenta)" font-size="10px">&tau; = ${tauR.toFixed(1)}</text>`;
+        if(tauR > 5 && isValid) {
+            const arrLen = Math.min(tauR/2, 40);
+            content += `<line class="tau-arrow" x1="${w*0.1}" y1="${h*0.2}" x2="${w*0.1 + arrLen}" y2="${h*0.2}"/>`;
+            content += `<text x="${w*0.1}" y="${h*0.2 - 10}" fill="var(--magenta)" font-size="11px" font-weight="bold">&tau; = ${tauR.toFixed(1)} MPa </text>`;
+            content += `<text x="${w*0.1 + arrLen + 15}" y="${h*0.2 + 4}" fill="var(--cyan)" font-size="11px" font-weight="bold">${uvwStr}</text>`;
         }
 
-        // Standard View
         svg1.innerHTML = svg1.querySelector('defs').outerHTML + content;
-
-        // Rotated View (Rotate group based on Phi)
-        // Adjust Phi so it visually tilts relative to the horizontal
         let visualTilt = -phiDeg; 
         svg2.innerHTML = `<g transform="translate(${w/2}, ${h/2}) rotate(${visualTilt}) translate(${-w/2}, ${-h/2})">${content}</g>`;
     }
@@ -351,8 +371,10 @@
         document.getElementById('out-m').innerText = schmidFactor.toFixed(3);
         document.getElementById('out-tau').innerText = tauR.toFixed(1) + ' MPa';
 
-        // Update 2D SVG
-        render2DDislocation(tauR, phiDeg);
+        // Update 2D HUDs
+        const hklStr = `(${rawN[0]} ${rawN[1]} ${rawN[2]})`;
+        const uvwStr = `[${rawS[0]} ${rawS[1]} ${rawS[2]}]`;
+        render2DDislocation(tauR, phiDeg, isValid, hklStr, uvwStr);
 
         // --- 3D Geometry ---
         const cylRadius = 1.0;
@@ -383,18 +405,41 @@
         }
         dynamicGeo.add(planeMesh);
 
+        // 3D Vector Arrows and Labels
         const tLen = 2.0;
         dynamicGeo.add(new THREE.ArrowHelper(T, center, tLen, 0xff3333, 0.2, 0.1));
         dynamicGeo.add(new THREE.ArrowHelper(T.clone().negate(), center, tLen, 0xff3333, 0.2, 0.1));
+        let lblT = createTextSprite("T", "#ff3333"); lblT.position.copy(T).multiplyScalar(tLen + 0.2).add(center); dynamicGeo.add(lblT);
 
-        dynamicGeo.add(createArrow(N, center, 0xffff00, 1.4));
-        dynamicGeo.add(createArrow(S, center, 0x00ffff, 1.4));
+        const nLen = 1.4;
+        dynamicGeo.add(createArrow(N, center, 0xffff00, nLen));
+        let lblN = createTextSprite("N", "#ffff00"); lblN.position.copy(N).multiplyScalar(nLen + 0.2).add(center); dynamicGeo.add(lblN);
+
+        const sLen = 1.4;
+        dynamicGeo.add(createArrow(S, center, 0x00ffff, sLen));
+        let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2).add(center); dynamicGeo.add(lblS);
+
+        // Angle Arcs
+        if(phiDeg > 1 && phiDeg < 89) {
+            const arcPhi = createAngleArc(T, N, center, 0xffff00, 0.6);
+            dynamicGeo.add(arcPhi);
+            let lblPhi = createTextSprite("φ", "#ffff00", 48); 
+            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7).add(center);
+            dynamicGeo.add(lblPhi);
+        }
+        if(lamDeg > 1 && lamDeg < 89) {
+            const arcLam = createAngleArc(T, S, center, 0x00ffff, 0.5);
+            dynamicGeo.add(arcLam);
+            let lblLam = createTextSprite("λ", "#00ffff", 48); 
+            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6).add(center);
+            dynamicGeo.add(lblLam);
+        }
     }
 
     // Camera Hotkeys
     window.addEventListener('keydown', (e) => {
         const dist = 6.5; 
-        const target = new THREE.Vector3(0, 0.5, 0.5); // Adjusted for group offset
+        const target = new THREE.Vector3(0, 0.5, 0.5); 
         if (e.key === '1') camera.position.set(target.x, target.y, target.z + dist); 
         else if (e.key === '3') camera.position.set(target.x + dist, target.y, target.z);
         else if (e.key === '7') camera.position.set(target.x, target.y + dist, target.z);
