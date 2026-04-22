@@ -21,18 +21,23 @@
         .stat { display: flex; justify-content: space-between; font-size: 1.1rem; margin: 8px 0; color: var(--yellow); }
         .stat-main { font-size: 1.3rem; color: #00ff00; border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
         
-        #stage { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 20px; background: radial-gradient(circle at center, #111 0%, #000 100%); position: relative; }
-        
-        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
+        #stage { flex: 1; display: flex; flex-direction: column; background: radial-gradient(circle at center, #111 0%, #000 100%); position: relative; }
         
         /* Top Panel Tabs */
-        .tab-bar { display: flex; border-bottom: 1px solid #333; background: #0a0a0a; border-radius: 8px 8px 0 0; overflow: hidden; }
-        .tab-btn { flex: 1; padding: 10px; background: transparent; color: #666; border: none; outline: none; font-family: 'Segoe UI', sans-serif; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: 0.3s; }
+        .tab-bar { display: flex; border-bottom: 2px solid #333; background: rgba(0,0,0,0.9); z-index: 10; }
+        .tab-btn { flex: 1; padding: 15px; background: transparent; color: #666; border: none; outline: none; font-family: 'Segoe UI', sans-serif; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: 0.3s; font-size: 0.9rem; }
         .tab-btn:hover { color: var(--cyan); background: rgba(0, 255, 255, 0.05); }
-        .tab-btn.active { color: var(--magenta); border-bottom: 2px solid var(--magenta); background: rgba(255, 0, 255, 0.05); }
+        .tab-btn.active { color: var(--magenta); border-bottom: 3px solid var(--magenta); background: rgba(255, 0, 255, 0.05); color: #fff; }
 
+        /* View Containers */
+        .view-container { flex: 1; padding: 20px; gap: 20px; overflow: hidden; }
+        #view-sim { display: flex; flex-direction: column; }
+        #view-news { display: none; flex-direction: column; overflow-y: auto; }
+
+        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
+        
         /* Plot Area */
-        #plot-container { flex: 1; min-height: 250px; padding: 10px; }
+        #plot-container { flex: 1; min-height: 250px; padding: 10px; overflow: hidden; }
         svg { width: 100%; height: 100%; overflow: visible; }
         .axis { stroke: var(--magenta); stroke-width: 2; }
         .grid { stroke: var(--grid); stroke-width: 1; }
@@ -43,17 +48,17 @@
         .axis-lbl { fill: var(--yellow); font-size: 14px; text-transform: uppercase; }
 
         /* News Feed Area */
-        #news-container { display: none; flex: 1; padding: 15px; overflow-y: auto; max-height: 250px; }
-        .news-card { background: #111; border-left: 3px solid var(--cyan); padding: 12px; margin-bottom: 10px; border-radius: 0 4px 4px 0; }
-        .news-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .news-concept { color: var(--yellow); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
-        .news-source { color: #888; font-size: 0.75rem; }
-        .news-title { color: #fff; font-size: 1rem; margin-bottom: 5px; text-decoration: none; display: inline-block; transition: 0.2s; }
-        .news-title:hover { color: var(--cyan); text-decoration: underline; }
-        .news-summary { color: #aaa; font-size: 0.85rem; line-height: 1.4; font-weight: normal; }
+        .news-card { background: #111; border-left: 4px solid var(--cyan); padding: 20px; margin-bottom: 15px; border-radius: 0 8px 8px 0; transition: transform 0.2s; }
+        .news-card:hover { transform: translateX(5px); background: #151515; }
+        .news-header { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .news-concept { color: var(--yellow); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .news-source { color: #888; font-size: 0.85rem; }
+        .news-title { color: #fff; font-size: 1.2rem; margin-bottom: 10px; text-decoration: none; display: inline-block; transition: 0.2s; }
+        .news-title:hover { color: var(--cyan); }
+        .news-summary { color: #aaa; font-size: 0.95rem; line-height: 1.5; font-weight: normal; }
 
         /* Sim Area */
-        #sim-container { flex: 1.5; display: flex; flex-direction: column; cursor: crosshair; }
+        #sim-container { flex: 1.5; display: flex; flex-direction: column; cursor: crosshair; overflow: hidden; }
         .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
         .sim-hint { font-size: 0.7rem; color: #aaa; text-align: center; margin-top: -5px; padding-bottom: 5px; }
         canvas { width: 100%; height: 100%; flex: 1; display: block; }
@@ -88,23 +93,25 @@
 </div>
 
 <div id="stage">
-    <div class="panel">
-        <div class="tab-bar">
-            <button class="tab-btn active" id="tab-plot" onclick="switchTab('plot')">Analytical Plot</button>
-            <button class="tab-btn" id="tab-news" onclick="switchTab('news')">Real-World Context</button>
-        </div>
-        <div id="plot-container">
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tab-sim" onclick="switchTab('sim')">Analytical Plot & Simulation</button>
+        <button class="tab-btn" id="tab-news" onclick="switchTab('news')">Real-World Context</button>
+    </div>
+
+    <div id="view-sim" class="view-container">
+        <div class="panel" id="plot-container">
             <svg id="plot"></svg>
         </div>
-        <div id="news-container">
-            </div>
+        
+        <div class="panel" id="sim-container">
+            <div class="sim-title">Microscopic Dislocation Glide</div>
+            <div class="sim-hint" id="sim-hint">Watch lattice misorientation at Grain Boundaries (dashed yellow)</div>
+            <canvas id="sim-canvas"></canvas>
+        </div>
     </div>
-    
-    <div class="panel" id="sim-container">
-        <div class="sim-title">Microscopic Dislocation Glide</div>
-        <div class="sim-hint" id="sim-hint">Watch lattice misorientation at Grain Boundaries (dashed yellow)</div>
-        <canvas id="sim-canvas"></canvas>
-    </div>
+
+    <div id="view-news" class="view-container">
+        </div>
 
     <div id="inset-overlay" onclick="closeInset()">
         <div class="inset-title" id="inset-title">Mechanism Schematic</div>
@@ -125,4 +132,379 @@
         },
         {
             title: "Extreme Solid Solution Strengthening in High-Entropy Alloys",
-            date: "2023", source
+            date: "2023", source: "Acta Materialia (Elsevier Q1)",
+            concept: "Solid Solution Pinning",
+            summary: "By mixing five elements in near-equal proportions, scientists created massive local lattice distortions. The resulting complex compressive and tensile stress fields act as severe speed bumps for moving edge dislocations, making the alloy highly resistant to yielding at high temperatures.",
+            url: "#", tags: ["ss"]
+        },
+        {
+            title: "Visualizing Forest Dislocation Interactions in 3D",
+            date: "2024", source: "Advanced Materials (Wiley)",
+            concept: "Strain Hardening / Cold Work",
+            summary: "Using advanced electron microscopy, researchers directly imaged glide dislocations intersecting 'forest' dislocations. The study confirms that the extra energy required to create jogs during these intersections is the primary mechanism behind rapid strain hardening in cold-worked metals.",
+            url: "#", tags: ["cw"]
+        },
+        {
+            title: "Breaking the Hall-Petch Limit with Amorphous Boundaries",
+            date: "2025", source: "Nano Letters (ACS)",
+            concept: "Nanocrystalline Metals",
+            summary: "Typically, when metal grains get smaller than 10 nm, they soften (Inverse Hall-Petch). By replacing crystalline grain boundaries with ultra-thin amorphous (glassy) phases, engineers prevented grain boundary sliding, pushing the strength of copper to unprecedented limits.",
+            url: "#", tags: ["hp"]
+        },
+        {
+            title: "Solute Drag and Dynamic Strain Aging in Lightweight Aluminum",
+            date: "2023", source: "ScienceDaily",
+            concept: "Dislocation Glide & Solute Atoms",
+            summary: "A new study reveals how magnesium and silicon atoms diffuse to active dislocation cores in aluminum during deformation. The 'solute atmospheres' pin the dislocations so tightly that the metal exhibits serrated yielding, a crucial finding for designing crash-resistant automotive parts.",
+            url: "#", tags: ["ss"]
+        }
+    ];
+
+    // --- Tab Logic ---
+    let activeTab = 'sim';
+
+    function switchTab(tabId) {
+        activeTab = tabId;
+        document.getElementById('tab-sim').classList.remove('active');
+        document.getElementById('tab-news').classList.remove('active');
+        document.getElementById('view-sim').style.display = 'none';
+        document.getElementById('view-news').style.display = 'none';
+
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`view-${tabId}`).style.display = 'flex';
+
+        // Critical Fix: Force re-render of SVG and Canvas when restoring display
+        if(tabId === 'sim') {
+            setTimeout(updateState, 10); // Slight delay allows DOM to apply dimensions
+        }
+    }
+
+    function renderFeed(currentMode) {
+        const container = document.getElementById('view-news');
+        container.innerHTML = '';
+        
+        const filteredFeed = realWorldFeed.filter(article => article.tags.includes(currentMode));
+        const displayFeed = filteredFeed.length > 0 ? filteredFeed : realWorldFeed;
+
+        displayFeed.forEach(article => {
+            container.innerHTML += `
+                <div class="news-card">
+                    <div class="news-header">
+                        <span class="news-concept">${article.concept}</span>
+                        <span class="news-source">${article.source} | ${article.date}</span>
+                    </div>
+                    <a href="${article.url}" target="_blank" class="news-title">${article.title} &rarr;</a>
+                    <div class="news-summary">${article.summary}</div>
+                </div>
+            `;
+        });
+    }
+
+    // --- Physics Models ---
+    const MODELS = {
+        hp: {
+            title: "Grain Boundaries", unit: "GBs", xLabel: "d⁻¹/² (μm⁻¹/²)",
+            minRaw: 0, maxRaw: 5, 
+            calcX: (raw) => Math.pow((100 / (raw+1)), -0.5) * 10, 
+            calcDelta: (x) => 180 * x, 
+            formatRaw: (r) => Math.round(r), formatX: (x) => x.toFixed(2)
+        },
+        ss: {
+            title: "Solute Concentration (C)", unit: "wt%", xLabel: "C¹/² (wt%¹/²)",
+            minRaw: 0, maxRaw: 15,
+            calcX: (raw) => Math.pow(raw, 0.5), calcDelta: (x) => 40 * x, 
+            formatRaw: (r) => r.toFixed(1), formatX: (x) => x.toFixed(2)
+        },
+        cw: {
+            title: "Cold Work (%CW)", unit: "%", xLabel: "ρ¹/² ∝ %CW¹/²",
+            minRaw: 0, maxRaw: 50,
+            calcX: (raw) => Math.pow(raw, 0.5), calcDelta: (x) => 30 * x, 
+            formatRaw: (r) => r.toFixed(1), formatX: (x) => x.toFixed(2)
+        }
+    };
+
+    let mode = 'hp';
+    let sliderNorm = 0;
+    const sigma0 = 50;
+
+    const select = document.getElementById('mode-select');
+    const slider = document.getElementById('main-slider');
+    const svgPlot = document.getElementById('plot');
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('inset-overlay');
+
+    // --- State Update ---
+    function updateState() {
+        mode = select.value;
+        sliderNorm = parseInt(slider.value) / 100;
+        
+        const m = MODELS[mode];
+        const rawVal = m.minRaw + sliderNorm * (m.maxRaw - m.minRaw);
+        const xVal = m.calcX(rawVal);
+        const deltaSigma = m.calcDelta(xVal);
+        const totalSigma = sigma0 + deltaSigma;
+
+        document.getElementById('param-lbl').innerText = m.title;
+        document.getElementById('param-val').innerText = m.formatRaw(rawVal) + ' ' + m.unit;
+        document.getElementById('out-delta').innerText = '+ ' + deltaSigma.toFixed(0) + ' MPa';
+        document.getElementById('out-total').innerText = totalSigma.toFixed(0) + ' MPa';
+
+        renderFeed(mode); // Always update feed
+        
+        // Only render plot and init lattice if the view is active (prevents 0x0 bug)
+        if (activeTab === 'sim') {
+            renderPlot(m, xVal, totalSigma);
+            initLattice(Math.round(rawVal)); 
+        }
+    }
+
+    // --- Analytical Plot ---
+    function renderPlot(m, currentX, currentY) {
+        svgPlot.innerHTML = '';
+        const w = svgPlot.clientWidth, h = svgPlot.clientHeight;
+        if(w === 0 || h === 0) return; 
+        
+        const pad = { l: 70, r: 30, t: 20, b: 50 };
+
+        const xMinBound = m.calcX(m.minRaw);
+        const xMaxBound = m.calcX(m.maxRaw);
+        const yMaxBound = sigma0 + m.calcDelta(xMaxBound);
+
+        const mX = (x) => pad.l + ((x - xMinBound) / (xMaxBound - xMinBound || 1)) * (w - pad.l - pad.r);
+        const mY = (y) => h - pad.b - (y / (yMaxBound * 1.1)) * (h - pad.t - pad.b);
+
+        for(let y=0; y<=yMaxBound*1.1; y+=100) {
+            let py = mY(y);
+            svgPlot.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            svgPlot.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
+        }
+
+        svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        svgPlot.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
+        svgPlot.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
+
+        let pts = "";
+        for(let i=0; i<=50; i++) {
+            let sn = i/50;
+            let raw = m.minRaw + sn * (m.maxRaw - m.minRaw);
+            let x = m.calcX(raw);
+            let y = sigma0 + m.calcDelta(x);
+            pts += `${mX(x)},${mY(y)} `;
+        }
+        svgPlot.innerHTML += `<polyline class="curve" points="${pts}"/>`;
+
+        let tx = mX(currentX), ty = mY(currentY);
+        svgPlot.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        svgPlot.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        svgPlot.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
+    }
+
+    // --- Microscopic Simulation ---
+    let obstacles = [];
+    let grains = [];
+    let dislocation = { x: 0, state: 'moving', pauseTimer: 0, activeObs: null };
+    const rows = 12, cols = 40;
+    let slipPath = [];
+    
+    function initLattice(rawVal) {
+        obstacles = []; grains = []; slipPath = [];
+        dislocation.state = 'moving'; dislocation.pauseTimer = 0; dislocation.activeObs = null;
+
+        if (mode === 'hp') {
+            document.getElementById('sim-hint').innerText = "Watch lattice misorientation at Grain Boundaries (dashed yellow)";
+            let numGBs = rawVal;
+            let numGrains = numGBs + 1;
+            let grainWidth = 1.0 / numGrains;
+            for(let i=0; i<numGrains; i++) {
+                grains.push({ left: i * grainWidth, right: (i+1) * grainWidth, theta: (Math.random() - 0.5) * 30 * (Math.PI/180) });
+                if(i < numGBs) obstacles.push({ type: 'gb', colRatio: (i+1)*grainWidth, passed: false });
+            }
+        } else {
+            grains = [{ left: 0, right: 1, theta: 0 }];
+            if (mode === 'ss') {
+                document.getElementById('sim-hint').innerText = "Click stalled dislocation to view Solute Pinning schematic";
+                let numSolutes = Math.floor(sliderNorm * 40);
+                for(let i=0; i<numSolutes; i++) obstacles.push({ type: 'solute', col: Math.floor(Math.random()*(cols-4))+2, passed: false });
+            } else if (mode === 'cw') {
+                document.getElementById('sim-hint').innerText = "Click stalled dislocation to view Jog Formation schematic";
+                let numForest = Math.floor(sliderNorm * 30);
+                for(let i=0; i<numForest; i++) obstacles.push({ type: 'forest', col: Math.floor(Math.random()*(cols-4))+2, passed: false });
+            }
+        }
+    }
+
+    function calculateSlipPath(w, h) {
+        slipPath = [{x: 0, y: h/2}];
+        let currentY = h/2;
+        grains.forEach(g => {
+            let dx = (g.right - g.left) * w;
+            currentY += dx * Math.tan(g.theta);
+            slipPath.push({x: g.right * w, y: currentY});
+        });
+    }
+
+    function drawCanvas() {
+        if (activeTab !== 'sim') return; // Do not draw if hidden
+        
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if(w === 0 || h === 0) return; 
+        
+        if(canvas.width !== w || canvas.height !== h) {
+            canvas.width = w; canvas.height = h;
+            calculateSlipPath(w, h);
+        }
+
+        ctx.clearRect(0, 0, w, h);
+        const cellW = w / cols;
+        const cellH = h / rows;
+
+        if(slipPath.length === 0) calculateSlipPath(w, h);
+
+        grains.forEach((g, i) => {
+            const pxLeft = g.left * w;
+            const pxRight = g.right * w;
+            const pStart = slipPath[i];
+            
+            ctx.save();
+            ctx.beginPath(); ctx.rect(pxLeft, 0, pxRight - pxLeft, h); ctx.clip();
+            ctx.translate(pStart.x, pStart.y); ctx.rotate(g.theta);
+            
+            ctx.fillStyle = '#555';
+            const overdrawCols = Math.ceil((pxRight - pxLeft) / cellW) + 4;
+            for(let r = -rows; r < rows; r++) {
+                for(let c = -2; c < overdrawCols; c++) {
+                    ctx.beginPath(); ctx.arc(c * cellW, r * cellH, 2.5, 0, Math.PI*2); ctx.fill();
+                }
+            }
+            ctx.restore();
+
+            if (i > 0) {
+                ctx.strokeStyle = 'var(--yellow)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+                ctx.beginPath(); ctx.moveTo(pxLeft, 0); ctx.lineTo(pxLeft, h); ctx.stroke(); ctx.setLineDash([]);
+                
+                let diff = Math.abs((g.theta - grains[i-1].theta) * (180/Math.PI)).toFixed(1);
+                ctx.fillStyle = 'var(--yellow)'; ctx.font = "12px Consolas";
+                ctx.fillText(`GB (Δθ≈${diff}°)`, pxLeft + 5, 20);
+            }
+        });
+
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(slipPath[0].x, slipPath[0].y);
+        for(let i=1; i<slipPath.length; i++) ctx.lineTo(slipPath[i].x, slipPath[i].y);
+        ctx.stroke();
+
+        obstacles.forEach(obs => {
+            if(obs.type === 'gb') return; 
+            let ox = obs.col * cellW + cellW/2;
+            let obsGrain = grains.find(g => ox >= g.left * w && ox <= g.right * w) || grains[grains.length-1];
+            let obsPStart = slipPath[grains.indexOf(obsGrain)];
+            let obsGlobalY = obsPStart.y + (ox - (obsGrain.left * w)) * Math.tan(obsGrain.theta);
+            
+            if (obs.type === 'solute') {
+                ctx.fillStyle = 'var(--cyan)'; ctx.shadowColor = 'var(--cyan)'; ctx.shadowBlur = 5;
+                ctx.beginPath(); ctx.arc(ox, obsGlobalY + cellH*0.2, 5, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+            } else if (obs.type === 'forest') {
+                ctx.strokeStyle = 'var(--magenta)'; ctx.lineWidth = 2; ctx.shadowColor = 'var(--magenta)'; ctx.shadowBlur = 5;
+                ctx.beginPath(); ctx.moveTo(ox-5, obsGlobalY-5); ctx.lineTo(ox+5, obsGlobalY+5); ctx.moveTo(ox-5, obsGlobalY+5); ctx.lineTo(ox+5, obsGlobalY-5); ctx.stroke(); ctx.shadowBlur = 0;
+            }
+        });
+
+        if (dislocation.state === 'moving') {
+            dislocation.x += cellW * 0.15; 
+            obstacles.forEach(obs => {
+                let ox = (obs.col !== undefined) ? obs.col * cellW + cellW/2 : obs.colRatio * w;
+                if(Math.abs(dislocation.x - ox) < cellW*0.2 && !obs.passed) {
+                    dislocation.state = 'paused'; dislocation.pauseTimer = (obs.type === 'gb') ? 60 : 40; dislocation.activeObs = obs.type; obs.passed = true; 
+                }
+            });
+            if (dislocation.x > w) { dislocation.x = 0; obstacles.forEach(o => o.passed = false); }
+        } else {
+            dislocation.pauseTimer--;
+            if(dislocation.pauseTimer <= 0) { dislocation.state = 'moving'; dislocation.activeObs = null; }
+        }
+
+        let activeGrain = grains.find(g => dislocation.x >= g.left * w && dislocation.x <= g.right * w) || grains[grains.length-1];
+        let dStart = slipPath[grains.indexOf(activeGrain)];
+        let dGlobalY = dStart.y + (dislocation.x - (activeGrain.left * w)) * Math.tan(activeGrain.theta);
+
+        ctx.save();
+        ctx.translate(dislocation.x, dGlobalY); ctx.rotate(activeGrain.theta);
+        
+        ctx.strokeStyle = (dislocation.state === 'paused') ? '#ff3333' : '#00ff00';
+        ctx.lineWidth = 4; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12;
+        
+        ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(0, -cellH * 2.5); ctx.moveTo(-cellW*1.2, 5); ctx.lineTo(cellW*1.2, 5); ctx.stroke(); ctx.shadowBlur = 0;
+        
+        if (dislocation.state === 'paused' && dislocation.activeObs !== 'gb') {
+            ctx.rotate(-activeGrain.theta); 
+            ctx.fillStyle = '#fff'; ctx.font = "10px sans-serif"; ctx.fillText("CLICK", -15, -cellH * 3);
+        }
+        ctx.restore();
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        drawCanvas();
+    }
+
+    // --- Interactive Insets ---
+    canvas.addEventListener('click', (e) => {
+        if (dislocation.state === 'paused' && dislocation.activeObs !== 'gb') showInset(dislocation.activeObs);
+    });
+
+    function showInset(type) {
+        overlay.style.display = 'block';
+        const isvg = document.getElementById('inset-svg');
+        const title = document.getElementById('inset-title');
+        
+        if (type === 'solute') {
+            title.innerText = "Solid Solution Pinning";
+            isvg.innerHTML = `
+                <g transform="translate(225, 125)">
+                    <circle cx="0" cy="0" r="80" fill="none" stroke="rgba(0,255,255,0.1)" stroke-width="20"/>
+                    <circle cx="0" cy="0" r="50" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="15"/>
+                    <line x1="0" y1="5" x2="0" y2="-60" stroke="#00ff00" stroke-width="6"/>
+                    <line x1="-30" y1="5" x2="30" y2="5" stroke="#00ff00" stroke-width="6"/>
+                    <path d="M -60 -40 Q 0 -10 60 -40" fill="none" stroke="#ff3333" stroke-width="4" stroke-dasharray="8,4"/>
+                    <text x="0" y="-45" fill="#ff3333" font-size="14px" font-weight="bold" text-anchor="middle">Compressive Field (C)</text>
+                    <circle cx="0" cy="40" r="20" fill="#00ffff"/>
+                    <text x="0" y="45" fill="#000" font-size="14px" font-weight="bold" text-anchor="middle">S</text>
+                    <path d="M -60 40 Q 0 10 60 40" fill="none" stroke="#00ffff" stroke-width="4" stroke-dasharray="8,4"/>
+                    <text x="0" y="75" fill="#00ffff" font-size="14px" font-weight="bold" text-anchor="middle">Tensile Field (T) Neutralized</text>
+                </g>
+            `;
+        } else if (type === 'forest') {
+            title.innerText = "Forest Dislocation Jog Formation";
+            isvg.innerHTML = `
+                <g transform="translate(225, 125)">
+                    <line x1="-100" y1="-80" x2="100" y2="80" stroke="#ff00ff" stroke-width="8" opacity="0.6"/>
+                    <text x="110" y="90" fill="#ff00ff" font-size="12px">Forest ⊥</text>
+                    <path d="M -150 0 L -20 0 L 20 40 L 150 40" fill="none" stroke="#00ff00" stroke-width="6" stroke-linejoin="round"/>
+                    <circle cx="0" cy="20" r="30" fill="rgba(255,0,0,0.4)" filter="blur(5px)"/>
+                    <circle cx="0" cy="20" r="10" fill="#ff3333"/>
+                    <line x1="-15" y1="5" x2="35" y2="25" stroke="#fff" stroke-width="2"/>
+                    <text x="0" y="-15" fill="#ff3333" font-size="16px" font-weight="bold" text-anchor="middle">JOG (Δ Energy Required)</text>
+                </g>
+            `;
+        }
+    }
+
+    function closeInset() { overlay.style.display = 'none'; }
+
+    // --- Listeners & Init ---
+    select.addEventListener('change', updateState);
+    slider.addEventListener('input', updateState);
+    window.addEventListener('resize', () => { 
+        if(activeTab === 'sim') {
+            calculateSlipPath(canvas.clientWidth, canvas.clientHeight); 
+            updateState(); 
+        }
+    });
+
+    updateState();
+    loop(); 
+</script>
+</body>
+</html>
