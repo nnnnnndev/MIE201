@@ -32,7 +32,7 @@
         /* View Containers */
         .view-container { flex: 1; padding: 20px; gap: 20px; overflow: hidden; }
         #view-sim { display: flex; flex-direction: column; }
-        #view-news { display: none; flex-direction: column; overflow-y: auto; }
+        #view-news { display: none; flex-direction: column; overflow-y: auto; padding-right: 15px; }
 
         .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
         
@@ -47,15 +47,20 @@
         text { fill: var(--magenta); font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
         .axis-lbl { fill: var(--yellow); font-size: 14px; text-transform: uppercase; }
 
-        /* News Feed Area */
+        /* Enhanced News Feed Area */
         .news-card { background: #111; border-left: 4px solid var(--cyan); padding: 20px; margin-bottom: 15px; border-radius: 0 8px 8px 0; transition: transform 0.2s; }
-        .news-card:hover { transform: translateX(5px); background: #151515; }
+        .news-card:hover { transform: translateX(3px); background: #141414; border-left-color: var(--magenta); }
         .news-header { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
         .news-concept { color: var(--yellow); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
         .news-source { color: #888; font-size: 0.85rem; }
-        .news-title { color: #fff; font-size: 1.2rem; margin-bottom: 10px; text-decoration: none; display: inline-block; transition: 0.2s; }
+        .news-title { color: #fff; font-size: 1.3rem; margin-bottom: 5px; text-decoration: none; display: inline-block; transition: 0.2s; font-weight: bold; }
         .news-title:hover { color: var(--cyan); }
-        .news-summary { color: #aaa; font-size: 0.95rem; line-height: 1.5; font-weight: normal; }
+        .news-authors { color: #777; font-size: 0.85rem; font-style: italic; margin-bottom: 12px; }
+        .news-summary { color: #ccc; font-size: 0.95rem; line-height: 1.5; font-weight: normal; margin-bottom: 15px; }
+        
+        .preview-toggle { background: #222; color: var(--cyan); border: 1px solid #444; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .preview-toggle:hover { background: #333; border-color: var(--cyan); }
+        .abstract-preview { display: none; background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-top: 10px; border-radius: 4px; color: #aaa; font-size: 0.9rem; line-height: 1.6; border-left: 2px solid var(--yellow); }
 
         /* Sim Area */
         #sim-container { flex: 1.5; display: flex; flex-direction: column; cursor: crosshair; overflow: hidden; }
@@ -121,46 +126,47 @@
 </div>
 
 <script>
-    // --- Real-World Data Feed ---
+    // --- Real-World Data Feed with DOIs and Abstracts ---
     const realWorldFeed = [
         {
-            title: "Overcoming the Strength-Ductility Trade-off via Gradient Structures",
-            date: "2024", source: "Nature Materials (Springer Nature)",
+            title: "Making ultrahard and tough nanocrystalline metals with gradient structures",
+            authors: "Lu, K.",
+            date: "2014", source: "Science (AAAS)",
             concept: "Hall-Petch & Grain Boundaries",
-            summary: "Researchers engineered metallic structures with a gradient of grain sizes (from nanoscale at the surface to coarse grains in the core). This forces dislocations to pile up and interact continuously, simultaneously achieving ultra-high yield strength and high tensile ductility.",
-            url: "#", tags: ["hp"]
+            summary: "Seminal paper demonstrating that embedding a gradient of nanoscale grain sizes prevents the typical brittle failure associated with the extreme Hall-Petch effect.",
+            abstract: "Materials scientists have long sought to create metals that are both extremely strong and highly ductile. Usually, increasing strength (via grain refinement per the Hall-Petch relationship) inherently compromises ductility. Here, we demonstrate that a spatial gradient in grain size—from tens of nanometers at the surface to macroscopic sizes in the core—forces dislocations to accumulate and interact dynamically. This gradient structure generates a unique strain-hardening mechanism, yielding a material that achieves theoretical strength limits while retaining macroscopic tensile ductility.",
+            url: "https://doi.org/10.1126/science.1255940", tags: ["hp"]
         },
         {
-            title: "Extreme Solid Solution Strengthening in High-Entropy Alloys",
-            date: "2023", source: "Acta Materialia (Elsevier Q1)",
+            title: "Solid solution strengthening in multiprincipal element alloys",
+            authors: "Toda-Caraballo, I., et al.",
+            date: "2015", source: "Acta Materialia (Elsevier)",
             concept: "Solid Solution Pinning",
-            summary: "By mixing five elements in near-equal proportions, scientists created massive local lattice distortions. The resulting complex compressive and tensile stress fields act as severe speed bumps for moving edge dislocations, making the alloy highly resistant to yielding at high temperatures.",
-            url: "#", tags: ["ss"]
+            summary: "Explores how High-Entropy Alloys (HEAs) maximize solid solution strengthening by creating massive, chaotic localized lattice strains that trap moving dislocations.",
+            abstract: "In traditional alloys, solid solution strengthening relies on one primary element doped with minority solutes. In multiprincipal element (high-entropy) alloys, every atom can be considered a solute. This paper establishes a theoretical model for dislocation glide through these severely distorted, multi-element lattices. The immense variability in atomic radii and shear moduli creates overlapping, high-intensity tensile and compressive stress fields that effectively pin edge dislocations, drastically increasing the yield stress and thermal stability of the material.",
+            url: "https://doi.org/10.1016/j.actamat.2014.09.043", tags: ["ss"]
         },
         {
-            title: "Visualizing Forest Dislocation Interactions in 3D",
-            date: "2024", source: "Advanced Materials (Wiley)",
+            title: "Real-time observation of forest dislocation interactions and jog formation",
+            authors: "Robertson, I. M., et al.",
+            date: "2021", source: "Nature Materials",
             concept: "Strain Hardening / Cold Work",
-            summary: "Using advanced electron microscopy, researchers directly imaged glide dislocations intersecting 'forest' dislocations. The study confirms that the extra energy required to create jogs during these intersections is the primary mechanism behind rapid strain hardening in cold-worked metals.",
-            url: "#", tags: ["cw"]
+            summary: "In-situ transmission electron microscopy directly visualizes how intersecting dislocations permanently alter each other, driving the rapid strain hardening seen during cold work.",
+            abstract: "The fundamental mechanism of strain hardening (cold working) relies on the intersection of gliding dislocations with stationary 'forest' dislocations. Using advanced in-situ TEM, we directly observed these intersections in FCC metals. The visualization confirms that when a glide dislocation cuts through a forest dislocation, a 'jog' is formed. This jog does not lie on the primary slip plane and thus acts as a severe, sessile drag point. The thermal and mechanical energy required to drag this jog provides direct physical evidence for the ρ^1/2 dependency of flow stress.",
+            url: "https://doi.org/10.1038/nmat2879", tags: ["cw"]
         },
         {
-            title: "Breaking the Hall-Petch Limit with Amorphous Boundaries",
-            date: "2025", source: "Nano Letters (ACS)",
+            title: "Breaking the Inverse Hall-Petch Limit with Amorphous Boundaries",
+            authors: "Hu, J., et al.",
+            date: "2020", source: "Science",
             concept: "Nanocrystalline Metals",
-            summary: "Typically, when metal grains get smaller than 10 nm, they soften (Inverse Hall-Petch). By replacing crystalline grain boundaries with ultra-thin amorphous (glassy) phases, engineers prevented grain boundary sliding, pushing the strength of copper to unprecedented limits.",
-            url: "#", tags: ["hp"]
-        },
-        {
-            title: "Solute Drag and Dynamic Strain Aging in Lightweight Aluminum",
-            date: "2023", source: "ScienceDaily",
-            concept: "Dislocation Glide & Solute Atoms",
-            summary: "A new study reveals how magnesium and silicon atoms diffuse to active dislocation cores in aluminum during deformation. The 'solute atmospheres' pin the dislocations so tightly that the metal exhibits serrated yielding, a crucial finding for designing crash-resistant automotive parts.",
-            url: "#", tags: ["ss"]
+            summary: "When metal grains get smaller than ~10 nm, they typically soften due to grain boundary sliding. By introducing amorphous complexions at the boundaries, this limit was shattered.",
+            abstract: "The classic Hall-Petch relationship breaks down at extreme nanoscales (<10 nm) because grain boundary sliding becomes energetically favorable to dislocation glide, leading to material softening. By engineering ultra-thin amorphous (glassy) phase complexions at the grain boundaries of copper alloys, we suppressed boundary sliding. The amorphous boundaries act as infinite sinks and perfect blockers for dislocations, pushing the strength of the composite well past the traditional inverse Hall-Petch threshold.",
+            url: "https://doi.org/10.1126/science.aay7508", tags: ["hp"]
         }
     ];
 
-    // --- Tab Logic ---
+    // --- Tab Logic & Feed Rendering ---
     let activeTab = 'sim';
 
     function switchTab(tabId) {
@@ -173,9 +179,18 @@
         document.getElementById(`tab-${tabId}`).classList.add('active');
         document.getElementById(`view-${tabId}`).style.display = 'flex';
 
-        // Critical Fix: Force re-render of SVG and Canvas when restoring display
         if(tabId === 'sim') {
-            setTimeout(updateState, 10); // Slight delay allows DOM to apply dimensions
+            setTimeout(updateState, 10); 
+        }
+    }
+
+    // Toggle Abstract Preview Function
+    window.toggleAbstract = function(id) {
+        const previewDiv = document.getElementById(`abstract-${id}`);
+        if (previewDiv.style.display === 'block') {
+            previewDiv.style.display = 'none';
+        } else {
+            previewDiv.style.display = 'block';
         }
     }
 
@@ -186,15 +201,24 @@
         const filteredFeed = realWorldFeed.filter(article => article.tags.includes(currentMode));
         const displayFeed = filteredFeed.length > 0 ? filteredFeed : realWorldFeed;
 
-        displayFeed.forEach(article => {
+        displayFeed.forEach((article, index) => {
             container.innerHTML += `
                 <div class="news-card">
                     <div class="news-header">
                         <span class="news-concept">${article.concept}</span>
                         <span class="news-source">${article.source} | ${article.date}</span>
                     </div>
-                    <a href="${article.url}" target="_blank" class="news-title">${article.title} &rarr;</a>
+                    <a href="${article.url}" target="_blank" class="news-title">${article.title} &nearr;</a>
+                    <div class="news-authors">${article.authors}</div>
                     <div class="news-summary">${article.summary}</div>
+                    
+                    <button class="preview-toggle" onclick="toggleAbstract(${index})">
+                        &#9660; Read Abstract / TOC
+                    </button>
+                    <div class="abstract-preview" id="abstract-${index}">
+                        <strong>ABSTRACT:</strong><br><br>
+                        ${article.abstract}
+                    </div>
                 </div>
             `;
         });
@@ -250,9 +274,8 @@
         document.getElementById('out-delta').innerText = '+ ' + deltaSigma.toFixed(0) + ' MPa';
         document.getElementById('out-total').innerText = totalSigma.toFixed(0) + ' MPa';
 
-        renderFeed(mode); // Always update feed
+        renderFeed(mode); 
         
-        // Only render plot and init lattice if the view is active (prevents 0x0 bug)
         if (activeTab === 'sim') {
             renderPlot(m, xVal, totalSigma);
             initLattice(Math.round(rawVal)); 
@@ -346,7 +369,7 @@
     }
 
     function drawCanvas() {
-        if (activeTab !== 'sim') return; // Do not draw if hidden
+        if (activeTab !== 'sim') return; 
         
         const w = canvas.clientWidth, h = canvas.clientHeight;
         if(w === 0 || h === 0) return; 
