@@ -55,7 +55,6 @@
         
         .atom { fill: #888; stroke: #444; stroke-width: 1; }
         .atom-core { fill: var(--cyan); filter: drop-shadow(0 0 3px var(--cyan)); }
-        .bond { stroke: #444; stroke-width: 2; stroke-linecap: round; }
         .slip-plane-line { stroke-width: 2; stroke-dasharray: 5,5; }
         .tau-arrow { stroke: var(--magenta); stroke-width: 3; marker-end: url(#arrowM); }
     </style>
@@ -165,7 +164,6 @@
     // --- Three.js Setup ---
     const container = document.getElementById('stage');
     const scene = new THREE.Scene();
-    const center = new THREE.Vector3(0.5, 0.5, 0.5);
     
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(3, 2.5, 4.5);
@@ -176,8 +174,6 @@
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.target.copy(center); 
-    controls.target.x -= 0.5;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -185,10 +181,12 @@
     scene.add(dirLight);
 
     const crystalGroup = new THREE.Group();
-    crystalGroup.position.x -= 0.5; 
+    crystalGroup.position.x -= 0.5; // Offset to clear HUD
     scene.add(crystalGroup);
 
-    // 3D Text Sprite Generator
+    // --- Helpers ---
+    function toThree(u, v, w) { return new THREE.Vector3(v, w, u); }
+
     function createTextSprite(message, color, size = 64) {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -198,7 +196,6 @@
         context.fillStyle = color;
         context.textAlign = "center";
         context.fillText(message, 128, 80);
-
         const texture = new THREE.CanvasTexture(canvas);
         const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
         const sprite = new THREE.Sprite(spriteMaterial);
@@ -218,8 +215,7 @@
         if(axis.lengthSq() < 0.001) return new THREE.Group(); 
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
-            const currentAngle = angle * t;
-            const pt = v1.clone().applyAxisAngle(axis, currentAngle).multiplyScalar(radius);
+            const pt = v1.clone().applyAxisAngle(axis, angle * t).multiplyScalar(radius);
             points.push(pt);
         }
         const geo = new THREE.BufferGeometry().setFromPoints(points);
@@ -229,18 +225,39 @@
         return arcMesh;
     }
 
+    // Exact geometric solver to find the center of the (h k l) plane within the unit cell [0,1]^3
+    function getPlaneCentroid(h, k, l) {
+        let pts = [];
+        const add = (x,y,z) => {
+            if(x>=-0.001 && x<=1.001 && y>=-0.001 && y<=1.001 && z>=-0.001 && z<=1.001) pts.push(new THREE.Vector3(x,y,z));
+        };
+        // Intersections with edges of the [0,1] cube for plane hx + ky + lz = 1
+        for(let y of [0,1]) for(let z of [0,1]) if(h!==0) add((1-k*y-l*z)/h, y, z);
+        for(let x of [0,1]) for(let z of [0,1]) if(k!==0) add(x, (1-h*x-l*z)/k, z);
+        for(let x of [0,1]) for(let y of [0,1]) if(l!==0) add(x, y, (1-h*x-k*y)/l);
+        
+        if(pts.length === 0) return new THREE.Vector3(0.5, 0.5, 0.5); // Fallback
+        
+        let unique = [];
+        pts.forEach(p => {
+            if(!unique.some(up => up.distanceTo(p) < 1e-4)) unique.push(p);
+        });
+        
+        let sum = new THREE.Vector3();
+        unique.forEach(p => sum.add(p));
+        return sum.divideScalar(unique.length);
+    }
+
+
     // --- Static Unit Cell & FCC Atoms ---
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
     boxGeo.translate(0.5, 0.5, 0.5); 
     const boxEdges = new THREE.EdgesGeometry(boxGeo);
-    const boxMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.4 });
-    const unitCell = new THREE.LineSegments(boxEdges, boxMat);
-    crystalGroup.add(unitCell);
+    const boxMat = new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3 });
+    crystalGroup.add(new THREE.LineSegments(boxEdges, boxMat));
 
-    const atomRadius = 0.08;
-    const atomGeo = new THREE.SphereGeometry(atomRadius, 16, 16);
+    const atomGeo = new THREE.SphereGeometry(0.08, 16, 16);
     const atomMat = new THREE.MeshPhysicalMaterial({ color: 0x00ffff, roughness: 0.2, metalness: 0.8, clearcoat: 0.5 });
-    
     const fccPositions = [
         [0,0,0], [1,0,0], [0,1,0], [1,1,0], [0,0,1], [1,0,1], [0,1,1], [1,1,1], 
         [0.5,0.5,0], [0.5,0.5,1], [0.5,0,0.5], [0.5,1,0.5], [0,0.5,0.5], [1,0.5,0.5] 
@@ -249,7 +266,8 @@
     const atomMesh = new THREE.InstancedMesh(atomGeo, atomMat, 14);
     const dummy = new THREE.Object3D();
     fccPositions.forEach((pos, i) => {
-        dummy.position.set(pos[0], pos[1], pos[2]);
+        let p = toThree(pos[0], pos[1], pos[2]); // Convert to ThreeJS space
+        dummy.position.copy(p);
         dummy.updateMatrix();
         atomMesh.setMatrixAt(i, dummy.matrix);
     });
@@ -265,7 +283,6 @@
     let lblY = createTextSprite("y", "#ff00ff", 40); lblY.position.set(1.3, 0, 0); crystalGroup.add(lblY);
     let lblZ = createTextSprite("z", "#ff00ff", 40); lblZ.position.set(0, 1.3, 0); crystalGroup.add(lblZ);
 
-    function toThree(u, v, w) { return new THREE.Vector3(v, w, u); }
 
     // --- 2D Dislocation Mechanics Render ---
     function render2DDislocation(tauR, phiDeg, isValid, hklStr, uvwStr) {
@@ -284,7 +301,7 @@
         const spacingY = h / (rows + 1);
         const slipPlaneY = h / 2;
 
-        const planeColor = isValid ? "var(--cyan)" : "var(--red)";
+        const planeColor = isValid ? "var(--yellow)" : "var(--red)";
 
         let content = `<line class="slip-plane-line" stroke="${planeColor}" x1="0" y1="${slipPlaneY}" x2="${w}" y2="${slipPlaneY}"/>`;
         content += `<text x="${w - 10}" y="${slipPlaneY - 8}" fill="${planeColor}" font-size="11px" font-weight="bold" text-anchor="end">${hklStr}</text>`;
@@ -313,7 +330,7 @@
             const arrLen = Math.min(tauR/2, 40);
             content += `<line class="tau-arrow" x1="${w*0.1}" y1="${h*0.2}" x2="${w*0.1 + arrLen}" y2="${h*0.2}"/>`;
             content += `<text x="${w*0.1}" y="${h*0.2 - 10}" fill="var(--magenta)" font-size="11px" font-weight="bold">&tau; = ${tauR.toFixed(1)} MPa </text>`;
-            content += `<text x="${w*0.1 + arrLen + 15}" y="${h*0.2 + 4}" fill="var(--cyan)" font-size="11px" font-weight="bold">${uvwStr}</text>`;
+            content += `<text x="${w*0.1 + arrLen + 8}" y="${h*0.2 + 4}" fill="var(--cyan)" font-size="12px" font-weight="bold">${uvwStr}</text>`;
         }
 
         svg1.innerHTML = svg1.querySelector('defs').outerHTML + content;
@@ -328,18 +345,18 @@
     function updateSimulation() {
         while(dynamicGeo.children.length > 0) dynamicGeo.remove(dynamicGeo.children[0]); 
 
-        const rawT = [parseInt(document.getElementById('inputs-t-0').value), parseInt(document.getElementById('inputs-t-1').value), parseInt(document.getElementById('inputs-t-2').value)];
-        const rawN = [parseInt(document.getElementById('inputs-n-0').value), parseInt(document.getElementById('inputs-n-1').value), parseInt(document.getElementById('inputs-n-2').value)];
-        const rawS = [parseInt(document.getElementById('inputs-s-0').value), parseInt(document.getElementById('inputs-s-1').value), parseInt(document.getElementById('inputs-s-2').value)];
+        let rawT = [parseInt(document.getElementById('inputs-t-0').value), parseInt(document.getElementById('inputs-t-1').value), parseInt(document.getElementById('inputs-t-2').value)];
+        let rawN = [parseInt(document.getElementById('inputs-n-0').value), parseInt(document.getElementById('inputs-n-1').value), parseInt(document.getElementById('inputs-n-2').value)];
+        let rawS = [parseInt(document.getElementById('inputs-s-0').value), parseInt(document.getElementById('inputs-s-1').value), parseInt(document.getElementById('inputs-s-2').value)];
         const sigma = parseFloat(document.getElementById('sl-stress').value);
+
+        if(rawT.every(v => v===0)) rawT[2] = 1;
+        if(rawN.every(v => v===0)) rawN[1] = 1;
+        if(rawS.every(v => v===0)) rawS[0] = 1;
 
         let T = toThree(...rawT);
         let N = toThree(...rawN);
         let S = toThree(...rawS);
-
-        if(T.lengthSq() === 0) T = toThree(0,0,1);
-        if(N.lengthSq() === 0) N = toThree(0,1,0);
-        if(S.lengthSq() === 0) S = toThree(1,0,0);
 
         const dotProduct = (rawN[0]*rawS[0]) + (rawN[1]*rawS[1]) + (rawN[2]*rawS[2]);
         let isValid = (dotProduct === 0);
@@ -371,12 +388,19 @@
         document.getElementById('out-m').innerText = schmidFactor.toFixed(3);
         document.getElementById('out-tau').innerText = tauR.toFixed(1) + ' MPa';
 
-        // Update 2D HUDs
         const hklStr = `(${rawN[0]} ${rawN[1]} ${rawN[2]})`;
         const uvwStr = `[${rawS[0]} ${rawS[1]} ${rawS[2]}]`;
         render2DDislocation(tauR, phiDeg, isValid, hklStr, uvwStr);
 
         // --- 3D Geometry ---
+        // 1. Determine exact centroid of plane intersection inside Unit Cell
+        let centroidRaw = getPlaneCentroid(rawN[0], rawN[1], rawN[2]);
+        let center = toThree(centroidRaw.x, centroidRaw.y, centroidRaw.z);
+
+        // Center camera target on the active plane
+        let wCenter = center.clone().add(crystalGroup.position);
+        controls.target.copy(wCenter);
+
         const cylRadius = 1.0;
         
         const cylGeo = new THREE.CylinderGeometry(cylRadius, cylRadius, 3.8, 32);
@@ -386,9 +410,10 @@
         cylinderMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T);
         dynamicGeo.add(cylinderMesh);
         
-        const planeColor = isValid ? 0x00ffff : 0xff0000;
+        // 3D Plane color is strictly Yellow if valid
+        const planeColor = isValid ? 0xffff00 : 0xff0000;
         const pGeo = new THREE.CircleGeometry(cylRadius, 64);
-        const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
         const planeMesh = new THREE.Mesh(pGeo, pMat);
         planeMesh.position.copy(center);
         
@@ -419,19 +444,23 @@
         dynamicGeo.add(createArrow(S, center, 0x00ffff, sLen));
         let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2).add(center); dynamicGeo.add(lblS);
 
+        // Calculate explicit acute vectors for Arc drawing
+        let T_phi = T.clone(); if(T_phi.dot(N) < 0) T_phi.negate();
+        let T_lam = T.clone(); if(T_lam.dot(S) < 0) T_lam.negate();
+
         // Angle Arcs
-        if(phiDeg > 1 && phiDeg < 89) {
-            const arcPhi = createAngleArc(T, N, center, 0xffff00, 0.6);
+        if(phiDeg > 0.1 && phiDeg <= 90.1) {
+            const arcPhi = createAngleArc(T_phi, N, center, 0xffff00, 0.6);
             dynamicGeo.add(arcPhi);
             let lblPhi = createTextSprite("φ", "#ffff00", 48); 
-            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7).add(center);
+            lblPhi.position.copy(T_phi).lerp(N, 0.5).normalize().multiplyScalar(0.7).add(center);
             dynamicGeo.add(lblPhi);
         }
-        if(lamDeg > 1 && lamDeg < 89) {
-            const arcLam = createAngleArc(T, S, center, 0x00ffff, 0.5);
+        if(lamDeg > 0.1 && lamDeg <= 90.1) {
+            const arcLam = createAngleArc(T_lam, S, center, 0x00ffff, 0.5);
             dynamicGeo.add(arcLam);
             let lblLam = createTextSprite("λ", "#00ffff", 48); 
-            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6).add(center);
+            lblLam.position.copy(T_lam).lerp(S, 0.5).normalize().multiplyScalar(0.6).add(center);
             dynamicGeo.add(lblLam);
         }
     }
@@ -439,11 +468,10 @@
     // Camera Hotkeys
     window.addEventListener('keydown', (e) => {
         const dist = 6.5; 
-        const target = new THREE.Vector3(0, 0.5, 0.5); 
+        const target = controls.target; // Use current plane center
         if (e.key === '1') camera.position.set(target.x, target.y, target.z + dist); 
         else if (e.key === '3') camera.position.set(target.x + dist, target.y, target.z);
         else if (e.key === '7') camera.position.set(target.x, target.y + dist, target.z);
-        controls.target.copy(target);
     });
 
     window.addEventListener('resize', () => {
