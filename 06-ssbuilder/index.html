@@ -12,6 +12,7 @@
             --uts: #ffaa00;     /* Orange */
             --frac: #ff3333;    /* Red */
             --plast: #cc66ff;   /* Lavender/Purple */
+            --silver: #cccccc;  /* Silver for Elastic Recovery */
             --grid: rgba(255, 0, 255, 0.1); 
         }
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; }
@@ -25,13 +26,11 @@
         .control-group { background: #0a0a0a; border: 1px solid #222; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
         .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 8px; font-weight: bold;}
         
-        /* Signature Colors for Labels */
-        .lbl-yield { color: var(--yield); text-shadow: 0 0 5px rgba(255,255,0,0.4); }
-        .lbl-uts { color: var(--uts); text-shadow: 0 0 5px rgba(255,170,0,0.4); }
-        .lbl-frac { color: var(--frac); text-shadow: 0 0 5px rgba(255,51,51,0.4); }
+        .lbl-yield { color: var(--yield); text-shadow: 0 0 5px rgba(255,255,0,0.3); }
+        .lbl-uts { color: var(--uts); text-shadow: 0 0 5px rgba(255,170,0,0.3); }
+        .lbl-frac { color: var(--frac); text-shadow: 0 0 5px rgba(255,51,51,0.3); }
 
         input[type=range] { width: 100%; cursor: pointer; }
-        /* Colored sliders */
         #sl-ys { accent-color: var(--yield); }
         #sl-uts, #sl-utse { accent-color: var(--uts); }
         #sl-fe { accent-color: var(--frac); }
@@ -39,9 +38,9 @@
         #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 10px; background: rgba(0, 255, 255, 0.05); }
         .stat { display: flex; justify-content: space-between; font-size: 0.8rem; margin: 6px 0; font-weight: bold;}
         .stat.cyan { color: var(--cyan); }
-        .stat.orange { color: var(--uts); }
+        .stat.silver { color: var(--silver); }
         .stat.red { color: var(--frac); }
-        .stat.purple { color: var(--plast); text-shadow: 0 0 8px rgba(204,102,255,0.6); border-top: 1px solid #333; padding-top: 8px; font-size: 0.95rem;}
+        .stat.purple { color: var(--plast); text-shadow: 0 0 8px rgba(204,102,255,0.4); border-top: 1px solid #333; padding-top: 8px; font-size: 0.95rem;}
         .sub-stat { font-size: 0.7rem; color: #888; margin-top: -4px; margin-bottom: 6px; text-align: right; }
 
         #stage { flex: 1; position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); }
@@ -52,11 +51,11 @@
         .offset-line { fill: none; stroke: var(--yield); stroke-width: 1.5; stroke-dasharray: 4,3; }
         .indicator-line { fill: none; stroke-width: 2; stroke-dasharray: 4,4; }
         
-        /* Node Markers */
         .node-yield { fill: var(--bg); stroke: var(--yield); stroke-width: 3; filter: drop-shadow(0 0 5px var(--yield)); }
         .node-uts { fill: var(--bg); stroke: var(--uts); stroke-width: 3; filter: drop-shadow(0 0 5px var(--uts)); }
         .node-frac { fill: var(--bg); stroke: var(--frac); stroke-width: 3; filter: drop-shadow(0 0 5px var(--frac)); }
         .node-plast { fill: var(--plast); filter: drop-shadow(0 0 5px var(--plast)); }
+        .node-p { fill: none; stroke: #fff; stroke-width: 2; }
 
         .grid-line { stroke: var(--grid); stroke-width: 1; }
         .axis-line { stroke: var(--magenta); stroke-width: 2; }
@@ -70,9 +69,9 @@
 <div id="sidebar">
     <h1>Material</h1>
     <select id="mat-select">
+        <option value="6061">6061-T6 Aluminum</option>
         <option value="ti64">Ti-6Al-4V (Grade 5)</option>
         <option value="mild">A36 Mild Steel</option>
-        <option value="6061">6061-T6 Aluminum</option>
         <option value="316ss">316 Stainless Steel</option>
     </select>
 
@@ -104,13 +103,22 @@
     <div id="readouts">
         <div class="stat cyan"><span>Modulus (E):</span><span id="val-e">--</span></div>
         <div class="stat red"><span>&epsilon;<sub>fracture</sub> (Total):</span><span id="val-ef">--</span></div>
-        <div class="stat orange"><span>&epsilon;<sub>recovery</sub> (Unloading):</span><span id="val-er">--</span></div>
+        <div class="stat silver"><span>&epsilon;<sub>recovery</sub> (Unloading):</span><span id="val-er">--</span></div>
         <div class="stat purple"><span>True Ductility (%EL):</span><span id="val-el">--</span></div>
     </div>
 </div>
 
 <div id="stage">
-    <svg id="plot"></svg>
+    <svg id="plot">
+        <defs>
+            <marker id="arrowL" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto">
+                <polygon points="6,0 0,3 6,6" fill="var(--silver)" />
+            </marker>
+            <marker id="arrowR" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+                <polygon points="0,0 6,3 0,6" fill="var(--silver)" />
+            </marker>
+        </defs>
+    </svg>
 </div>
 
 <script>
@@ -121,8 +129,9 @@ const LIB = {
     "ti64":  { ys: 880, e: 114, uts: 950, utse: 0.10, fe: 0.14, fs: 750, disc: false }
 };
 
-let state = {...LIB["ti64"]};
+let state = {...LIB["6061"]};
 const svg = document.getElementById('plot');
+const defsHTML = svg.innerHTML; // preserve markers
 
 function sync(key) {
     state = {...LIB[key]};
@@ -141,11 +150,11 @@ function updateCalculations() {
     
     if(state.uts <= state.ys) state.uts = state.ys + 20;
     if(state.fe <= state.utse) state.fe = state.utse + 0.05;
-    state.fs = state.uts * 0.82; // Generic necking drop
+    state.fs = state.uts * 0.82; 
 
     const eMod = state.e * 1000;
     
-    // Elastic Recovery at Failure
+    // True Elastic Recovery at Failure
     const epsRecovery = state.fs / eMod; 
     const truePlastic = state.fe - epsRecovery;
 
@@ -159,7 +168,7 @@ function updateCalculations() {
     document.getElementById('val-er').innerText = epsRecovery.toFixed(4);
     document.getElementById('val-el').innerText = (truePlastic * 100).toFixed(2) + "%";
 
-    return { truePlastic, eMod };
+    return { truePlastic, eMod, epsRecovery };
 }
 
 function solveCurve(s) {
@@ -183,8 +192,9 @@ function solveCurve(s) {
         const yieldY = s.ys;
         const hookeX = s.ys / eMod;
         const yieldX = hookeX + 0.002;
-        const propLimitY = s.ys * 0.50; 
+        const propLimitY = s.ys * 0.70; // Set P distinctly below yield
         const propLimitX = propLimitY / eMod;
+        
         for(let x=0; x <= propLimitX; x += propLimitX/10) pts.push({x, y: x * eMod});
         for(let i=1; i<=20; i++) {
             let t = i/20;
@@ -195,20 +205,16 @@ function solveCurve(s) {
         startX = yieldX; startY = yieldY;
     }
 
-    // CONTINUITY FIX: Strain Hardening (Uses Sine for zero slope at UTS)
     for(let i=1; i<=100; i++) {
-        let t = i/100; // 0 to 1
+        let t = i/100; 
         let x = startX + (s.utse - startX) * t;
-        // sine(t * pi/2) curves smoothly and peaks at exactly slope = 0
         let y = startY + (s.uts - startY) * Math.sin(t * Math.PI / 2); 
         pts.push({x, y});
     }
 
-    // CONTINUITY FIX: Necking (Uses Quadratic for zero slope at UTS)
     for(let i=1; i<=50; i++) {
-        let t = i/50; // 0 to 1
+        let t = i/50; 
         let x = s.utse + (s.fe - s.utse) * t;
-        // parabola drops off smoothly from slope = 0
         let y = s.uts - (s.uts - s.fs) * (t * t);
         pts.push({x, y});
     }
@@ -216,8 +222,8 @@ function solveCurve(s) {
 }
 
 function render() {
-    svg.innerHTML = '';
-    const { truePlastic, eMod } = updateCalculations();
+    svg.innerHTML = defsHTML; // Reset but keep markers
+    const { truePlastic, eMod, epsRecovery } = updateCalculations();
     const w = svg.clientWidth, h = svg.clientHeight;
     const pad = { l: 80, r: 40, t: 40, b: 80 }; 
 
@@ -229,27 +235,26 @@ function render() {
     // Axes
     svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
     svg.innerHTML += `<line class="axis-line" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
-    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Strain &epsilon;</text>`;
-    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Stress &sigma; (MPa)</text>`;
+    svg.innerHTML += `<text class="axis-label" x="${w/2}" y="${h-20}" text-anchor="middle">Engineering Strain (mm/mm)</text>`;
+    svg.innerHTML += `<text class="axis-label" transform="rotate(-90, 25, ${h/2})" x="25" y="${h/2}" text-anchor="middle">Engineering Stress (MPa)</text>`;
 
     const pts = solveCurve(state);
     let d = `M ${mX(pts[0].x)} ${mY(pts[0].y)}`;
     for(let i=1; i<pts.length; i++) d += ` L ${mX(pts[i].x)} ${mY(pts[i].y)}`;
     svg.innerHTML += `<path class="curve-main" d="${d}"/>`;
 
-    // --- MAIN PLOT INDICATORS & DOTS ---
-    // Unloading Line (Orange)
-    svg.innerHTML += `<line class="indicator-line" stroke="var(--uts)" x1="${mX(state.fe)}" y1="${mY(state.fs)}" x2="${mX(truePlastic)}" y2="${mY(0)}"/>`;
+    // --- MAIN PLOT INDICATORS ---
+    // Unloading Line (Silver)
+    svg.innerHTML += `<line class="indicator-line" stroke="var(--silver)" x1="${mX(state.fe)}" y1="${mY(state.fs)}" x2="${mX(truePlastic)}" y2="${mY(0)}"/>`;
     svg.innerHTML += `<text x="${mX(truePlastic) - 5}" y="${mY(0) - 10}" fill="var(--plast)" font-size="13px" text-anchor="end">&epsilon;_plastic (%EL)</text>`;
 
-    // Node Markers
+    // Nodes
     const yieldXCoord = state.disc ? (state.ys/eMod)*1.02 : (state.ys/eMod)+0.002;
     const yieldYCoord = state.disc ? state.ys-15 : state.ys;
-    
-    svg.innerHTML += `<circle class="node-yield" cx="${mX(yieldXCoord)}" cy="${mY(yieldYCoord)}" r="6"/>`; // Yield
-    svg.innerHTML += `<circle class="node-uts" cx="${mX(state.utse)}" cy="${mY(state.uts)}" r="6"/>`; // UTS
-    svg.innerHTML += `<circle class="node-frac" cx="${mX(state.fe)}" cy="${mY(state.fs)}" r="6"/>`; // Fracture
-    svg.innerHTML += `<circle class="node-plast" cx="${mX(truePlastic)}" cy="${mY(0)}" r="5"/>`; // X-Intercept
+    svg.innerHTML += `<circle class="node-yield" cx="${mX(yieldXCoord)}" cy="${mY(yieldYCoord)}" r="6"/>`; 
+    svg.innerHTML += `<circle class="node-uts" cx="${mX(state.utse)}" cy="${mY(state.uts)}" r="6"/>`; 
+    svg.innerHTML += `<circle class="node-frac" cx="${mX(state.fe)}" cy="${mY(state.fs)}" r="6"/>`; 
+    svg.innerHTML += `<circle class="node-plast" cx="${mX(truePlastic)}" cy="${mY(0)}" r="5"/>`; 
 
     // --- INSET LAYOUT ---
     const aspect = document.getElementById('aspect-toggle').value;
@@ -264,9 +269,27 @@ function render() {
 
     const inMaxE = 0.008; 
     const inMaxS = Math.ceil(state.ys * 1.3 / 100) * 100;
-    const inPad = {l: 55, r: 20, t: 40, b: 40};
+    const inPad = {l: 50, r: 20, t: 40, b: 50};
     const inX = (v) => iX0 + inPad.l + (v / inMaxE) * (iW - inPad.l - inPad.r);
     const inY = (v) => iY0 + iH - inPad.b - (v / inMaxS) * (iH - inPad.t - inPad.b);
+
+    // Dynamic 'P' Node calculations
+    const pY = state.disc ? state.ys * 0.90 : state.ys * 0.70;
+    const pX = pY / eMod;
+
+    // Draw 'P' Node and Drop Line
+    svg.innerHTML += `<line class="indicator-line" stroke="#aaa" x1="${inX(pX)}" y1="${inY(pY)}" x2="${inX(pX)}" y2="${inY(0)}"/>`;
+    svg.innerHTML += `<circle class="node-p" cx="${inX(pX)}" cy="${inY(pY)}" r="4"/>`;
+    svg.innerHTML += `<text x="${inX(pX) - 10}" y="${inY(pY) - 10}" fill="#fff" font-size="12px" font-style="italic">P</text>`;
+
+    // Elastic / Plastic Arrows
+    const yArrow = inY(0) - 25;
+    svg.innerHTML += `<line x1="${inX(pX*0.2)}" y1="${yArrow}" x2="${inX(pX*0.8)}" y2="${yArrow}" stroke="var(--silver)" marker-start="url(#arrowL)" marker-end="url(#arrowR)"/>`;
+    svg.innerHTML += `<text x="${inX(pX*0.5)}" y="${yArrow - 5}" fill="var(--silver)" text-anchor="middle" font-size="10px">elastic</text>`;
+    
+    const plastEnd = Math.min(inMaxE * 0.9, pX * 2.5);
+    svg.innerHTML += `<line x1="${inX(pX*1.2)}" y1="${yArrow}" x2="${inX(plastEnd)}" y2="${yArrow}" stroke="var(--silver)" marker-start="url(#arrowL)" marker-end="url(#arrowR)"/>`;
+    svg.innerHTML += `<text x="${inX((pX*1.2 + plastEnd)/2)}" y="${yArrow - 5}" fill="var(--silver)" text-anchor="middle" font-size="10px">plastic</text>`;
 
     if(!state.disc) {
         const yieldX = (state.ys / eMod) + 0.002;
@@ -274,16 +297,22 @@ function render() {
         svg.innerHTML += `<line class="offset-line" x1="${inX(0.002)}" y1="${inY(0)}" x2="${inX((inMaxS/eMod)+0.002)}" y2="${inY(inMaxS)}"/>`;
         svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(state.ys)}" x2="${inX(yieldX)}" y2="${inY(state.ys)}"/>`;
         svg.innerHTML += `<circle cx="${inX(yieldX)}" cy="${inY(state.ys)}" r="5" fill="var(--yield)"/>`;
-        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(state.ys)-5}" fill="var(--yield)" font-weight="bold">&sigma;y = ${state.ys} MPa</text>`;
+        
+        // Explicit 0.002 and recovery text
+        svg.innerHTML += `<text x="${inX(0.002)}" y="${inY(0)+14}" fill="var(--yield)" text-anchor="middle" font-size="11px">0.002</text>`;
+        svg.innerHTML += `<text x="${inX(yieldX)}" y="${inY(0)+28}" fill="var(--silver)" text-anchor="middle" font-size="10px">&epsilon;_recov = ${yieldX.toFixed(4)}</text>`;
     } else {
         const lyp = state.ys - 15;
         svg.innerHTML += `<line class="offset-line" x1="${inX(0)}" y1="${inY(lyp)}" x2="${inX(inMaxE)}" y2="${inY(lyp)}"/>`;
-        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(lyp)-5}" fill="var(--yield)" font-weight="bold">&sigma;y,LYP = ${lyp} MPa</text>`;
+        svg.innerHTML += `<text x="${inX(0)+5}" y="${inY(lyp)-5}" fill="var(--yield)">&sigma;y,LYP = ${lyp} MPa</text>`;
     }
 
-    // Inset Axes
+    // Inset Axes & Basic Ticks
     svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(0)}" x2="${inX(inMaxE)}" y2="${inY(0)}"/>`;
     svg.innerHTML += `<line class="axis-line" x1="${inX(0)}" y1="${inY(inMaxS)}" x2="${inX(0)}" y2="${inY(0)}"/>`;
+    for(let ss=100; ss<=inMaxS; ss+=100) {
+        svg.innerHTML += `<text x="${inX(0)-5}" y="${inY(ss)+4}" text-anchor="end" font-size="10px">${ss}</text>`;
+    }
 
     // Clip & Curve
     svg.innerHTML += `<defs><clipPath id="cp"><rect x="${inX(0)}" y="${inY(inMaxS)}" width="${inX(inMaxE)-inX(0)}" height="${inY(0)-inY(inMaxS)}"/></clipPath></defs>`;
@@ -296,7 +325,7 @@ document.getElementById('mat-select').onchange = (e) => sync(e.target.value);
 document.getElementById('aspect-toggle').onchange = render;
 document.querySelectorAll('input').forEach(i => i.oninput = render);
 window.onresize = render;
-sync("ti64");
+sync("6061");
 </script>
 </body>
 </html>
