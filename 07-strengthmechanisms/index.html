@@ -1,1 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 7: Strengthening Mechanisms</title>
+    <style>
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --grid: rgba(255, 0, 255, 0.15); --atom: #555; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
+        
+        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        
+        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 10px; margin-bottom: 20px; font-weight: bold; width: 100%; cursor: pointer; font-size: 0.9rem; }
+        
+        .control-block { background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: #fff; margin-bottom: 10px; text-transform: uppercase; }
+        input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
+        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 1.1rem; margin: 8px 0; color: var(--yellow); }
+        .stat-main { font-size: 1.3rem; color: var(--green); border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
+        
+        #stage { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 20px; background: radial-gradient(circle at center, #111 0%, #000 100%); }
+        
+        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; }
+        
+        /* Plot Area */
+        #plot-container { flex: 1; min-height: 300px; padding: 10px; }
+        svg { width: 100%; height: 100%; overflow: visible; }
+        .axis { stroke: var(--magenta); stroke-width: 2; }
+        .grid { stroke: var(--grid); stroke-width: 1; }
+        .curve { fill: none; stroke: var(--cyan); stroke-width: 4; filter: drop-shadow(0 0 5px var(--cyan)); }
+        .tracker { fill: var(--magenta); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 8px var(--magenta)); }
+        .tracker-line { stroke: var(--yellow); stroke-width: 1.5; stroke-dasharray: 4,4; }
+        text { fill: var(--magenta); font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
+        .axis-lbl { fill: var(--yellow); font-size: 14px; text-transform: uppercase; }
+
+        /* Sim Area */
+        #sim-container { flex: 1; min-height: 300px; display: flex; flex-direction: column; }
+        .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
+        canvas { width: 100%; height: 100%; flex: 1; display: block; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Strengthening Mechanism</h1>
+    <select id="mode-select">
+        <option value="hp">Grain Size Reduction (Hall-Petch)</option>
+        <option value="ss">Solid Solution Alloying</option>
+        <option value="cw">Strain Hardening (Cold Work)</option>
+    </select>
+
+    <h1>Control Parameter</h1>
+    <div class="control-block">
+        <div class="label-row"><span id="param-lbl">Grain Size (d)</span><span id="param-val">100 &mu;m</span></div>
+        <input type="range" id="main-slider" min="0" max="100" value="0">
+    </div>
+
+    <div id="readouts">
+        <div class="stat"><span>Base Yield (&sigma;<sub>0</sub>):</span><span>50 MPa</span></div>
+        <div class="stat" style="color: var(--cyan);"><span>Increase (&Delta;&sigma;):</span><span id="out-delta">0 MPa</span></div>
+        <div class="stat stat-main" style="color: #00ff00;"><span>Total Yield (&sigma;<sub>y</sub>):</span><span id="out-total">50 MPa</span></div>
+    </div>
+</div>
+
+<div id="stage">
+    <div class="panel" id="plot-container">
+        <svg id="plot"></svg>
+    </div>
+    
+    <div class="panel" id="sim-container">
+        <div class="sim-title">Microscopic Slip Plane Dislocation Glide</div>
+        <canvas id="sim-canvas"></canvas>
+    </div>
+</div>
+
+<script>
+    // --- Physics Models ---
+    const MODELS = {
+        hp: {
+            title: "Grain Size (d)", unit: "μm",
+            xLabel: "d⁻¹/² (μm⁻¹/²)",
+            minRaw: 100, maxRaw: 1, // Slider 0->100 maps to 100um down to 1um
+            calcX: (raw) => Math.pow(raw, -0.5), // d^-1/2
+            calcDelta: (x) => 250 * x, // k_y * d^-1/2
+            formatRaw: (r) => r.toFixed(1),
+            formatX: (x) => x.toFixed(2)
+        },
+        ss: {
+            title: "Solute Concentration (C)", unit: "wt%",
+            xLabel: "C¹/² (wt%¹/²)",
+            minRaw: 0, maxRaw: 15,
+            calcX: (raw) => Math.pow(raw, 0.5), // C^1/2
+            calcDelta: (x) => 40 * x, // k_s * C^1/2
+            formatRaw: (r) => r.toFixed(1),
+            formatX: (x) => x.toFixed(2)
+        },
+        cw: {
+            title: "Cold Work (%CW)", unit: "%",
+            xLabel: "ρ¹/² ∝ %CW¹/²",
+            minRaw: 0, maxRaw: 50,
+            calcX: (raw) => Math.pow(raw, 0.5), // rho^1/2 approx
+            calcDelta: (x) => 30 * x, // alpha*G*b*rho^1/2
+            formatRaw: (r) => r.toFixed(1),
+            formatX: (x) => x.toFixed(2)
+        }
+    };
+
+    let mode = 'hp';
+    let sliderNorm = 0; // 0 to 1
+    const sigma0 = 50;
+
+    const select = document.getElementById('mode-select');
+    const slider = document.getElementById('main-slider');
+    const svg = document.getElementById('plot');
+    const canvas = document.getElementById('sim-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- State Update ---
+    function updateState() {
+        mode = select.value;
+        sliderNorm = parseInt(slider.value) / 100;
+        
+        const m = MODELS[mode];
+        const rawVal = m.minRaw + sliderNorm * (m.maxRaw - m.minRaw);
+        const xVal = m.calcX(rawVal);
+        const deltaSigma = m.calcDelta(xVal);
+        const totalSigma = sigma0 + deltaSigma;
+
+        document.getElementById('param-lbl').innerText = m.title;
+        document.getElementById('param-val').innerText = m.formatRaw(rawVal) + ' ' + m.unit;
+        
+        document.getElementById('out-delta').innerText = '+ ' + deltaSigma.toFixed(0) + ' MPa';
+        document.getElementById('out-total').innerText = totalSigma.toFixed(0) + ' MPa';
+
+        renderPlot(m, xVal, totalSigma);
+        initLattice(); // Rebuild obstacles based on new density
+    }
+
+    // --- Analytical Plot Rendering ---
+    function renderPlot(m, currentX, currentY) {
+        svg.innerHTML = '';
+        const w = svg.clientWidth, h = svg.clientHeight;
+        const pad = { l: 70, r: 30, t: 30, b: 60 };
+
+        // Determine Domain bounds
+        const xMinBound = m.calcX(m.minRaw);
+        const xMaxBound = m.calcX(m.maxRaw);
+        const yMaxBound = sigma0 + m.calcDelta(xMaxBound);
+
+        const mX = (x) => pad.l + ((x - xMinBound) / (xMaxBound - xMinBound || 1)) * (w - pad.l - pad.r);
+        const mY = (y) => h - pad.b - (y / (yMaxBound * 1.1)) * (h - pad.t - pad.b);
+
+        // Grid & Ticks
+        for(let y=0; y<=yMaxBound*1.1; y+=50) {
+            let py = mY(y);
+            svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            svg.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
+        }
+        let steps = 5;
+        for(let i=0; i<=steps; i++) {
+            let x = xMinBound + (i/steps)*(xMaxBound - xMinBound);
+            let px = mX(x);
+            svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
+            svg.innerHTML += `<text x="${px}" y="${h-pad.b+20}" text-anchor="middle">${m.formatX(x)}</text>`;
+        }
+
+        // Axes
+        svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        
+        svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
+        svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
+
+        // Draw Curve
+        let pts = "";
+        for(let i=0; i<=50; i++) {
+            let sn = i/50;
+            let raw = m.minRaw + sn * (m.maxRaw - m.minRaw);
+            let x = m.calcX(raw);
+            let y = sigma0 + m.calcDelta(x);
+            pts += `${mX(x)},${mY(y)} `;
+        }
+        svg.innerHTML += `<polyline class="curve" points="${pts}"/>`;
+
+        // Tracker Node & Droplines
+        let tx = mX(currentX), ty = mY(currentY);
+        svg.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        svg.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="7"/>`;
+    }
+
+    // --- Microscopic Dislocation Animation ---
+    let obstacles = [];
+    let dislocation = { x: 0, state: 'moving', pauseTimer: 0 };
+    const rows = 12, cols = 40;
+    
+    function initLattice() {
+        obstacles = [];
+        dislocation.state = 'moving';
+        dislocation.pauseTimer = 0;
+
+        // Density based on slider 0 to 1
+        if (mode === 'hp') {
+            // Grain boundaries are vertical lines. Higher slider = more boundaries.
+            let numGBs = Math.floor(sliderNorm * 5);
+            let spacing = cols / (numGBs + 1);
+            for(let i=1; i<=numGBs; i++) {
+                obstacles.push({ type: 'gb', col: Math.floor(i * spacing) });
+            }
+        } else if (mode === 'ss') {
+            // Solute atoms are scattered dots. Higher slider = more dots in the glide path.
+            let numSolutes = Math.floor(sliderNorm * 40);
+            for(let i=0; i<numSolutes; i++) {
+                obstacles.push({ type: 'solute', col: Math.floor(Math.random()*(cols-2))+1 });
+            }
+        } else if (mode === 'cw') {
+            // Forest dislocations are perpendicular 'X' marks.
+            let numForest = Math.floor(sliderNorm * 30);
+            for(let i=0; i<numForest; i++) {
+                obstacles.push({ type: 'forest', col: Math.floor(Math.random()*(cols-2))+1 });
+            }
+        }
+    }
+
+    function drawCanvas() {
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if(canvas.width !== w) canvas.width = w;
+        if(canvas.height !== h) canvas.height = h;
+
+        ctx.clearRect(0, 0, w, h);
+        const cellW = w / cols;
+        const cellH = h / rows;
+        const glideRow = Math.floor(rows / 2);
+        const glideY = glideRow * cellH + cellH/2;
+
+        // Draw Base Lattice Atoms
+        ctx.fillStyle = '#333';
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                ctx.beginPath();
+                ctx.arc(c*cellW + cellW/2, r*cellH + cellH/2, 2, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // Draw Slip Plane
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(0, glideY);
+        ctx.lineTo(w, glideY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Obstacles
+        obstacles.forEach(obs => {
+            let ox = obs.col * cellW + cellW/2;
+            if (obs.type === 'gb') {
+                // Grain Boundary misorientation line
+                ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(ox, 0);
+                ctx.lineTo(ox + 10, h/2);
+                ctx.lineTo(ox - 10, h);
+                ctx.stroke();
+            } else if (obs.type === 'solute') {
+                // Solute Atom (Cyan dot)
+                ctx.fillStyle = '#00ffff';
+                ctx.beginPath();
+                ctx.arc(ox, glideY, 6, 0, Math.PI*2);
+                ctx.fill();
+            } else if (obs.type === 'forest') {
+                // Forest Dislocation (Magenta X)
+                ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(ox-5, glideY-5); ctx.lineTo(ox+5, glideY+5);
+                ctx.moveTo(ox-5, glideY+5); ctx.lineTo(ox+5, glideY-5);
+                ctx.stroke();
+            }
+        });
+
+        // Dislocation Glide Logic
+        if (dislocation.state === 'moving') {
+            dislocation.x += cellW * 0.15; // Speed
+            
+            // Collision Detection
+            let currentCol = Math.floor(dislocation.x / cellW);
+            obstacles.forEach(obs => {
+                if(obs.col === currentCol && !obs.passed) {
+                    dislocation.state = 'paused';
+                    // Pause duration proportional to obstacle strength
+                    dislocation.pauseTimer = (obs.type === 'gb') ? 60 : 15; 
+                    obs.passed = true; // Mark as hit so we don't hit it again
+                }
+            });
+
+            if (dislocation.x > w) {
+                dislocation.x = 0; // Loop around
+                obstacles.forEach(o => o.passed = false); // Reset collisions
+            }
+        } else {
+            dislocation.pauseTimer--;
+            if(dislocation.pauseTimer <= 0) dislocation.state = 'moving';
+        }
+
+        // Draw Moving Dislocation (Perpendicular Symbol)
+        ctx.strokeStyle = (dislocation.state === 'paused') ? '#ff0000' : '#00ff00';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 10;
+        
+        ctx.beginPath();
+        // Vertical extra half plane
+        ctx.moveTo(dislocation.x, glideY);
+        ctx.lineTo(dislocation.x, glideY - cellH * 2);
+        // Horizontal slip component
+        ctx.moveTo(dislocation.x - cellW, glideY);
+        ctx.lineTo(dislocation.x + cellW, glideY);
+        ctx.stroke();
+        
+        ctx.shadowBlur = 0; // reset
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        drawCanvas();
+    }
+
+    // --- Listeners & Init ---
+    select.addEventListener('change', updateState);
+    slider.addEventListener('input', updateState);
+    window.addEventListener('resize', updateState);
+
+    updateState();
+    loop(); // Start animation engine
+</script>
+</body>
+</html>
