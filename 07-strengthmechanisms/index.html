@@ -19,14 +19,14 @@
 
         #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
         .stat { display: flex; justify-content: space-between; font-size: 1.1rem; margin: 8px 0; color: var(--yellow); }
-        .stat-main { font-size: 1.3rem; color: var(--green); border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
+        .stat-main { font-size: 1.3rem; color: #00ff00; border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
         
-        #stage { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 20px; background: radial-gradient(circle at center, #111 0%, #000 100%); }
+        #stage { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 20px; background: radial-gradient(circle at center, #111 0%, #000 100%); position: relative; }
         
         .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; }
         
         /* Plot Area */
-        #plot-container { flex: 1; min-height: 300px; padding: 10px; }
+        #plot-container { flex: 1; min-height: 250px; padding: 10px; }
         svg { width: 100%; height: 100%; overflow: visible; }
         .axis { stroke: var(--magenta); stroke-width: 2; }
         .grid { stroke: var(--grid); stroke-width: 1; }
@@ -37,9 +37,15 @@
         .axis-lbl { fill: var(--yellow); font-size: 14px; text-transform: uppercase; }
 
         /* Sim Area */
-        #sim-container { flex: 1; min-height: 300px; display: flex; flex-direction: column; }
+        #sim-container { flex: 1.5; display: flex; flex-direction: column; cursor: crosshair; }
         .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
+        .sim-hint { font-size: 0.7rem; color: #aaa; text-align: center; margin-top: -5px; padding-bottom: 5px; }
         canvas { width: 100%; height: 100%; flex: 1; display: block; }
+
+        /* Magnified Inset Overlay */
+        #inset-overlay { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; background: rgba(10,10,10,0.95); border: 2px solid var(--cyan); border-radius: 8px; padding: 20px; box-shadow: 0 0 50px rgba(0,255,255,0.2); z-index: 200; cursor: pointer; }
+        .inset-title { color: var(--cyan); text-align: center; text-transform: uppercase; margin-bottom: 15px; font-size: 1.1rem; border-bottom: 1px solid var(--cyan); padding-bottom: 5px; }
+        #inset-svg { width: 100%; height: 250px; }
     </style>
 </head>
 <body>
@@ -54,14 +60,14 @@
 
     <h1>Control Parameter</h1>
     <div class="control-block">
-        <div class="label-row"><span id="param-lbl">Grain Size (d)</span><span id="param-val">100 &mu;m</span></div>
+        <div class="label-row"><span id="param-lbl">Grain Boundaries</span><span id="param-val">0</span></div>
         <input type="range" id="main-slider" min="0" max="100" value="0">
     </div>
 
     <div id="readouts">
         <div class="stat"><span>Base Yield (&sigma;<sub>0</sub>):</span><span>50 MPa</span></div>
         <div class="stat" style="color: var(--cyan);"><span>Increase (&Delta;&sigma;):</span><span id="out-delta">0 MPa</span></div>
-        <div class="stat stat-main" style="color: #00ff00;"><span>Total Yield (&sigma;<sub>y</sub>):</span><span id="out-total">50 MPa</span></div>
+        <div class="stat stat-main"><span>Total Yield (&sigma;<sub>y</sub>):</span><span id="out-total">50 MPa</span></div>
     </div>
 </div>
 
@@ -71,8 +77,15 @@
     </div>
     
     <div class="panel" id="sim-container">
-        <div class="sim-title">Microscopic Slip Plane Dislocation Glide</div>
+        <div class="sim-title">Microscopic Dislocation Glide</div>
+        <div class="sim-hint" id="sim-hint">Watch dislocation interaction (Click paused dislocation for magnified schematic)</div>
         <canvas id="sim-canvas"></canvas>
+    </div>
+
+    <div id="inset-overlay" onclick="closeInset()">
+        <div class="inset-title" id="inset-title">Mechanism Schematic</div>
+        <svg id="inset-svg"></svg>
+        <div style="text-align: center; color: #666; font-size: 0.7rem; margin-top: 10px;">CLICK ANYWHERE TO CLOSE</div>
     </div>
 </div>
 
@@ -80,20 +93,20 @@
     // --- Physics Models ---
     const MODELS = {
         hp: {
-            title: "Grain Size (d)", unit: "μm",
+            title: "Grain Boundaries", unit: "GBs",
             xLabel: "d⁻¹/² (μm⁻¹/²)",
-            minRaw: 100, maxRaw: 1, // Slider 0->100 maps to 100um down to 1um
-            calcX: (raw) => Math.pow(raw, -0.5), // d^-1/2
-            calcDelta: (x) => 250 * x, // k_y * d^-1/2
-            formatRaw: (r) => r.toFixed(1),
+            minRaw: 0, maxRaw: 5, // 0 to 5 internal boundaries (1 to 6 grains)
+            calcX: (raw) => Math.pow((100 / (raw+1)), -0.5) * 10, // Simulated scale
+            calcDelta: (x) => 180 * x, 
+            formatRaw: (r) => Math.round(r),
             formatX: (x) => x.toFixed(2)
         },
         ss: {
             title: "Solute Concentration (C)", unit: "wt%",
             xLabel: "C¹/² (wt%¹/²)",
             minRaw: 0, maxRaw: 15,
-            calcX: (raw) => Math.pow(raw, 0.5), // C^1/2
-            calcDelta: (x) => 40 * x, // k_s * C^1/2
+            calcX: (raw) => Math.pow(raw, 0.5),
+            calcDelta: (x) => 40 * x, 
             formatRaw: (r) => r.toFixed(1),
             formatX: (x) => x.toFixed(2)
         },
@@ -101,8 +114,8 @@
             title: "Cold Work (%CW)", unit: "%",
             xLabel: "ρ¹/² ∝ %CW¹/²",
             minRaw: 0, maxRaw: 50,
-            calcX: (raw) => Math.pow(raw, 0.5), // rho^1/2 approx
-            calcDelta: (x) => 30 * x, // alpha*G*b*rho^1/2
+            calcX: (raw) => Math.pow(raw, 0.5), 
+            calcDelta: (x) => 30 * x, 
             formatRaw: (r) => r.toFixed(1),
             formatX: (x) => x.toFixed(2)
         }
@@ -114,9 +127,10 @@
 
     const select = document.getElementById('mode-select');
     const slider = document.getElementById('main-slider');
-    const svg = document.getElementById('plot');
+    const svgPlot = document.getElementById('plot');
     const canvas = document.getElementById('sim-canvas');
     const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('inset-overlay');
 
     // --- State Update ---
     function updateState() {
@@ -131,21 +145,19 @@
 
         document.getElementById('param-lbl').innerText = m.title;
         document.getElementById('param-val').innerText = m.formatRaw(rawVal) + ' ' + m.unit;
-        
         document.getElementById('out-delta').innerText = '+ ' + deltaSigma.toFixed(0) + ' MPa';
         document.getElementById('out-total').innerText = totalSigma.toFixed(0) + ' MPa';
 
         renderPlot(m, xVal, totalSigma);
-        initLattice(); // Rebuild obstacles based on new density
+        initLattice(Math.round(rawVal)); 
     }
 
-    // --- Analytical Plot Rendering ---
+    // --- Analytical Plot ---
     function renderPlot(m, currentX, currentY) {
-        svg.innerHTML = '';
-        const w = svg.clientWidth, h = svg.clientHeight;
-        const pad = { l: 70, r: 30, t: 30, b: 60 };
+        svgPlot.innerHTML = '';
+        const w = svgPlot.clientWidth, h = svgPlot.clientHeight;
+        const pad = { l: 70, r: 30, t: 20, b: 50 };
 
-        // Determine Domain bounds
         const xMinBound = m.calcX(m.minRaw);
         const xMaxBound = m.calcX(m.maxRaw);
         const yMaxBound = sigma0 + m.calcDelta(xMaxBound);
@@ -153,28 +165,20 @@
         const mX = (x) => pad.l + ((x - xMinBound) / (xMaxBound - xMinBound || 1)) * (w - pad.l - pad.r);
         const mY = (y) => h - pad.b - (y / (yMaxBound * 1.1)) * (h - pad.t - pad.b);
 
-        // Grid & Ticks
-        for(let y=0; y<=yMaxBound*1.1; y+=50) {
+        // Grid
+        for(let y=0; y<=yMaxBound*1.1; y+=100) {
             let py = mY(y);
-            svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
-            svg.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
-        }
-        let steps = 5;
-        for(let i=0; i<=steps; i++) {
-            let x = xMinBound + (i/steps)*(xMaxBound - xMinBound);
-            let px = mX(x);
-            svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
-            svg.innerHTML += `<text x="${px}" y="${h-pad.b+20}" text-anchor="middle">${m.formatX(x)}</text>`;
+            svgPlot.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            svgPlot.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
         }
 
         // Axes
-        svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
-        svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
-        
-        svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
-        svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
+        svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        svgPlot.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
+        svgPlot.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
 
-        // Draw Curve
+        // Curve
         let pts = "";
         for(let i=0; i<=50; i++) {
             let sn = i/50;
@@ -183,44 +187,61 @@
             let y = sigma0 + m.calcDelta(x);
             pts += `${mX(x)},${mY(y)} `;
         }
-        svg.innerHTML += `<polyline class="curve" points="${pts}"/>`;
+        svgPlot.innerHTML += `<polyline class="curve" points="${pts}"/>`;
 
-        // Tracker Node & Droplines
+        // Tracker
         let tx = mX(currentX), ty = mY(currentY);
-        svg.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
-        svg.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
-        svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="7"/>`;
+        svgPlot.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        svgPlot.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        svgPlot.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
     }
 
-    // --- Microscopic Dislocation Animation ---
+    // --- Microscopic Simulation ---
     let obstacles = [];
-    let dislocation = { x: 0, state: 'moving', pauseTimer: 0 };
+    let grains = [];
+    let dislocation = { x: 0, state: 'moving', pauseTimer: 0, activeObs: null };
     const rows = 12, cols = 40;
     
-    function initLattice() {
+    function initLattice(rawVal) {
         obstacles = [];
+        grains = [];
         dislocation.state = 'moving';
         dislocation.pauseTimer = 0;
+        dislocation.activeObs = null;
 
-        // Density based on slider 0 to 1
         if (mode === 'hp') {
-            // Grain boundaries are vertical lines. Higher slider = more boundaries.
-            let numGBs = Math.floor(sliderNorm * 5);
-            let spacing = cols / (numGBs + 1);
-            for(let i=1; i<=numGBs; i++) {
-                obstacles.push({ type: 'gb', col: Math.floor(i * spacing) });
+            document.getElementById('sim-hint').innerText = "Notice lattice misorientation at Grain Boundaries (dashed yellow)";
+            let numGBs = rawVal;
+            let numGrains = numGBs + 1;
+            let grainWidth = 1.0 / numGrains;
+            
+            for(let i=0; i<numGrains; i++) {
+                grains.push({
+                    left: i * grainWidth,
+                    right: (i+1) * grainWidth,
+                    theta: (Math.random() - 0.5) * 30 * (Math.PI/180) // -15 to +15 deg rads
+                });
+                
+                if(i < numGBs) {
+                    obstacles.push({ type: 'gb', colRatio: (i+1)*grainWidth, passed: false });
+                }
             }
-        } else if (mode === 'ss') {
-            // Solute atoms are scattered dots. Higher slider = more dots in the glide path.
-            let numSolutes = Math.floor(sliderNorm * 40);
-            for(let i=0; i<numSolutes; i++) {
-                obstacles.push({ type: 'solute', col: Math.floor(Math.random()*(cols-2))+1 });
-            }
-        } else if (mode === 'cw') {
-            // Forest dislocations are perpendicular 'X' marks.
-            let numForest = Math.floor(sliderNorm * 30);
-            for(let i=0; i<numForest; i++) {
-                obstacles.push({ type: 'forest', col: Math.floor(Math.random()*(cols-2))+1 });
+        } else {
+            // Standard flat lattice for SS and CW
+            grains = [{ left: 0, right: 1, theta: 0 }];
+            
+            if (mode === 'ss') {
+                document.getElementById('sim-hint').innerText = "Click stalled dislocation to view Solute Pinning schematic";
+                let numSolutes = Math.floor(sliderNorm * 40);
+                for(let i=0; i<numSolutes; i++) {
+                    obstacles.push({ type: 'solute', col: Math.floor(Math.random()*(cols-4))+2, passed: false });
+                }
+            } else if (mode === 'cw') {
+                document.getElementById('sim-hint').innerText = "Click stalled dislocation to view Jog Formation schematic";
+                let numForest = Math.floor(sliderNorm * 30);
+                for(let i=0; i<numForest; i++) {
+                    obstacles.push({ type: 'forest', col: Math.floor(Math.random()*(cols-4))+2, passed: false });
+                }
             }
         }
     }
@@ -233,102 +254,188 @@
         ctx.clearRect(0, 0, w, h);
         const cellW = w / cols;
         const cellH = h / rows;
-        const glideRow = Math.floor(rows / 2);
-        const glideY = glideRow * cellH + cellH/2;
+        const glideY = h / 2;
 
-        // Draw Base Lattice Atoms
-        ctx.fillStyle = '#333';
-        for(let r=0; r<rows; r++) {
-            for(let c=0; c<cols; c++) {
-                ctx.beginPath();
-                ctx.arc(c*cellW + cellW/2, r*cellH + cellH/2, 2, 0, Math.PI*2);
-                ctx.fill();
+        // Draw Grains (Tiled Arrays)
+        grains.forEach((g, i) => {
+            const pxLeft = g.left * w;
+            const pxRight = g.right * w;
+            const cx = (pxLeft + pxRight) / 2;
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(pxLeft, 0, pxRight - pxLeft, h);
+            ctx.clip();
+            
+            ctx.translate(cx, glideY);
+            ctx.rotate(g.theta);
+            
+            ctx.fillStyle = '#555';
+            // Overdraw bounds to ensure corners are filled during rotation
+            for(let r = -rows; r < rows; r++) {
+                for(let c = -cols; c < cols; c++) {
+                    let ax = c * cellW;
+                    let ay = r * cellH;
+                    ctx.beginPath();
+                    ctx.arc(ax, ay, 2.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
             }
-        }
+            ctx.restore();
 
-        // Draw Slip Plane
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(0, glideY);
-        ctx.lineTo(w, glideY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Draw Obstacles
-        obstacles.forEach(obs => {
-            let ox = obs.col * cellW + cellW/2;
-            if (obs.type === 'gb') {
-                // Grain Boundary misorientation line
-                ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.moveTo(ox, 0);
-                ctx.lineTo(ox + 10, h/2);
-                ctx.lineTo(ox - 10, h);
-                ctx.stroke();
-            } else if (obs.type === 'solute') {
-                // Solute Atom (Cyan dot)
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath();
-                ctx.arc(ox, glideY, 6, 0, Math.PI*2);
-                ctx.fill();
-            } else if (obs.type === 'forest') {
-                // Forest Dislocation (Magenta X)
-                ctx.strokeStyle = '#ff00ff';
+            // Draw GB dashed line
+            if (i > 0) {
+                ctx.strokeStyle = 'var(--yellow)';
                 ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(pxLeft, 0); ctx.lineTo(pxLeft, h);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Label misorientation approx
+                let prevTheta = grains[i-1].theta * (180/Math.PI);
+                let thisTheta = g.theta * (180/Math.PI);
+                let diff = Math.abs(thisTheta - prevTheta).toFixed(1);
+                ctx.fillStyle = 'var(--yellow)';
+                ctx.font = "12px Consolas";
+                ctx.fillText(`GB (Δθ≈${diff}°)`, pxLeft + 5, 20);
+            }
+        });
+
+        // Draw Flat Slip Plane for reference
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, glideY); ctx.lineTo(w, glideY);
+        ctx.stroke();
+
+        // Draw Obstacles (SS & CW)
+        obstacles.forEach(obs => {
+            let ox = (obs.col !== undefined) ? obs.col * cellW + cellW/2 : obs.colRatio * w;
+            
+            if (obs.type === 'solute') {
+                ctx.fillStyle = 'var(--cyan)';
+                ctx.shadowColor = 'var(--cyan)'; ctx.shadowBlur = 5;
+                ctx.beginPath(); ctx.arc(ox, glideY + cellH*0.2, 5, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            } else if (obs.type === 'forest') {
+                ctx.strokeStyle = 'var(--magenta)'; ctx.lineWidth = 2;
+                ctx.shadowColor = 'var(--magenta)'; ctx.shadowBlur = 5;
                 ctx.beginPath();
                 ctx.moveTo(ox-5, glideY-5); ctx.lineTo(ox+5, glideY+5);
                 ctx.moveTo(ox-5, glideY+5); ctx.lineTo(ox+5, glideY-5);
                 ctx.stroke();
+                ctx.shadowBlur = 0;
             }
         });
 
         // Dislocation Glide Logic
         if (dislocation.state === 'moving') {
-            dislocation.x += cellW * 0.15; // Speed
+            dislocation.x += cellW * 0.15; 
             
-            // Collision Detection
-            let currentCol = Math.floor(dislocation.x / cellW);
             obstacles.forEach(obs => {
-                if(obs.col === currentCol && !obs.passed) {
+                let ox = (obs.col !== undefined) ? obs.col * cellW + cellW/2 : obs.colRatio * w;
+                if(Math.abs(dislocation.x - ox) < cellW*0.2 && !obs.passed) {
                     dislocation.state = 'paused';
-                    // Pause duration proportional to obstacle strength
-                    dislocation.pauseTimer = (obs.type === 'gb') ? 60 : 15; 
-                    obs.passed = true; // Mark as hit so we don't hit it again
+                    dislocation.pauseTimer = (obs.type === 'gb') ? 60 : 40; 
+                    dislocation.activeObs = obs.type;
+                    obs.passed = true; 
                 }
             });
 
             if (dislocation.x > w) {
-                dislocation.x = 0; // Loop around
-                obstacles.forEach(o => o.passed = false); // Reset collisions
+                dislocation.x = 0;
+                obstacles.forEach(o => o.passed = false);
             }
         } else {
             dislocation.pauseTimer--;
-            if(dislocation.pauseTimer <= 0) dislocation.state = 'moving';
+            if(dislocation.pauseTimer <= 0) {
+                dislocation.state = 'moving';
+                dislocation.activeObs = null;
+            }
         }
 
-        // Draw Moving Dislocation (Perpendicular Symbol)
-        ctx.strokeStyle = (dislocation.state === 'paused') ? '#ff0000' : '#00ff00';
+        // Draw Moving Dislocation
+        ctx.strokeStyle = (dislocation.state === 'paused') ? '#ff3333' : '#00ff00';
         ctx.lineWidth = 4;
         ctx.shadowColor = ctx.strokeStyle;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 12;
         
         ctx.beginPath();
-        // Vertical extra half plane
-        ctx.moveTo(dislocation.x, glideY);
-        ctx.lineTo(dislocation.x, glideY - cellH * 2);
-        // Horizontal slip component
-        ctx.moveTo(dislocation.x - cellW, glideY);
-        ctx.lineTo(dislocation.x + cellW, glideY);
+        ctx.moveTo(dislocation.x, glideY + 5);
+        ctx.lineTo(dislocation.x, glideY - cellH * 2.5);
+        ctx.moveTo(dislocation.x - cellW*1.2, glideY + 5);
+        ctx.lineTo(dislocation.x + cellW*1.2, glideY + 5);
         ctx.stroke();
+        ctx.shadowBlur = 0;
         
-        ctx.shadowBlur = 0; // reset
+        // Draw interaction hotspot hint if paused on SS/CW
+        if (dislocation.state === 'paused' && dislocation.activeObs !== 'gb') {
+            ctx.fillStyle = '#fff';
+            ctx.font = "10px sans-serif";
+            ctx.fillText("CLICK", dislocation.x - 15, glideY - cellH * 3);
+        }
     }
 
     function loop() {
         requestAnimationFrame(loop);
         drawCanvas();
+    }
+
+    // --- Interactive Insets ---
+    canvas.addEventListener('click', (e) => {
+        if (dislocation.state === 'paused' && dislocation.activeObs !== 'gb') {
+            showInset(dislocation.activeObs);
+        }
+    });
+
+    function showInset(type) {
+        overlay.style.display = 'block';
+        const isvg = document.getElementById('inset-svg');
+        const title = document.getElementById('inset-title');
+        
+        if (type === 'solute') {
+            title.innerText = "Solid Solution Pinning";
+            isvg.innerHTML = `
+                <g transform="translate(225, 125)">
+                    <circle cx="0" cy="0" r="80" fill="none" stroke="rgba(0,255,255,0.1)" stroke-width="20"/>
+                    <circle cx="0" cy="0" r="50" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="15"/>
+                    
+                    <line x1="0" y1="5" x2="0" y2="-60" stroke="#00ff00" stroke-width="6"/>
+                    <line x1="-30" y1="5" x2="30" y2="5" stroke="#00ff00" stroke-width="6"/>
+                    
+                    <path d="M -60 -40 Q 0 -10 60 -40" fill="none" stroke="#ff3333" stroke-width="4" stroke-dasharray="8,4"/>
+                    <text x="0" y="-45" fill="#ff3333" font-size="14px" font-weight="bold" text-anchor="middle">Compressive Field (C)</text>
+                    
+                    <circle cx="0" cy="40" r="20" fill="#00ffff"/>
+                    <text x="0" y="45" fill="#000" font-size="14px" font-weight="bold" text-anchor="middle">S</text>
+                    
+                    <path d="M -60 40 Q 0 10 60 40" fill="none" stroke="#00ffff" stroke-width="4" stroke-dasharray="8,4"/>
+                    <text x="0" y="75" fill="#00ffff" font-size="14px" font-weight="bold" text-anchor="middle">Tensile Field (T) Neutralized</text>
+                </g>
+            `;
+        } else if (type === 'forest') {
+            title.innerText = "Forest Dislocation Jog Formation";
+            isvg.innerHTML = `
+                <g transform="translate(225, 125)">
+                    <line x1="-100" y1="-80" x2="100" y2="80" stroke="#ff00ff" stroke-width="8" opacity="0.6"/>
+                    <text x="110" y="90" fill="#ff00ff" font-size="12px">Forest ⊥</text>
+
+                    <path d="M -150 0 L -20 0 L 20 40 L 150 40" fill="none" stroke="#00ff00" stroke-width="6" stroke-linejoin="round"/>
+                    
+                    <circle cx="0" cy="20" r="30" fill="rgba(255,0,0,0.4)" filter="blur(5px)"/>
+                    <circle cx="0" cy="20" r="10" fill="#ff3333"/>
+                    
+                    <line x1="-15" y1="5" x2="35" y2="25" stroke="#fff" stroke-width="2"/>
+                    <text x="0" y="-15" fill="#ff3333" font-size="16px" font-weight="bold" text-anchor="middle">JOG (Δ Energy Required)</text>
+                </g>
+            `;
+        }
+    }
+
+    function closeInset() {
+        overlay.style.display = 'none';
     }
 
     // --- Listeners & Init ---
@@ -337,7 +444,7 @@
     window.addEventListener('resize', updateState);
 
     updateState();
-    loop(); // Start animation engine
+    loop(); 
 </script>
 </body>
 </html>
