@@ -78,7 +78,7 @@
     
     <div class="panel" id="sim-container">
         <div class="sim-title">Microscopic Dislocation Glide</div>
-        <div class="sim-hint" id="sim-hint">Watch dislocation interaction (Click paused dislocation for magnified schematic)</div>
+        <div class="sim-hint" id="sim-hint">Watch lattice misorientation at Grain Boundaries (dashed yellow)</div>
         <canvas id="sim-canvas"></canvas>
     </div>
 
@@ -95,8 +95,8 @@
         hp: {
             title: "Grain Boundaries", unit: "GBs",
             xLabel: "d⁻¹/² (μm⁻¹/²)",
-            minRaw: 0, maxRaw: 5, // 0 to 5 internal boundaries (1 to 6 grains)
-            calcX: (raw) => Math.pow((100 / (raw+1)), -0.5) * 10, // Simulated scale
+            minRaw: 0, maxRaw: 5, 
+            calcX: (raw) => Math.pow((100 / (raw+1)), -0.5) * 10, 
             calcDelta: (x) => 180 * x, 
             formatRaw: (r) => Math.round(r),
             formatX: (x) => x.toFixed(2)
@@ -122,7 +122,7 @@
     };
 
     let mode = 'hp';
-    let sliderNorm = 0; // 0 to 1
+    let sliderNorm = 0;
     const sigma0 = 50;
 
     const select = document.getElementById('mode-select');
@@ -165,20 +165,17 @@
         const mX = (x) => pad.l + ((x - xMinBound) / (xMaxBound - xMinBound || 1)) * (w - pad.l - pad.r);
         const mY = (y) => h - pad.b - (y / (yMaxBound * 1.1)) * (h - pad.t - pad.b);
 
-        // Grid
         for(let y=0; y<=yMaxBound*1.1; y+=100) {
             let py = mY(y);
             svgPlot.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
             svgPlot.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${y}</text>`;
         }
 
-        // Axes
         svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
         svgPlot.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
         svgPlot.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-10}" text-anchor="middle">${m.xLabel}</text>`;
         svgPlot.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 20, ${h/2})" x="20" y="${h/2}" text-anchor="middle">Yield Stress (&sigma;y) [MPa]</text>`;
 
-        // Curve
         let pts = "";
         for(let i=0; i<=50; i++) {
             let sn = i/50;
@@ -189,7 +186,6 @@
         }
         svgPlot.innerHTML += `<polyline class="curve" points="${pts}"/>`;
 
-        // Tracker
         let tx = mX(currentX), ty = mY(currentY);
         svgPlot.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
         svgPlot.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
@@ -201,6 +197,7 @@
     let grains = [];
     let dislocation = { x: 0, state: 'moving', pauseTimer: 0, activeObs: null };
     const rows = 12, cols = 40;
+    let slipPath = [];
     
     function initLattice(rawVal) {
         obstacles = [];
@@ -208,6 +205,7 @@
         dislocation.state = 'moving';
         dislocation.pauseTimer = 0;
         dislocation.activeObs = null;
+        slipPath = [];
 
         if (mode === 'hp') {
             document.getElementById('sim-hint').innerText = "Notice lattice misorientation at Grain Boundaries (dashed yellow)";
@@ -219,7 +217,7 @@
                 grains.push({
                     left: i * grainWidth,
                     right: (i+1) * grainWidth,
-                    theta: (Math.random() - 0.5) * 30 * (Math.PI/180) // -15 to +15 deg rads
+                    theta: (Math.random() - 0.5) * 30 * (Math.PI/180) // -15 to +15 deg
                 });
                 
                 if(i < numGBs) {
@@ -227,7 +225,6 @@
                 }
             }
         } else {
-            // Standard flat lattice for SS and CW
             grains = [{ left: 0, right: 1, theta: 0 }];
             
             if (mode === 'ss') {
@@ -246,34 +243,52 @@
         }
     }
 
+    function calculateSlipPath(w, h) {
+        slipPath = [{x: 0, y: h/2}];
+        let currentY = h/2;
+        
+        grains.forEach(g => {
+            let dx = (g.right - g.left) * w;
+            currentY += dx * Math.tan(g.theta);
+            slipPath.push({x: g.right * w, y: currentY});
+        });
+    }
+
     function drawCanvas() {
         const w = canvas.clientWidth, h = canvas.clientHeight;
-        if(canvas.width !== w) canvas.width = w;
-        if(canvas.height !== h) canvas.height = h;
+        if(canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+            calculateSlipPath(w, h);
+        }
 
         ctx.clearRect(0, 0, w, h);
         const cellW = w / cols;
         const cellH = h / rows;
-        const glideY = h / 2;
 
-        // Draw Grains (Tiled Arrays)
+        // Ensure path is calculated
+        if(slipPath.length === 0) calculateSlipPath(w, h);
+
+        // Draw Grains (Tiled Arrays oriented to slip path)
         grains.forEach((g, i) => {
             const pxLeft = g.left * w;
             const pxRight = g.right * w;
-            const cx = (pxLeft + pxRight) / 2;
+            const pStart = slipPath[i];
             
             ctx.save();
             ctx.beginPath();
             ctx.rect(pxLeft, 0, pxRight - pxLeft, h);
             ctx.clip();
             
-            ctx.translate(cx, glideY);
+            // Translate to the start of the slip segment for this grain
+            ctx.translate(pStart.x, pStart.y);
             ctx.rotate(g.theta);
             
             ctx.fillStyle = '#555';
-            // Overdraw bounds to ensure corners are filled during rotation
+            // Overdraw grid to ensure entire clipped area is covered despite rotation
+            const overdrawCols = Math.ceil((pxRight - pxLeft) / cellW) + 4;
             for(let r = -rows; r < rows; r++) {
-                for(let c = -cols; c < cols; c++) {
+                for(let c = -2; c < overdrawCols; c++) {
                     let ax = c * cellW;
                     let ay = r * cellH;
                     ctx.beginPath();
@@ -283,7 +298,7 @@
             }
             ctx.restore();
 
-            // Draw GB dashed line
+            // Draw GB dashed line & misorientation label
             if (i > 0) {
                 ctx.strokeStyle = 'var(--yellow)';
                 ctx.lineWidth = 2;
@@ -293,7 +308,6 @@
                 ctx.stroke();
                 ctx.setLineDash([]);
                 
-                // Label misorientation approx
                 let prevTheta = grains[i-1].theta * (180/Math.PI);
                 let thisTheta = g.theta * (180/Math.PI);
                 let diff = Math.abs(thisTheta - prevTheta).toFixed(1);
@@ -303,28 +317,37 @@
             }
         });
 
-        // Draw Flat Slip Plane for reference
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+        // Draw Continuous Slip Plane Path
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, glideY); ctx.lineTo(w, glideY);
+        ctx.moveTo(slipPath[0].x, slipPath[0].y);
+        for(let i=1; i<slipPath.length; i++) {
+            ctx.lineTo(slipPath[i].x, slipPath[i].y);
+        }
         ctx.stroke();
 
         // Draw Obstacles (SS & CW)
         obstacles.forEach(obs => {
-            let ox = (obs.col !== undefined) ? obs.col * cellW + cellW/2 : obs.colRatio * w;
+            if(obs.type === 'gb') return; // Handled by vertical lines above
+            
+            let ox = obs.col * cellW + cellW/2;
+            let obsGrain = grains.find(g => ox >= g.left * w && ox <= g.right * w) || grains[grains.length-1];
+            let obsPStart = slipPath[grains.indexOf(obsGrain)];
+            let obsLocalX = ox - (obsGrain.left * w);
+            let obsGlobalY = obsPStart.y + obsLocalX * Math.tan(obsGrain.theta);
             
             if (obs.type === 'solute') {
                 ctx.fillStyle = 'var(--cyan)';
                 ctx.shadowColor = 'var(--cyan)'; ctx.shadowBlur = 5;
-                ctx.beginPath(); ctx.arc(ox, glideY + cellH*0.2, 5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(ox, obsGlobalY + cellH*0.2, 5, 0, Math.PI*2); ctx.fill();
                 ctx.shadowBlur = 0;
             } else if (obs.type === 'forest') {
                 ctx.strokeStyle = 'var(--magenta)'; ctx.lineWidth = 2;
                 ctx.shadowColor = 'var(--magenta)'; ctx.shadowBlur = 5;
                 ctx.beginPath();
-                ctx.moveTo(ox-5, glideY-5); ctx.lineTo(ox+5, glideY+5);
-                ctx.moveTo(ox-5, glideY+5); ctx.lineTo(ox+5, glideY-5);
+                ctx.moveTo(ox-5, obsGlobalY-5); ctx.lineTo(ox+5, obsGlobalY+5);
+                ctx.moveTo(ox-5, obsGlobalY+5); ctx.lineTo(ox+5, obsGlobalY-5);
                 ctx.stroke();
                 ctx.shadowBlur = 0;
             }
@@ -356,26 +379,37 @@
             }
         }
 
-        // Draw Moving Dislocation
+        // Draw Moving Dislocation Tracking the Slip Path
+        let activeGrain = grains.find(g => dislocation.x >= g.left * w && dislocation.x <= g.right * w) || grains[grains.length-1];
+        let dStart = slipPath[grains.indexOf(activeGrain)];
+        let dLocalX = dislocation.x - (activeGrain.left * w);
+        let dGlobalY = dStart.y + dLocalX * Math.tan(activeGrain.theta);
+
+        ctx.save();
+        ctx.translate(dislocation.x, dGlobalY);
+        ctx.rotate(activeGrain.theta); // Align perpendicular to local lattice tilt
+        
         ctx.strokeStyle = (dislocation.state === 'paused') ? '#ff3333' : '#00ff00';
         ctx.lineWidth = 4;
         ctx.shadowColor = ctx.strokeStyle;
         ctx.shadowBlur = 12;
         
         ctx.beginPath();
-        ctx.moveTo(dislocation.x, glideY + 5);
-        ctx.lineTo(dislocation.x, glideY - cellH * 2.5);
-        ctx.moveTo(dislocation.x - cellW*1.2, glideY + 5);
-        ctx.lineTo(dislocation.x + cellW*1.2, glideY + 5);
+        ctx.moveTo(0, 5);
+        ctx.lineTo(0, -cellH * 2.5);
+        ctx.moveTo(-cellW*1.2, 5);
+        ctx.lineTo(cellW*1.2, 5);
         ctx.stroke();
         ctx.shadowBlur = 0;
         
-        // Draw interaction hotspot hint if paused on SS/CW
+        // Hint for interactive schematic
         if (dislocation.state === 'paused' && dislocation.activeObs !== 'gb') {
+            ctx.rotate(-activeGrain.theta); // un-rotate text so it remains readable
             ctx.fillStyle = '#fff';
             ctx.font = "10px sans-serif";
-            ctx.fillText("CLICK", dislocation.x - 15, glideY - cellH * 3);
+            ctx.fillText("CLICK", -15, -cellH * 3);
         }
+        ctx.restore();
     }
 
     function loop() {
@@ -441,7 +475,10 @@
     // --- Listeners & Init ---
     select.addEventListener('change', updateState);
     slider.addEventListener('input', updateState);
-    window.addEventListener('resize', updateState);
+    window.addEventListener('resize', () => { 
+        calculateSlipPath(canvas.clientWidth, canvas.clientHeight); 
+        updateState(); 
+    });
 
     updateState();
     loop(); 
