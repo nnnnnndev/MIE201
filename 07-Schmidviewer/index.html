@@ -32,7 +32,8 @@
         .slider-group label { display: flex; justify-content: space-between; font-size: 0.7rem; color: #fff; margin-bottom: 4px; }
         input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
-        .hotkey-hint { font-size: 0.65rem; color: #888; text-align: center; margin-bottom: 10px; font-weight: normal; }
+        .hotkey-hint { font-size: 0.7rem; color: #888; text-align: center; margin-bottom: 10px; font-weight: normal; background: #111; padding: 8px; border-radius: 4px; border: 1px solid #333; }
+        .hotkey-hint strong { color: var(--cyan); }
 
         #readout-panel { margin-top: auto; border: 2px solid var(--magenta); padding: 12px; background: rgba(255, 0, 255, 0.05); }
         .eq { font-size: 1.1rem; color: #fff; text-align: center; margin-bottom: 10px; font-family: 'Times New Roman', serif; font-style: italic; font-weight: normal; }
@@ -74,7 +75,7 @@
         </div>
     </div>
 
-    <div class="hotkey-hint">CAMERA HOTKEYS: NUMPAD 1 (Front) | 3 (Side) | 7 (Top)</div>
+    <div class="hotkey-hint">CAMERA HOTKEYS: <strong>NUMPAD 1</strong> (Front) | <strong>3</strong> (Side) | <strong>7</strong> (Top)</div>
 
     <div id="readout-panel">
         <div class="eq">&tau;<sub>R</sub> = &sigma; cos(&phi;) cos(&lambda;)</div>
@@ -137,7 +138,9 @@
     const container = document.getElementById('stage');
     const scene = new THREE.Scene();
     
-    // Adjusted camera to look at the new origin
+    // Core Reference Center for the entire system
+    const center = new THREE.Vector3(0.5, 0.5, 0.5);
+    
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(4, 3, 5);
 
@@ -147,7 +150,7 @@
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.target.set(0.5, 0.5, 0.5); // Focus on the center of the unit cell
+    controls.target.copy(center); // Focus strictly on the center of the unit cell
 
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
@@ -162,9 +165,6 @@
     // --- Helper Functions ---
 
     // Coordinate Mapper: User (X:out, Y:right, Z:up) -> ThreeJS (X:right, Y:up, Z:out)
-    // Three.X = User.Y
-    // Three.Y = User.Z
-    // Three.Z = User.X
     function toThree(u, v, w) {
         return new THREE.Vector3(v, w, u);
     }
@@ -187,19 +187,17 @@
         return sprite;
     }
 
-    function createArrow(dir, color, length = 1.5) {
-        return new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), length, color, 0.2, 0.1);
+    function createArrow(dir, origin, color, length = 1.5) {
+        return new THREE.ArrowHelper(dir, origin, length, color, 0.2, 0.1);
     }
 
-    // Draws an arc between two unit vectors
-    function createAngleArc(v1, v2, color, radius = 0.5) {
+    function createAngleArc(v1, v2, origin, color, radius = 0.5) {
         const points = [];
         const segments = 20;
         const angle = v1.angleTo(v2);
         
-        // Find axis of rotation between the two vectors
         const axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
-        if(axis.lengthSq() < 0.001) return new THREE.Group(); // Co-linear
+        if(axis.lengthSq() < 0.001) return new THREE.Group(); 
 
         for (let i = 0; i <= segments; i++) {
             const t = i / segments;
@@ -210,11 +208,13 @@
 
         const geo = new THREE.BufferGeometry().setFromPoints(points);
         const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2, depthTest: false });
-        return new THREE.Line(geo, mat);
+        const arcMesh = new THREE.Line(geo, mat);
+        arcMesh.position.copy(origin);
+        return arcMesh;
     }
 
     // --- Static Crystal Frame ---
-    // Shifted so corner is at (0,0,0)
+    // Box is placed from 0,0,0 to 1,1,1
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
     boxGeo.translate(0.5, 0.5, 0.5); 
     const boxEdges = new THREE.EdgesGeometry(boxGeo);
@@ -222,32 +222,27 @@
     const unitCell = new THREE.LineSegments(boxEdges, boxMat);
     scene.add(unitCell);
 
-    // Custom Axes (User coordinates)
+    // Custom Axes (User coordinates) radiating from (0,0,0)
     const axisMat = new THREE.LineBasicMaterial({ color: 0x555555 });
     
     // User X (Out / Three Z)
-    const pointsX = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)];
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsX), axisMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,1.2)]), axisMat));
     let lblX = createTextSprite("x", "#ff00ff", 40); lblX.position.set(0, 0, 1.3); scene.add(lblX);
 
     // User Y (Right / Three X)
-    const pointsY = [new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)];
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsY), axisMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(1.2,0,0)]), axisMat));
     let lblY = createTextSprite("y", "#ff00ff", 40); lblY.position.set(1.3, 0, 0); scene.add(lblY);
 
     // User Z (Up / Three Y)
-    const pointsZ = [new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)];
-    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pointsZ), axisMat));
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)]), axisMat));
     let lblZ = createTextSprite("z", "#ff00ff", 40); lblZ.position.set(0, 1.3, 0); scene.add(lblZ);
 
 
     function updateSimulation() {
-        // Clear previous dynamic objects
         while(crystalGroup.children.length > 0){ 
             crystalGroup.remove(crystalGroup.children[0]); 
         }
 
-        // Read Raw Input Vectors
         const rawT = [
             parseInt(document.getElementById('inputs-t-0').value),
             parseInt(document.getElementById('inputs-t-1').value),
@@ -266,17 +261,15 @@
 
         const sigma = parseFloat(document.getElementById('sl-stress').value);
 
-        // Map to ThreeJS Space
         let T = toThree(...rawT);
         let N = toThree(...rawN);
         let S = toThree(...rawS);
 
-        // Prevent Zero Vectors
         if(T.lengthSq() === 0) T = toThree(0,0,1);
         if(N.lengthSq() === 0) N = toThree(0,1,0);
         if(S.lengthSq() === 0) S = toThree(1,0,0);
 
-        // Validation Math (Done in raw coordinates to ensure exact integer math)
+        // Validation Math
         const dotProduct = (rawN[0]*rawS[0]) + (rawN[1]*rawS[1]) + (rawN[2]*rawS[2]);
         let isValid = (dotProduct === 0);
         
@@ -294,7 +287,6 @@
         N.normalize();
         S.normalize();
 
-        // Calculate Angles
         let cosPhi = Math.abs(T.dot(N));
         let cosLam = Math.abs(T.dot(S));
         let phiDeg = Math.acos(cosPhi) * 180 / Math.PI;
@@ -307,88 +299,98 @@
         if(phiDeg > 89.9) { phiDeg = 90; cosPhi = 0; schmidFactor = 0; tauR = 0; }
         if(lamDeg > 89.9) { lamDeg = 90; cosLam = 0; schmidFactor = 0; tauR = 0; }
 
-        // Update Readouts
         document.getElementById('out-phi').innerText = phiDeg.toFixed(1) + '°';
         document.getElementById('out-lam').innerText = lamDeg.toFixed(1) + '°';
         document.getElementById('out-m').innerText = schmidFactor.toFixed(3);
         document.getElementById('out-tau').innerText = tauR.toFixed(1) + ' MPa';
 
         // --- Generate 3D Geometry ---
+        const cylRadius = 0.8;
         
-        // 1. Slip Plane (Centered at Origin for now)
-        const planeColor = isValid ? 0x00ffff : 0xff0000;
-        const pGeo = new THREE.CircleGeometry(1.2, 32);
-        const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
-        const planeMesh = new THREE.Mesh(pGeo, pMat);
-        planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), N); 
-        crystalGroup.add(planeMesh);
-
-        // 2. Tensile Cylinder
-        const cylGeo = new THREE.CylinderGeometry(0.7, 0.7, 3.5, 32);
+        // 1. Tensile Cylinder (Centered on Unit Cell)
+        const cylGeo = new THREE.CylinderGeometry(cylRadius, cylRadius, 3.8, 32);
         const cylMat = new THREE.MeshPhysicalMaterial({ color: 0x444444, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false });
         const cylinderMesh = new THREE.Mesh(cylGeo, cylMat);
+        cylinderMesh.position.copy(center);
         cylinderMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), T);
         crystalGroup.add(cylinderMesh);
+        
+        // 2. Slip Plane (Perfectly Clamped to Cylinder Edges via Scaling Math)
+        const planeColor = isValid ? 0x00ffff : 0xff0000;
+        const pGeo = new THREE.CircleGeometry(cylRadius, 64);
+        const pMat = new THREE.MeshBasicMaterial({ color: planeColor, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const planeMesh = new THREE.Mesh(pGeo, pMat);
+        planeMesh.position.copy(center);
+        
+        // Construct Basis to stretch plane into exact ellipse
+        let U = new THREE.Vector3().crossVectors(T, N);
+        if(U.lengthSq() < 0.0001) {
+            planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), N);
+        } else {
+            U.normalize();
+            let V = new THREE.Vector3().crossVectors(N, U).normalize();
+            let mat = new THREE.Matrix4().makeBasis(U, V, N);
+            planeMesh.quaternion.setFromRotationMatrix(mat);
+            
+            let stretch = 1.0 / Math.max(0.001, cosPhi);
+            stretch = Math.min(stretch, 4.0); // Safe Cap
+            planeMesh.scale.set(1.0, stretch, 1.0);
+        }
+        crystalGroup.add(planeMesh);
 
-        // 3. Arrows & Labels
-        // Tensile
-        const tLen = 1.8;
-        const tArrow = new THREE.ArrowHelper(T, new THREE.Vector3(0,0,0), tLen, 0xff3333, 0.2, 0.1);
-        const tArrowNeg = new THREE.ArrowHelper(T.clone().negate(), new THREE.Vector3(0,0,0), tLen, 0xff3333, 0.2, 0.1);
+        // 3. Arrows & Labels (Emanating from Center)
+        const tLen = 2.0;
+        const tArrow = new THREE.ArrowHelper(T, center, tLen, 0xff3333, 0.2, 0.1);
+        const tArrowNeg = new THREE.ArrowHelper(T.clone().negate(), center, tLen, 0xff3333, 0.2, 0.1);
         crystalGroup.add(tArrow, tArrowNeg);
-        let lblT = createTextSprite("T", "#ff3333"); lblT.position.copy(T).multiplyScalar(tLen + 0.2); crystalGroup.add(lblT);
+        let lblT = createTextSprite("T", "#ff3333"); lblT.position.copy(T).multiplyScalar(tLen + 0.2).add(center); crystalGroup.add(lblT);
 
-        // Normal
         const nLen = 1.4;
-        const nArrow = createArrow(N, 0xffff00, nLen);
+        const nArrow = createArrow(N, center, 0xffff00, nLen);
         crystalGroup.add(nArrow);
-        let lblN = createTextSprite("N", "#ffff00"); lblN.position.copy(N).multiplyScalar(nLen + 0.2); crystalGroup.add(lblN);
+        let lblN = createTextSprite("N", "#ffff00"); lblN.position.copy(N).multiplyScalar(nLen + 0.2).add(center); crystalGroup.add(lblN);
 
-        // Slip
         const sLen = 1.4;
-        const sArrow = createArrow(S, 0x00ffff, sLen);
+        const sArrow = createArrow(S, center, 0x00ffff, sLen);
         crystalGroup.add(sArrow);
-        let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2); crystalGroup.add(lblS);
+        let lblS = createTextSprite("S", "#00ffff"); lblS.position.copy(S).multiplyScalar(sLen + 0.2).add(center); crystalGroup.add(lblS);
 
-        // 4. Angle Arcs (Only if vectors aren't collinear)
+        // 4. Angle Arcs
         if(phiDeg > 1 && phiDeg < 89) {
-            const arcPhi = createAngleArc(T, N, 0xffff00, 0.6);
+            const arcPhi = createAngleArc(T, N, center, 0xffff00, 0.6);
             crystalGroup.add(arcPhi);
             let lblPhi = createTextSprite("φ", "#ffff00", 48); 
-            // Position label halfway along the arc
-            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7);
+            lblPhi.position.copy(T).lerp(N, 0.5).normalize().multiplyScalar(0.7).add(center);
             crystalGroup.add(lblPhi);
         }
 
         if(lamDeg > 1 && lamDeg < 89) {
-            const arcLam = createAngleArc(T, S, 0x00ffff, 0.5);
+            const arcLam = createAngleArc(T, S, center, 0x00ffff, 0.5);
             crystalGroup.add(arcLam);
             let lblLam = createTextSprite("λ", "#00ffff", 48); 
-            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6);
+            lblLam.position.copy(T).lerp(S, 0.5).normalize().multiplyScalar(0.6).add(center);
             crystalGroup.add(lblLam);
         }
     }
 
-    // --- Camera Hotkeys ---
+    // --- Camera Hotkeys (Fixed Distances) ---
     window.addEventListener('keydown', (e) => {
-        // Look at center of unit cell
-        const target = new THREE.Vector3(0.5, 0.5, 0.5);
-        const dist = 3.5;
+        const dist = 6.0; // Pushed back to keep cylinder in view
 
-        // User X is Three Z (Front = looking down -X / -Z in Three)
+        // User X is Three Z (Front = looking down -X)
         if (e.key === '1') {
-            camera.position.set(target.x, target.y, target.z + dist); 
+            camera.position.set(center.x, center.y, center.z + dist); 
         } 
-        // User Y is Three X (Right/Side = looking down -Y / -X in Three)
+        // User Y is Three X (Right/Side = looking down -Y)
         else if (e.key === '3') {
-            camera.position.set(target.x + dist, target.y, target.z);
+            camera.position.set(center.x + dist, center.y, center.z);
         } 
-        // User Z is Three Y (Top = looking down -Z / -Y in Three)
+        // User Z is Three Y (Top = looking down -Z)
         else if (e.key === '7') {
-            camera.position.set(target.x, target.y + dist, target.z);
+            camera.position.set(center.x, center.y + dist, center.z);
         }
         
-        controls.target.copy(target);
+        controls.target.copy(center);
     });
 
     window.addEventListener('resize', () => {
