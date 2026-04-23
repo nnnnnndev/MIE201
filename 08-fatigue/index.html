@@ -36,7 +36,7 @@
         .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
         
         /* Plot Area */
-        #plot-container { flex: 1; min-height: 250px; padding: 10px; overflow: hidden; }
+        #plot-container { flex: 1; min-height: 220px; padding: 10px; overflow: hidden; }
         svg { width: 100%; height: 100%; overflow: visible; }
         .axis { stroke: #888; stroke-width: 2; }
         .grid { stroke: var(--grid); stroke-width: 1; }
@@ -48,8 +48,10 @@
         text { fill: #ccc; font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
         .axis-lbl { fill: #fff; font-size: 13px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
 
-        /* Sim Area */
-        #sim-container { flex: 1.2; display: flex; flex-direction: column; overflow: hidden; }
+        /* Sim Area Split */
+        #sim-container { flex: 1.2; display: flex; flex-direction: row; overflow: hidden; gap: 0; }
+        .sim-pane { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .sim-pane.left { flex: 0.6; border-right: 2px solid #333; background: rgba(255,255,255,0.02); }
         .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
         canvas { width: 100%; height: 100%; flex: 1; display: block; }
 
@@ -136,13 +138,19 @@
         </div>
         
         <div class="panel" id="sim-container">
-            <div class="sim-title">Live Loading Telemetry (Time Domain)</div>
-            <canvas id="sim-canvas"></canvas>
+            <div class="sim-pane left">
+                <div class="sim-title">Physical Specimen</div>
+                <canvas id="bar-canvas"></canvas>
+            </div>
+            
+            <div class="sim-pane">
+                <div class="sim-title">Live Loading Telemetry (Time Domain)</div>
+                <canvas id="sim-canvas"></canvas>
+            </div>
         </div>
     </div>
 
-    <div id="view-news" class="view-container">
-        </div>
+    <div id="view-news" class="view-container"></div>
 </div>
 
 <script>
@@ -150,34 +158,22 @@
     const realWorldFeed = [
         {
             title: "Fatigue failure of the de Havilland Comet I",
-            authors: "P. R. Abelkis",
-            date: "1996", source: "Engineering Fracture Mechanics",
+            authors: "P. R. Abelkis", date: "1996", source: "Engineering Fracture Mechanics",
             concept: "Catastrophic Fatigue & Stress Concentration",
-            summary: "A definitive historical review of the Comet disasters, the first commercial jetliners to fail catastrophically in mid-air. The study explains how the square windows acted as massive stress concentrators, initiating fatigue cracks during the pressurization cycles of standard flights.",
-            abstract: "The de Havilland Comet was the world's first commercial jet airliner, but its legacy was marred by structural failures. This paper reviews the failure analysis, demonstrating that repeated pressurization and depressurization cycles (variable amplitude fatigue loading) concentrated stress at the corners of the square windows. The cyclic loading caused sub-critical cracks to grow unobserved until they reached the critical length for rapid unstable fracture, changing aerospace design forever.",
+            summary: "A definitive historical review of the Comet disasters, the first commercial jetliners to fail catastrophically in mid-air.",
+            abstract: "The de Havilland Comet was the world's first commercial jet airliner... repeated pressurization cycles concentrated stress at the corners of the square windows.",
             url: "https://doi.org/10.1016/0013-7944(95)00133-6", tags: ["al", "sine"]
         },
         {
             title: "Variable amplitude fatigue crack growth: Mechanisms and models",
-            authors: "Schijve, H.",
-            date: "2001", source: "International Journal of Fatigue",
+            authors: "Schijve, H.", date: "2001", source: "International Journal of Fatigue",
             concept: "Variable Amplitude (Real World) Loading",
-            summary: "Unlike classroom sine waves, real structures experience chaotic loading. This seminal open-access paper explores how random overloads create compressive residual stresses that can temporarily 'retard' crack growth, making fatigue prediction highly complex.",
-            abstract: "Structures such as bridges, offshore platforms, and aircraft wings are subjected to variable amplitude (VA) load histories. Under VA loading, load interaction effects occur. Specifically, a single tensile overload generates a large plastic zone at the crack tip, leaving behind residual compressive stresses that retard subsequent fatigue crack growth. Standard Miner's rule linear damage accumulation fails to account for these sequence effects, necessitating advanced cycle-by-cycle modeling.",
+            summary: "Unlike classroom sine waves, real structures experience chaotic loading. This paper explores how random overloads complicate fatigue prediction.",
+            abstract: "Structures such as bridges, offshore platforms, and aircraft wings are subjected to variable amplitude (VA) load histories... Standard Miner's rule fails to account for these sequence effects.",
             url: "https://doi.org/10.1016/S0142-1123(01)00041-7", tags: ["random", "steel"]
-        },
-        {
-            title: "The Aloha Airlines Flight 243 incident: Widespread Fatigue Damage",
-            authors: "Silva, R., et al.",
-            date: "2013", source: "Journal of Aerospace Engineering",
-            concept: "Mean Stress & Widespread Fatigue",
-            summary: "An analysis of how decades of cyclic fuselage pressurization coupled with corrosive environments led to widespread multi-site fatigue damage, causing the roof of a Boeing 737 to rip off in flight.",
-            abstract: "The 1988 Aloha Flight 243 incident, where a large section of the fuselage separated in flight, brought the concept of Widespread Fatigue Damage (WFD) to the forefront of engineering. Disbonding of lap joints increased local mean stresses on the rivet holes. The combination of high mean stress and the cyclic stress amplitude of pressurization drastically shifted the effective alternating stress via the Goodman relation, causing thousands of microscopic cracks to link up simultaneously.",
-            url: "https://doi.org/10.1061/(ASCE)AS.1943-5525.0000247", tags: ["al", "sine", "random"]
         }
     ];
 
-    // --- Tab Logic ---
     let activeTab = 'sim';
     function switchTab(tabId) {
         activeTab = tabId;
@@ -185,10 +181,8 @@
         document.getElementById('tab-news').classList.remove('active');
         document.getElementById('view-sim').style.display = 'none';
         document.getElementById('view-news').style.display = 'none';
-
         document.getElementById(`tab-${tabId}`).classList.add('active');
         document.getElementById(`view-${tabId}`).style.display = 'flex';
-
         if(tabId === 'sim') setTimeout(updateState, 10); 
     }
 
@@ -200,7 +194,6 @@
     function renderFeed(matMode, waveMode) {
         const container = document.getElementById('view-news');
         container.innerHTML = '';
-        
         let displayFeed = realWorldFeed.filter(a => a.tags.includes(matMode) || a.tags.includes(waveMode));
         if(displayFeed.length === 0) displayFeed = realWorldFeed;
 
@@ -223,26 +216,20 @@
 
     // --- S-N Physics Models ---
     const MATERIALS = {
-        steel: { 
-            name: "1045 Steel", Sut: 600, S1000: 540, Se: 250, knee: 6,
-            class: "steel"
-        },
-        al: { 
-            name: "Al 7075", Sut: 500, S1000: 450, Se: 130, knee: 8, 
-            class: "al"
-        }
+        steel: { name: "1045 Steel", Sut: 600, S1000: 540, Se: 250, knee: 6, class: "steel" },
+        al: { name: "Al 7075", Sut: 500, S1000: 450, Se: 130, knee: 8, class: "al" }
     };
 
-    let state = {
-        mat: 'steel', wave: 'sine',
-        mean: 0, amp: 150,
-        Sar: 150, Nf: 0,
-        speed: 1
-    };
-
-    // Tracking state for the live counter
+    let state = { mat: 'steel', wave: 'sine', mean: 0, amp: 150, Sar: 150, Nf: 0, speed: 1 };
+    
+    // Live State
     let currentCycles = 0;
     let isFailed = false;
+    let activeStress = 0;
+    
+    // Fall Animation variables
+    let fallY = 0;
+    let fallAngle = 0;
 
     const els = {
         mat: document.getElementById('mat-select'),
@@ -251,16 +238,16 @@
         sMean: document.getElementById('slider-mean'),
         sAmp: document.getElementById('slider-amp'),
         svg: document.getElementById('plot'),
-        canvas: document.getElementById('sim-canvas'),
-        ctx: document.getElementById('sim-canvas').getContext('2d')
+        waveCanvas: document.getElementById('sim-canvas'),
+        waveCtx: document.getElementById('sim-canvas').getContext('2d'),
+        barCanvas: document.getElementById('bar-canvas'),
+        barCtx: document.getElementById('bar-canvas').getContext('2d')
     };
 
     function calculatePhysics() {
         const mat = MATERIALS[state.mat];
-        
         if(state.mean >= mat.Sut) state.mean = mat.Sut - 1; 
 
-        // Modified Goodman
         state.Sar = state.amp / (1 - (state.mean / mat.Sut));
 
         const logS1000 = Math.log10(mat.S1000);
@@ -268,14 +255,9 @@
         const b = (logS1000 - logSe) / (3 - mat.knee); 
         const logA = logS1000 - b * 3; 
         
-        if (state.Sar >= mat.S1000) {
-            state.Nf = 1000; 
-        } else if (state.mat === 'steel' && state.Sar <= mat.Se) {
-            state.Nf = Infinity; 
-        } else {
-            const logN = (Math.log10(state.Sar) - logA) / b;
-            state.Nf = Math.pow(10, logN);
-        }
+        if (state.Sar >= mat.S1000) state.Nf = 1000; 
+        else if (state.mat === 'steel' && state.Sar <= mat.Se) state.Nf = Infinity; 
+        else state.Nf = Math.pow(10, (Math.log10(state.Sar) - logA) / b);
 
         document.getElementById('val-mean').innerText = state.mean + ' MPa';
         document.getElementById('val-amp').innerText = state.amp + ' MPa';
@@ -292,33 +274,30 @@
             nfOut.innerText = state.Nf.toExponential(2) + " Cycles";
             nfOut.style.color = (state.Nf < 1e5) ? "var(--orange)" : "var(--yellow)";
         }
-
         renderPlot();
         renderFeed(state.mat, state.wave);
     }
 
-    function updateState(e) {
-        // Only reset the cycle counter if a physical parameter changes (not if they just change the speed)
+    function updateState() {
         const newMat = els.mat.value;
         const newWave = els.wave.value;
         const newMean = parseFloat(els.sMean.value);
         const newAmp = parseFloat(els.sAmp.value);
 
+        // Reset if physical constraints changed
         if (state.mat !== newMat || state.wave !== newWave || state.mean !== newMean || state.amp !== newAmp) {
             currentCycles = 0;
             isFailed = false;
+            fallY = 0;
+            fallAngle = 0;
+            history.length = 0; // Clear scope
         }
 
-        state.mat = newMat;
-        state.wave = newWave;
-        state.mean = newMean;
-        state.amp = newAmp;
+        state.mat = newMat; state.wave = newWave; state.mean = newMean; state.amp = newAmp;
         state.speed = parseFloat(els.speed.value);
-        
         calculatePhysics();
     }
 
-    // --- S-N Plot ---
     function renderPlot() {
         els.svg.innerHTML = '';
         const w = els.svg.clientWidth, h = els.svg.clientHeight;
@@ -326,12 +305,10 @@
         
         const pad = { l: 60, r: 30, t: 20, b: 40 };
         const mat = MATERIALS[state.mat];
-        
         const minLogN = 3, maxLogN = 9;
         const mX = (logN) => pad.l + ((logN - minLogN) / (maxLogN - minLogN)) * (w - pad.l - pad.r);
         const mY = (S) => h - pad.b - (S / 700) * (h - pad.t - pad.b);
 
-        // Grid
         for(let s=0; s<=700; s+=100) {
             let py = mY(s);
             els.svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
@@ -343,21 +320,17 @@
             els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10<tspan dy="-5" font-size="9px">${logN}</tspan></text>`;
         }
 
-        // Axes
         els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
         els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
         els.svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Cycles to Failure (N)</text>`;
         els.svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Eff. Stress (S_ar)</text>`;
 
-        // Draw Material Curve
         let pts = "";
         const b = (Math.log10(mat.S1000) - Math.log10(mat.Se)) / (3 - mat.knee);
         const logA = Math.log10(mat.S1000) - b * 3;
 
         for(let logN=minLogN; logN<=maxLogN; logN+=0.1) {
-            let s;
-            if(mat.name.includes("Steel") && logN >= mat.knee) s = mat.Se; 
-            else s = Math.pow(10, logA + b * logN);
+            let s = (mat.name.includes("Steel") && logN >= mat.knee) ? mat.Se : Math.pow(10, logA + b * logN);
             pts += `${mX(logN)},${mY(s)} `;
         }
         els.svg.innerHTML += `<polyline class="curve ${mat.class}" points="${pts}"/>`;
@@ -377,81 +350,139 @@
         els.svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
     }
 
-    // --- Oscilloscope (Time Domain) ---
+    // --- Dynamic Simulation Loop ---
     let time = 0;
     const history = []; 
-    let targetRandom = 0;
-    let currentRandom = 0;
+    let targetRandom = 0, currentRandom = 0;
 
-    function drawWaveform() {
-        if (activeTab !== 'sim') return;
-        const w = els.canvas.clientWidth, h = els.canvas.clientHeight;
+    function drawPhysicalBar() {
+        const canvas = els.barCanvas;
+        const ctx = els.barCtx;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
         if(w === 0 || h === 0) return;
-        if(els.canvas.width !== w) els.canvas.width = w, els.canvas.height = h;
-        
-        const ctx = els.ctx;
+        if(canvas.width !== w) canvas.width = w, canvas.height = h;
+
         ctx.clearRect(0, 0, w, h);
 
+        const isSteel = state.mat === 'steel';
+        const barColor = isSteel ? '#5b7a8a' : '#c0c0c0'; // Bluish-grey vs Silver
+        const shadowColor = isSteel ? '#2a3a45' : '#808080';
+
+        const startX = 30;
+        const startY = h / 2;
+        const barLength = w - 80;
+        const thickness = 24;
+
+        // Draw Anchor Wall
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, startX, h);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(startX - 10, startY - 40, 10, 80);
+
+        if (!isFailed) {
+            // Deflect proportionally to max expected visual stress
+            const maxDeflection = h / 3.5;
+            const deflection = (activeStress / 400) * maxDeflection;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(startX, startY - thickness/2);
+            // Bend Top Edge
+            ctx.quadraticCurveTo(startX + barLength/2, startY - thickness/2, startX + barLength, startY + deflection - thickness/2);
+            ctx.lineTo(startX + barLength, startY + deflection + thickness/2);
+            // Bend Bottom Edge
+            ctx.quadraticCurveTo(startX + barLength/2, startY + thickness/2, startX, startY + thickness/2);
+            ctx.closePath();
+            
+            ctx.fillStyle = barColor; ctx.fill();
+            ctx.strokeStyle = shadowColor; ctx.lineWidth = 2; ctx.stroke();
+            
+            // Draw Loading Arrow
+            if (Math.abs(activeStress) > 10) {
+                const dir = activeStress > 0 ? -1 : 1;
+                const arrowBase = startY + deflection + (activeStress > 0 ? -thickness : thickness);
+                ctx.fillStyle = activeStress > 0 ? 'var(--cyan)' : 'var(--orange)';
+                ctx.beginPath();
+                ctx.moveTo(startX + barLength - 10, arrowBase + 30 * dir);
+                ctx.lineTo(startX + barLength + 10, arrowBase + 30 * dir);
+                ctx.lineTo(startX + barLength, arrowBase + 5 * dir);
+                ctx.fill();
+            }
+            ctx.restore();
+        } else {
+            // Fall physics
+            fallY += 3;
+            fallAngle += 0.04;
+            if (fallY > h + 100) fallY = h + 100;
+
+            // Draw Left Stub (Jagged Break)
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(startX, startY - thickness/2);
+            ctx.lineTo(startX + 20, startY - thickness/2);
+            ctx.lineTo(startX + 10, startY - thickness/4);
+            ctx.lineTo(startX + 25, startY);
+            ctx.lineTo(startX + 12, startY + thickness/4);
+            ctx.lineTo(startX + 20, startY + thickness/2);
+            ctx.lineTo(startX, startY + thickness/2);
+            ctx.closePath();
+            ctx.fillStyle = barColor; ctx.fill();
+            ctx.strokeStyle = "var(--magenta)"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.restore();
+
+            // Draw Right Broken Piece (Falling)
+            ctx.save();
+            ctx.translate(startX + 30, startY + fallY);
+            ctx.rotate(fallAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, -thickness/2);
+            ctx.lineTo(barLength - 30, -thickness/2);
+            ctx.lineTo(barLength - 30, thickness/2);
+            ctx.lineTo(0, thickness/2);
+            ctx.lineTo(-8, thickness/4);
+            ctx.lineTo(5, 0);
+            ctx.lineTo(-5, -thickness/4);
+            ctx.closePath();
+            ctx.fillStyle = barColor; ctx.fill();
+            ctx.strokeStyle = shadowColor; ctx.lineWidth = 2; ctx.stroke();
+            ctx.restore();
+
+            ctx.fillStyle = "var(--magenta)";
+            ctx.font = "900 18px 'Segoe UI'";
+            ctx.textAlign = "center";
+            ctx.fillText("FRACTURE", w/2, startY - 40);
+        }
+    }
+
+    function drawWaveform() {
+        const canvas = els.waveCanvas;
+        const ctx = els.waveCtx;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if(w === 0 || h === 0) return;
+        if(canvas.width !== w) canvas.width = w, canvas.height = h;
+
+        ctx.clearRect(0, 0, w, h);
         const mY = (stress) => h/2 - (stress / 400) * (h/2.5); 
         
-        // Base Grid
         ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(0, mY(0)); ctx.lineTo(w, mY(0)); ctx.stroke();
         ctx.fillStyle = '#888'; ctx.font = "10px sans-serif"; ctx.fillText("0 MPa", 5, mY(0)-5);
 
-        // Update Math State (Only accumulate damage if not failed)
-        if (!isFailed) {
-            // Visual wave speed (slightly accelerated at high multipliers so it feels fast, but doesn't alias into noise)
-            let visualSpeedBoost = state.speed > 100 ? 2 : 1; 
-            time += 0.05 * visualSpeedBoost;
-            
-            // Mathematical cycle accumulator (approx 60fps = 1 cycle per sec at 1x speed)
-            let cyclesPerFrame = state.speed / 60;
-            if (state.Nf !== Infinity) {
-                currentCycles += cyclesPerFrame;
-                if (currentCycles >= state.Nf) {
-                    currentCycles = state.Nf;
-                    isFailed = true;
-                }
-            } else {
-                currentCycles += cyclesPerFrame; // Count up forever if infinite life
-            }
-        }
-
-        // Generate Waveform points
-        let activeStress = state.mean;
-        if (state.wave === 'sine') {
-            activeStress += Math.sin(time * 2) * state.amp;
-        } else {
-            if(Math.random() < 0.05) { 
-                targetRandom = (Math.random() * 2 - 1) * state.amp; 
-            }
-            currentRandom += (targetRandom - currentRandom) * 0.2; 
-            let noise = (Math.random() * 2 - 1) * (state.amp * 0.15);
-            activeStress += currentRandom + noise;
-        }
-
-        // Only append to history if not failed (freezes the graph on failure)
         if (!isFailed) {
             history.push(activeStress);
             if (history.length > w) history.shift(); 
         }
 
-        // Draw Stress Bounds
         ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean + state.amp)); ctx.lineTo(w, mY(state.mean + state.amp)); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean - state.amp)); ctx.lineTo(w, mY(state.mean - state.amp)); ctx.stroke();
         
-        ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)'; ctx.lineWidth = 1; ctx.setLineDash([]);
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean)); ctx.lineTo(w, mY(state.mean)); ctx.stroke();
-        ctx.setLineDash([]);
 
-        // Draw Oscilloscope Line
         ctx.strokeStyle = (state.wave === 'sine') ? '#00ffff' : '#ff8c00';
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.shadowColor = ctx.strokeStyle;
-        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2; ctx.lineJoin = 'round';
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 6;
         
         ctx.beginPath();
         for(let i=0; i<history.length; i++) {
@@ -459,39 +490,55 @@
             if(i===0) ctx.moveTo(px, mY(history[i]));
             else ctx.lineTo(px, mY(history[i]));
         }
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.stroke(); ctx.shadowBlur = 0;
 
-        // Draw active head
         if (history.length > 0 && !isFailed) {
             let headY = mY(history[history.length-1]);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(w - 5, headY - 5, 5, 10);
+            ctx.fillStyle = '#fff'; ctx.fillRect(w - 5, headY - 5, 5, 10);
         }
 
-        // Draw Fracture Overlay
         if (isFailed) {
-            ctx.fillStyle = "rgba(255, 0, 255, 0.15)";
+            ctx.fillStyle = "rgba(255, 0, 255, 0.1)";
             ctx.fillRect(0, 0, w, h);
-            ctx.fillStyle = "var(--magenta)";
-            ctx.font = "900 28px 'Segoe UI'";
-            ctx.textAlign = "center";
-            ctx.fillText("CRITICAL FRACTURE", w/2, h/2);
         }
 
-        // Update Counter DOM
         const cycleOut = document.getElementById('out-cycles');
         cycleOut.innerText = Math.floor(currentCycles).toLocaleString();
         if (isFailed) {
             cycleOut.innerText = "FRACTURED";
             cycleOut.style.color = "var(--magenta)";
-        } else {
-            cycleOut.style.color = "var(--cyan)";
-        }
+        } else cycleOut.style.color = "var(--cyan)";
     }
 
     function loop() {
         requestAnimationFrame(loop);
+        if (activeTab !== 'sim') return;
+
+        if (!isFailed) {
+            let visualSpeedBoost = state.speed > 100 ? 2 : 1; 
+            time += 0.05 * visualSpeedBoost;
+            
+            let cyclesPerFrame = state.speed / 60;
+            if (state.Nf !== Infinity) {
+                currentCycles += cyclesPerFrame;
+                if (currentCycles >= state.Nf) {
+                    currentCycles = state.Nf;
+                    isFailed = true;
+                }
+            } else currentCycles += cyclesPerFrame; 
+
+            // Calc active stress once per frame for both canvases
+            activeStress = state.mean;
+            if (state.wave === 'sine') {
+                activeStress += Math.sin(time * 2) * state.amp;
+            } else {
+                if(Math.random() < 0.05) targetRandom = (Math.random() * 2 - 1) * state.amp; 
+                currentRandom += (targetRandom - currentRandom) * 0.2; 
+                activeStress += currentRandom + (Math.random() * 2 - 1) * (state.amp * 0.15);
+            }
+        }
+
+        drawPhysicalBar();
         drawWaveform();
     }
 
