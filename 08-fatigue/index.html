@@ -45,9 +45,8 @@
         .curve.al { stroke: var(--orange); }
         .tracker { fill: var(--magenta); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 6px var(--magenta)); transition: cx 0.1s, cy 0.1s; }
         .tracker-line { stroke: var(--magenta); stroke-width: 1.5; stroke-dasharray: 4,4; }
-        text { fill: #ccc; font-size: 11px; font-family: 'Consolas', monospace; font-weight: bold; }
+        text { fill: #ccc; font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
         .axis-lbl { fill: #fff; font-size: 13px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
-        .math-eq { font-family: 'Times New Roman', serif; font-style: italic; font-weight: normal; font-size: 16px; }
 
         /* Sim Area */
         #sim-container { flex: 1.2; display: flex; flex-direction: column; overflow: hidden; }
@@ -162,7 +161,7 @@
             concept: "Mean Stress & Widespread Fatigue",
             summary: "An analysis of how decades of cyclic fuselage pressurization coupled with corrosive environments led to widespread multi-site fatigue damage, causing the roof of a Boeing 737 to rip off in flight.",
             abstract: "The 1988 Aloha Flight 243 incident, where a large section of the fuselage separated in flight, brought the concept of Widespread Fatigue Damage (WFD) to the forefront of engineering. Disbonding of lap joints increased local mean stresses on the rivet holes. The combination of high mean stress and the cyclic stress amplitude of pressurization drastically shifted the effective alternating stress via the Goodman relation, causing thousands of microscopic cracks to link up simultaneously.",
-            url: "#", tags: ["al", "sine", "random"]
+            url: "https://doi.org/10.1061/(ASCE)AS.1943-5525.0000247", tags: ["al", "sine", "random"]
         }
     ];
 
@@ -200,7 +199,7 @@
                         <span class="news-concept">${article.concept}</span>
                         <span class="news-source">${article.source} | ${article.date}</span>
                     </div>
-                    <a href="${article.url}" target="_blank" class="news-title">${article.title} &nearr;</a>
+                    <a href="${article.url}" target="_blank" class="news-title">${article.title} ↗</a>
                     <div class="news-authors">${article.authors}</div>
                     <div class="news-summary">${article.summary}</div>
                     <button class="preview-toggle" onclick="toggleAbstract(${index})">&#9660; Read Abstract</button>
@@ -217,7 +216,7 @@
             class: "steel"
         },
         al: { 
-            name: "Al 7075", Sut: 500, S1000: 450, Se: 130, knee: 8, // Treated as endurance strength at 10^8
+            name: "Al 7075", Sut: 500, S1000: 450, Se: 130, knee: 8, 
             class: "al"
         }
     };
@@ -241,29 +240,25 @@
     function calculatePhysics() {
         const mat = MATERIALS[state.mat];
         
-        // Prevent Mean Stress from exceeding Sut
         if(state.mean >= mat.Sut) state.mean = mat.Sut - 1; 
 
-        // Modified Goodman Correction: Sar = Sa / (1 - Sm/Sut)
+        // Modified Goodman
         state.Sar = state.amp / (1 - (state.mean / mat.Sut));
 
-        // S-N Math (Basquin's Law: S = a * N^b)
-        // Log Form: log(S) = log(a) + b * log(N) => log(N) = (log(S) - log(a)) / b
         const logS1000 = Math.log10(mat.S1000);
         const logSe = Math.log10(mat.Se);
-        const b = (logS1000 - logSe) / (3 - mat.knee); // Slope of log-log line
-        const logA = logS1000 - b * 3; // Intercept
+        const b = (logS1000 - logSe) / (3 - mat.knee); 
+        const logA = logS1000 - b * 3; 
         
         if (state.Sar >= mat.S1000) {
-            state.Nf = 1000; // Low cycle fatigue cutoff
+            state.Nf = 1000; 
         } else if (state.mat === 'steel' && state.Sar <= mat.Se) {
-            state.Nf = Infinity; // Infinite life
+            state.Nf = Infinity; 
         } else {
             const logN = (Math.log10(state.Sar) - logA) / b;
             state.Nf = Math.pow(10, logN);
         }
 
-        // Output UI
         document.getElementById('val-mean').innerText = state.mean + ' MPa';
         document.getElementById('val-amp').innerText = state.amp + ' MPa';
         document.getElementById('out-max').innerText = (state.mean + state.amp) + ' MPa';
@@ -273,10 +268,9 @@
 
         const nfOut = document.getElementById('out-nf');
         if (state.Nf === Infinity) {
-            nfOut.innerHTML = "&infin; (Infinite Life)";
+            nfOut.innerHTML = "∞ (Infinite Life)";
             nfOut.style.color = "#00ff00";
         } else {
-            // Format to scientific notation for readability
             nfOut.innerText = state.Nf.toExponential(2) + " Cycles";
             nfOut.style.color = (state.Nf < 1e5) ? "#ff3333" : "var(--yellow)";
         }
@@ -297,15 +291,14 @@
     function renderPlot() {
         els.svg.innerHTML = '';
         const w = els.svg.clientWidth, h = els.svg.clientHeight;
-        if(w === 0) return;
+        if(w === 0 || h === 0) return;
         
         const pad = { l: 60, r: 30, t: 20, b: 40 };
         const mat = MATERIALS[state.mat];
         
-        // Log(N) scale from 3 to 9 (10^3 to 10^9)
         const minLogN = 3, maxLogN = 9;
         const mX = (logN) => pad.l + ((logN - minLogN) / (maxLogN - minLogN)) * (w - pad.l - pad.r);
-        const mY = (S) => h - pad.b - (S / 700) * (h - pad.t - pad.b); // Fix Y at 700 MPa
+        const mY = (S) => h - pad.b - (S / 700) * (h - pad.t - pad.b);
 
         // Grid
         for(let s=0; s<=700; s+=100) {
@@ -316,7 +309,8 @@
         for(let logN=minLogN; logN<=maxLogN; logN++) {
             let px = mX(logN);
             els.svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
-            els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10&#x207${logN};</text>`;
+            // Safe, validator-friendly SVG text formatting
+            els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10<tspan dy="-5" font-size="9px">${logN}</tspan></text>`;
         }
 
         // Axes
@@ -325,27 +319,25 @@
         els.svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Cycles to Failure (N)</text>`;
         els.svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Eff. Stress (S_ar)</text>`;
 
-        // Draw Material S-N Curve
+        // Draw Material Curve
         let pts = "";
         const b = (Math.log10(mat.S1000) - Math.log10(mat.Se)) / (3 - mat.knee);
         const logA = Math.log10(mat.S1000) - b * 3;
 
         for(let logN=minLogN; logN<=maxLogN; logN+=0.1) {
             let s;
-            if(mat.name.includes("Steel") && logN >= mat.knee) s = mat.Se; // Horizontal Endurance Limit
+            if(mat.name.includes("Steel") && logN >= mat.knee) s = mat.Se; 
             else s = Math.pow(10, logA + b * logN);
             pts += `${mX(logN)},${mY(s)} `;
         }
         els.svg.innerHTML += `<polyline class="curve ${mat.class}" points="${pts}"/>`;
         
-        // Endurance Limit Callout if Steel
         if(mat.name.includes("Steel")) {
             els.svg.innerHTML += `<line stroke="#00ff00" stroke-dasharray="4,4" x1="${mX(mat.knee)}" y1="${mY(mat.Se)}" x2="${w-pad.r}" y2="${mY(mat.Se)}"/>`;
             els.svg.innerHTML += `<text x="${w-120}" y="${mY(mat.Se)-5}" fill="#00ff00" font-size="12px">Endurance Limit (S_e)</text>`;
         }
 
-        // Goodman Equivalent Tracker
-        let trackLogN = state.Nf === Infinity ? 8.8 : Math.log10(state.Nf); // Peg infinity to right side
+        let trackLogN = state.Nf === Infinity ? 8.8 : Math.log10(state.Nf); 
         if (trackLogN > maxLogN) trackLogN = maxLogN;
         if (trackLogN < minLogN) trackLogN = minLogN;
         
@@ -357,47 +349,42 @@
 
     // --- Oscilloscope (Time Domain) ---
     let time = 0;
-    const history = []; // Array of stress values
+    const history = []; 
     let targetRandom = 0;
     let currentRandom = 0;
 
     function drawWaveform() {
         if (activeTab !== 'sim') return;
         const w = els.canvas.clientWidth, h = els.canvas.clientHeight;
-        if(w === 0) return;
+        if(w === 0 || h === 0) return;
         if(els.canvas.width !== w) els.canvas.width = w, els.canvas.height = h;
         
         const ctx = els.ctx;
         ctx.clearRect(0, 0, w, h);
 
-        const mY = (stress) => h/2 - (stress / 400) * (h/2.5); // Maps +/- 400 MPa
+        const mY = (stress) => h/2 - (stress / 400) * (h/2.5); 
         
-        // Background Grid / Axis
         ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(0, mY(0)); ctx.lineTo(w, mY(0)); ctx.stroke();
         ctx.fillStyle = '#888'; ctx.font = "10px sans-serif"; ctx.fillText("0 MPa", 5, mY(0)-5);
 
-        // Generate next data point
         time += 0.05;
         let activeStress = state.mean;
 
         if (state.wave === 'sine') {
             activeStress += Math.sin(time * 2) * state.amp;
         } else {
-            // Smooth Random Walk logic (Simulating variable telemetry)
-            if(Math.random() < 0.05) { // Pick a new target amplitude peak occasionally
+            if(Math.random() < 0.05) { 
                 targetRandom = (Math.random() * 2 - 1) * state.amp; 
             }
-            currentRandom += (targetRandom - currentRandom) * 0.2; // Smooth interpolate
-            // Add high-frequency noise
+            currentRandom += (targetRandom - currentRandom) * 0.2; 
             let noise = (Math.random() * 2 - 1) * (state.amp * 0.15);
             activeStress += currentRandom + noise;
         }
 
         history.push(activeStress);
-        if (history.length > w) history.shift(); // Keep array bounded to canvas width
+        if (history.length > w) history.shift(); 
 
-        // Draw Bounding Envelopes
         ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean + state.amp)); ctx.lineTo(w, mY(state.mean + state.amp)); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean - state.amp)); ctx.lineTo(w, mY(state.mean - state.amp)); ctx.stroke();
@@ -406,7 +393,6 @@
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean)); ctx.lineTo(w, mY(state.mean)); ctx.stroke();
         ctx.setLineDash([]);
 
-        // Draw Wave
         ctx.strokeStyle = (state.wave === 'sine') ? '#00ffff' : '#ff8c00';
         ctx.lineWidth = 3;
         ctx.lineJoin = 'round';
@@ -422,7 +408,6 @@
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // Draw Label Tracker on the leading edge
         if (history.length > 0) {
             let headY = mY(history[history.length-1]);
             ctx.fillStyle = '#fff';
