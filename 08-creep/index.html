@@ -103,7 +103,7 @@
 
     <div style="text-align: center; color: var(--orange); font-family: 'Times New Roman', serif; font-style: italic; margin: 10px 0; font-size: 1.1rem; line-height: 1.4;">
         Steady-State Creep:<br>
-        <span style="font-size: 1.2rem;">ε̇<sub>s</sub> = K<sub>2</sub> σ<sup>n</sup> exp(-Q<sub>c</sub>/RT)</span>
+        <span style="font-size: 1.2rem;">ε̇<sub>s</sub> = K σ<sup>n</sup> exp(-Q<sub>c</sub>/RT)</span>
     </div>
 
     <div id="readouts">
@@ -129,7 +129,6 @@
     </div>
 
     <div id="view-sim" class="view-container">
-        
         <div id="plot-row">
             <div class="plot-panel">
                 <div class="plot-title">Strain vs. Time Curve</div>
@@ -151,7 +150,6 @@
                 <canvas id="micro-canvas"></canvas>
             </div>
         </div>
-
     </div>
 
     <div id="view-news" class="view-container" style="display:none;"></div>
@@ -180,15 +178,18 @@
         </div>`;
     });
 
-    // --- Physics Models ---
+    // --- Corrected Physics Models ---
+    // Note: The stress exponent 'n' is primarily a function of the material's bulk dislocation mechanism.
     const MAT = {
-        superalloy: { name: "Ni-Superalloy", Tm: 1600, E: 200000, Qc: 280000, K: 1e-12 },
-        steel: { name: "1045 Steel", Tm: 1750, E: 210000, Qc: 250000, K: 5e-12 }
+        superalloy: { name: "Ni-Superalloy", Tm: 1600, E: 200000, Qc: 280000, K: 1.5e-16, n: 4.5 },
+        steel: { name: "1045 Steel", Tm: 1750, E: 210000, Qc: 250000, K: 5.0e-15, n: 5.0 }
     };
+    
+    // The Microstructure applies a penalty multiplier for Grain Boundary Sliding (Coble/Nabarro-Herring influence).
     const MICRO = {
-        fine: { n: 4.5, gbSlideRate: 5 },
-        coarse: { n: 5.0, gbSlideRate: 1.5 },
-        single: { n: 6.0, gbSlideRate: 0.0 }
+        fine: { gbSlideMultiplier: 80, visualScale: 1.5 },   // Massive penalty at high T due to dense GB network
+        coarse: { gbSlideMultiplier: 5, visualScale: 0.4 },  // Moderate penalty
+        single: { gbSlideMultiplier: 0.05, visualScale: 0 }  // Extreme resistance (essentially pure bulk diffusion)
     };
 
     let s = { mat: 'superalloy', micro: 'fine', temp: 1000, stress: 200, speed: 1 };
@@ -216,31 +217,44 @@
         
         phys.e0 = s.stress / mat.E;
         
-        // Steady-State Rate (epsilon_dot_s)
+        // 1. Bulk Thermal & Stress Contribution
         let thermal = Math.exp(-mat.Qc / (R * s.temp));
-        let stressFac = Math.pow(s.stress, mic.n);
-        let gbMult = 1 + (mic.gbSlideRate * Math.pow(Thomo, 5));
+        let stressFac = Math.pow(s.stress, mat.n);
         
-        phys.rate = mat.K * stressFac * thermal * gbMult;
+        // 2. Grain Boundary Penalty (Activates strongly as T approaches Tm)
+        let slidingEffect = 1 + (mic.gbSlideMultiplier * Math.pow(Thomo, 6));
         
-        let simScale = 1e8; 
+        // 3. Steady-State Creep Rate
+        phys.rate = mat.K * stressFac * thermal * slidingEffect;
+        
+        // Scaling to bring numbers into an educational visual timeframe (hours)
+        let simScale = 1e12; 
         phys.simRate = phys.rate * simScale;
 
-        // Monkman-Grant Rupture
+        // 4. Monkman-Grant Rupture (Constant Strain to Failure approx 0.20)
         phys.tr = 0.20 / phys.simRate; 
 
-        document.getElementById('out-n').innerText = mic.n.toFixed(1);
+        document.getElementById('out-n').innerText = mat.n.toFixed(1);
         document.getElementById('out-q').innerText = (mat.Qc/1000) + ' kJ/mol';
-        document.getElementById('out-rate').innerText = (phys.simRate < 1e-6) ? "Negligible" : phys.simRate.toExponential(2) + ' hr⁻¹';
-        document.getElementById('out-tr').innerText = (phys.simRate < 1e-6) ? "∞" : Math.round(phys.tr) + ' hrs';
+        
+        if (phys.simRate < 1e-6) {
+            document.getElementById('out-rate').innerText = "Negligible";
+            document.getElementById('out-tr').innerText = "∞ (Infinite)";
+        } else {
+            document.getElementById('out-rate').innerText = phys.simRate.toExponential(2) + ' hr⁻¹';
+            document.getElementById('out-tr').innerText = Math.round(phys.tr).toLocaleString() + ' hrs';
+        }
 
         generateCurve();
         renderPlots();
         
+        // Sync running simulation to new physics timeline
         if(simTime > 0 && !isRuptured) {
             currentStrain = getStrainAtTime(simTime);
             if(simTime >= phys.tr) isRuptured = true;
-        } else if (simTime === 0) currentStrain = phys.e0;
+        } else if (simTime === 0) {
+            currentStrain = phys.e0;
+        }
     }
 
     function getStrainAtTime(t) {
@@ -253,7 +267,7 @@
 
     function generateCurve() {
         phys.curve = [];
-        if (phys.tr > 100000) {
+        if (phys.tr > 1000000) {
             for(let i=0; i<=100; i++) phys.curve.push({t: i, e: phys.e0});
             return;
         }
@@ -274,19 +288,23 @@
         let w = els.svgStrain.clientWidth, h = els.svgStrain.clientHeight;
         if(w===0) return;
         let pad = { l: 50, r: 20, t: 15, b: 30 };
+        
+        // Fix max timeline logic so extremely long lives don't squash the chart to 1 pixel
         let maxT = phys.tr > 100000 ? 1000 : phys.tr * 1.1;
         let maxE = 0.3;
         
         let mx1 = (t) => pad.l + (t/maxT)*(w-pad.l-pad.r);
         let my1 = (e) => h-pad.b - (e/maxE)*(h-pad.t-pad.b);
 
+        // Strain Grid Y
         for(let e=0; e<=0.3; e+=0.1) {
             els.svgStrain.innerHTML += `<line class="grid" x1="${pad.l}" y1="${my1(e)}" x2="${w-pad.r}" y2="${my1(e)}"/>
                                         <text x="${pad.l-5}" y="${my1(e)+4}" text-anchor="end">${Math.round(e*100)}%</text>`;
         }
+        // Axes
         els.svgStrain.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>
                                     <line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>
-                                    <text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Time</text>`;
+                                    <text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Time (hrs)</text>`;
 
         let pts = "";
         phys.curve.forEach(pt => pts += `${mx1(pt.t)},${my1(pt.e)} `);
@@ -295,10 +313,11 @@
         let trackT = simTime > maxT ? maxT : simTime, trackE = currentStrain > maxE ? maxE : currentStrain;
         els.svgStrain.innerHTML += `<circle class="tracker" cx="${mx1(trackT)}" cy="${my1(trackE)}" r="5"/>`;
 
+        // 2. Log-Log Plot
         els.svgLog.innerHTML = '';
         w = els.svgLog.clientWidth; h = els.svgLog.clientHeight;
-        let minLogS = 1, maxLogS = 3; 
-        let minLogE = -8, maxLogE = -1; 
+        let minLogS = 1, maxLogS = 3; // 10 to 1000 MPa
+        let minLogE = -8, maxLogE = -1; // Rates
         
         let mx2 = (logS) => pad.l + ((logS - minLogS)/(maxLogS - minLogS))*(w-pad.l-pad.r);
         let my2 = (logE) => h-pad.b - ((logE - minLogE)/(maxLogE - minLogE))*(h-pad.t-pad.b);
@@ -311,8 +330,8 @@
         const calcLogE = (str, temp) => {
             let m = MAT[s.mat], mc = MICRO[s.micro];
             let therm = Math.exp(-m.Qc / (R * temp));
-            let mult = 1 + (mc.gbSlideRate * Math.pow(temp/m.Tm, 5));
-            return Math.log10(m.K * Math.pow(str, mc.n) * therm * mult * 1e8);
+            let slide = 1 + (mc.gbSlideMultiplier * Math.pow(temp/m.Tm, 6));
+            return Math.log10(m.K * Math.pow(str, m.n) * therm * slide * 1e12);
         };
 
         [800, 1000, 1200].forEach((T, i) => {
@@ -347,10 +366,10 @@
     }
 
     const fineR = 20;
-    const fineGrains = generateHexGrid(fineR, 8, 8); // Lots of small grains
+    const fineGrains = generateHexGrid(fineR, 8, 8); // High density boundary network
 
     const coarseR = 45;
-    const coarseGrains = generateHexGrid(coarseR, 4, 4); // Fewer large grains
+    const coarseGrains = generateHexGrid(coarseR, 4, 4); // Low density boundary network
 
     function drawHexagon(ctx, x, y, r) {
         ctx.beginPath();
@@ -371,7 +390,7 @@
         c.save();
         c.translate(w/2, h/2 + 20);
 
-        // Tensile strain transformations (Affects the overall area evenly)
+        // Tensile strain transformations
         let stY = 1 + currentStrain * 1.5; 
         let stX = 1 - currentStrain * 0.6; 
         
@@ -392,10 +411,11 @@
             let isFine = s.micro === 'fine';
             let activeGrains = isFine ? fineGrains : coarseGrains;
             let activeR = isFine ? fineR : coarseR;
+            let vScale = MICRO[s.micro].visualScale;
 
             activeGrains.forEach(g => {
-                // Coarse grains slide visibly less due to interlocking & lower boundary density
-                let slideAmt = isRuptured ? 0 : (currentStrain * 100 * g.slideDir * (isFine ? 1.2 : 0.4));
+                // Visual sliding multiplier respects the physics engine's gb multiplier
+                let slideAmt = isRuptured ? 0 : (currentStrain * 100 * g.slideDir * vScale);
                 
                 c.save();
                 c.translate(g.x, g.y + slideAmt);
@@ -409,7 +429,7 @@
                 c.lineWidth = 2; c.stroke();
                 c.restore();
                 
-                // CAVITATION (Only highly pronounced in Fine grains due to high boundary sliding)
+                // Cavitation (Voids nucleate much faster in fine grains due to high shear)
                 if(currentStrain > 0.15 && !isRuptured && isFine) {
                     if((g.col+g.row)%3 === 0) { 
                         c.fillStyle = '#000'; c.strokeStyle = 'var(--magenta)'; c.lineWidth=1;
