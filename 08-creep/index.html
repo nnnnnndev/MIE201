@@ -1,1 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 8: Creep & High-Temperature Failure</title>
+    <style>
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --orange: #ff8c00; --grid: rgba(255, 255, 255, 0.1); }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
+        
+        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.8); overflow-y: auto; }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        
+        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 8px; margin-bottom: 15px; font-weight: bold; width: 100%; cursor: pointer; font-size: 0.85rem; }
+        
+        .control-block { background: #0a0a0a; border: 1px solid #333; padding: 12px; margin-bottom: 12px; border-radius: 4px; }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: #fff; margin-bottom: 8px; text-transform: uppercase; }
+        input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
+        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 0.95rem; margin: 6px 0; color: #ccc; }
+        .stat-main { font-size: 1.1rem; color: var(--yellow); border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; display: flex; justify-content: space-between; }
+        
+        #stage { flex: 1; display: flex; flex-direction: column; background: radial-gradient(circle at center, #111 0%, #000 100%); position: relative; }
+        
+        .tab-bar { display: flex; border-bottom: 2px solid #333; background: rgba(0,0,0,0.9); z-index: 10; }
+        .tab-btn { flex: 1; padding: 15px; background: transparent; color: #666; border: none; outline: none; font-family: 'Segoe UI', sans-serif; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: 0.3s; font-size: 0.9rem; }
+        .tab-btn:hover { color: var(--cyan); background: rgba(0, 255, 255, 0.05); }
+        .tab-btn.active { color: var(--magenta); border-bottom: 3px solid var(--magenta); background: rgba(255, 0, 255, 0.05); color: #fff; }
+
+        .view-container { flex: 1; padding: 20px; gap: 20px; overflow: hidden; }
+        #view-sim { display: flex; flex-direction: column; }
+        #view-news { display: none; flex-direction: column; overflow-y: auto; padding-right: 15px; }
+
+        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
+        
+        #plot-container { flex: 1; min-height: 220px; padding: 10px; overflow: hidden; }
+        svg { width: 100%; height: 100%; overflow: visible; }
+        .axis { stroke: #888; stroke-width: 2; }
+        .grid { stroke: var(--grid); stroke-width: 1; }
+        .curve { fill: none; stroke-width: 3; filter: drop-shadow(0 0 5px var(--cyan)); stroke: var(--cyan); }
+        .tracker { fill: var(--magenta); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 6px var(--magenta)); }
+        .tracker-line { stroke: var(--magenta); stroke-width: 1.5; stroke-dasharray: 4,4; }
+        text { fill: #ccc; font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
+        .axis-lbl { fill: #fff; font-size: 13px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
+
+        #sim-container { flex: 1.2; display: flex; flex-direction: row; overflow: hidden; gap: 0; }
+        .sim-pane { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .sim-pane.left { flex: 0.5; border-right: 2px solid #333; background: rgba(255,255,255,0.02); }
+        .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; z-index: 2; background: rgba(0,0,0,0.7); }
+        canvas { width: 100%; height: 100%; flex: 1; display: block; position: absolute; top: 0; left: 0; }
+
+        .news-card { background: #111; border-left: 4px solid var(--cyan); padding: 20px; margin-bottom: 15px; border-radius: 0 8px 8px 0; transition: transform 0.2s; }
+        .news-card:hover { transform: translateX(3px); background: #141414; border-left-color: var(--magenta); }
+        .news-header { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .news-concept { color: var(--yellow); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .news-source { color: #888; font-size: 0.85rem; }
+        .news-title { color: #fff; font-size: 1.3rem; margin-bottom: 5px; text-decoration: none; display: inline-block; transition: 0.2s; font-weight: bold; }
+        .news-title:hover { color: var(--cyan); }
+        .news-authors { color: #777; font-size: 0.85rem; font-style: italic; margin-bottom: 12px; }
+        .news-summary { color: #ccc; font-size: 0.95rem; line-height: 1.5; font-weight: normal; margin-bottom: 15px; }
+        .preview-toggle { background: #222; color: var(--cyan); border: 1px solid #444; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .preview-toggle:hover { background: #333; border-color: var(--cyan); }
+        .abstract-preview { display: none; background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-top: 10px; border-radius: 4px; color: #aaa; font-size: 0.9rem; line-height: 1.6; border-left: 2px solid var(--yellow); }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Creep Mechanics</h1>
+    
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Material System</div>
+    <select id="mat-select">
+        <option value="superalloy">Ni-Based Superalloy (High Tm = 1600K)</option>
+        <option value="lead">Lead/Solder Alloy (Low Tm = 600K)</option>
+    </select>
+
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Microstructure</div>
+    <select id="grain-select">
+        <option value="fine">Equiaxed Fine Grains (High GB Sliding)</option>
+        <option value="coarse">Coarse Grains (Moderate Resistance)</option>
+        <option value="single">Single Crystal (No Boundaries / Max Resistance)</option>
+    </select>
+
+    <div class="control-block">
+        <div class="label-row"><span>Furnace Temperature (T)</span><span id="val-temp">1000 K</span></div>
+        <input type="range" id="slider-temp" min="300" max="1500" step="10" value="1000">
+        <div style="text-align: right; font-size: 0.7rem; color: #888; margin-top: 4px;">Homologous Temp (T/T<sub>m</sub>): <span id="val-homo">0.63</span></div>
+    </div>
+
+    <div class="control-block">
+        <div class="label-row"><span>Applied Constant Stress (σ)</span><span id="val-stress">200 MPa</span></div>
+        <input type="range" id="slider-stress" min="10" max="500" step="10" value="200">
+    </div>
+
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Time Acceleration</div>
+    <select id="speed-select">
+        <option value="1">1x (Real Time: ~1 Hr/sec)</option>
+        <option value="10">10x (Accelerated)</option>
+        <option value="100">100x (Hyper-Speed)</option>
+    </select>
+
+    <div style="text-align: center; color: var(--orange); font-family: 'Times New Roman', serif; font-style: italic; margin: 10px 0; font-size: 1.1rem; line-height: 1.4;">
+        Steady-State Creep Rate:<br>
+        <span style="font-size: 1.2rem;">ε̇<sub>s</sub> = K<sub>2</sub> σ<sup>n</sup> exp(-Q<sub>c</sub>/RT)</span>
+    </div>
+
+    <div id="readouts">
+        <div class="stat"><span>Instantaneous Strain (ε<sub>0</sub>):</span><span id="out-inst">--</span></div>
+        <div class="stat"><span>Stress Exponent (n):</span><span id="out-n">--</span></div>
+        <div class="stat" style="color: var(--cyan); border-top: 1px solid #444; padding-top: 5px; margin-top: 5px;">
+            <span>Steady Creep Rate (ε̇<sub>s</sub>):</span><span id="out-rate">--</span>
+        </div>
+        <div class="stat-main"><span>Rupture Lifetime (t<sub>r</sub>):</span><span id="out-tr">--</span></div>
+        
+        <div class="stat-main" style="color: var(--magenta); border-top: none; padding-top: 0; margin-top: 5px;">
+            <span>Elapsed Time (t):</span><span id="out-time">0 hrs</span>
+        </div>
+    </div>
+    
+    <button onclick="resetSim()" style="margin-top: 15px; padding: 10px; background: #222; color: var(--yellow); border: 1px solid var(--yellow); cursor: pointer; font-weight: bold; text-transform: uppercase;">Reset Specimen</button>
+</div>
+
+<div id="stage">
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tab-sim" onclick="switchTab('sim')">Analytical Plot & Simulation</button>
+        <button class="tab-btn" id="tab-news" onclick="switchTab('news')">Real-World Context</button>
+    </div>
+
+    <div id="view-sim" class="view-container">
+        <div class="panel" id="plot-container">
+            <svg id="plot"></svg>
+        </div>
+        
+        <div class="panel" id="sim-container">
+            <div class="sim-pane left">
+                <div class="sim-title">Macroscopic: Furnace & Load</div>
+                <canvas id="macro-canvas"></canvas>
+            </div>
+            
+            <div class="sim-pane">
+                <div class="sim-title">Microscopic: Grain Boundary Sliding</div>
+                <canvas id="micro-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-news" class="view-container"></div>
+</div>
+
+<script>
+    // --- Real-World Data Feed ---
+    const realWorldFeed = [
+        {
+            title: "The Development of Single Crystal Superalloy Turbine Blades",
+            authors: "Gell, M., et al.", date: "1987", source: "Superalloys",
+            concept: "Single Crystal Creep Resistance",
+            summary: "A seminal paper detailing the metallurgical revolution of removing grain boundaries entirely from jet engine turbine blades to eliminate high-temperature creep and grain boundary sliding.",
+            abstract: "The efficiency of gas turbine engines is directly tied to operating temperatures. Polycrystalline superalloys fail via intergranular creep rupture at high homologous temperatures. By utilizing directional solidification to cast blades as a single continuous crystal, the transverse grain boundaries—the primary sites for void nucleation and Coble creep—are eliminated, pushing operating temperatures hundreds of degrees higher.",
+            url: "https://doi.org/10.7449/1980/Superalloys_1980_205_214", tags: ["superalloy", "single"]
+        },
+        {
+            title: "Creep of Lead and Solder Alloys at Ambient Temperatures",
+            authors: "Weertman, J.", date: "1960", source: "Trans. Metall. Soc. AIME",
+            concept: "Low Tm & Homologous Temperature",
+            summary: "An exploration of why historical lead roofs on cathedrals sag over centuries, and why modern electronics solder joints fail via creep without ever being 'heated'.",
+            abstract: "Because the absolute melting temperature (Tm) of lead and tin-based solders is quite low (~600K), room temperature (298K) represents a homologous temperature (T/Tm) of roughly 0.5. At this threshold, vacancy diffusion and dislocation climb become active. This paper models the steady-state creep rates of these alloys under low stress, confirming that thermally activated flow occurs in these systems at everyday ambient conditions.",
+            url: "#", tags: ["lead", "fine", "coarse"]
+        }
+    ];
+
+    let activeTab = 'sim';
+    function switchTab(tabId) {
+        activeTab = tabId;
+        document.getElementById('tab-sim').classList.remove('active');
+        document.getElementById('tab-news').classList.remove('active');
+        document.getElementById('view-sim').style.display = 'none';
+        document.getElementById('view-news').style.display = 'none';
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`view-${tabId}`).style.display = 'flex';
+        if(tabId === 'sim') setTimeout(forceRedraw, 10); 
+    }
+
+    window.toggleAbstract = function(id) {
+        const p = document.getElementById(`abstract-${id}`);
+        p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function renderFeed() {
+        const container = document.getElementById('view-news');
+        container.innerHTML = '';
+        realWorldFeed.forEach((article, index) => {
+            container.innerHTML += `
+                <div class="news-card">
+                    <div class="news-header">
+                        <span class="news-concept">${article.concept}</span>
+                        <span class="news-source">${article.source} | ${article.date}</span>
+                    </div>
+                    <a href="${article.url}" target="_blank" class="news-title">${article.title} ↗</a>
+                    <div class="news-authors">${article.authors}</div>
+                    <div class="news-summary">${article.summary}</div>
+                    <button class="preview-toggle" onclick="toggleAbstract(${index})">▼ Read Abstract</button>
+                    <div class="abstract-preview" id="abstract-${index}"><strong>ABSTRACT:</strong><br><br>${article.abstract}</div>
+                </div>
+            `;
+        });
+    }
+
+    // --- Physics Models ---
+    const MATERIALS = {
+        superalloy: { name: "Ni-Superalloy", Tm: 1600, E: 200000, Qc: 280000, K: 1e-12 },
+        lead: { name: "Lead Alloy", Tm: 600, E: 16000, Qc: 100000, K: 1e-6 }
+    };
+    
+    const MICRO = {
+        fine: { name: "Fine Grains", n: 4.5, gbMultiplier: 5 },
+        coarse: { name: "Coarse Grains", n: 5.0, gbMultiplier: 2 },
+        single: { name: "Single Crystal", n: 6.0, gbMultiplier: 0.1 }
+    };
+
+    let state = { mat: 'superalloy', micro: 'fine', temp: 1000, stress: 200, speed: 1 };
+    
+    // Live Simulation State
+    let simTime = 0;
+    let currentStrain = 0;
+    let isRuptured = false;
+    let physicsCache = { e0: 0, rate: 0, tr: 0, curve: [] };
+    const R = 8.314;
+
+    const els = {
+        mat: document.getElementById('mat-select'),
+        micro: document.getElementById('grain-select'),
+        temp: document.getElementById('slider-temp'),
+        stress: document.getElementById('slider-stress'),
+        speed: document.getElementById('speed-select'),
+        svg: document.getElementById('plot'),
+        macCtx: document.getElementById('macro-canvas').getContext('2d'),
+        micCtx: document.getElementById('micro-canvas').getContext('2d')
+    };
+
+    function resetSim() {
+        simTime = 0;
+        currentStrain = physicsCache.e0;
+        isRuptured = false;
+    }
+
+    function calculatePhysics() {
+        const mat = MATERIALS[state.mat];
+        const micro = MICRO[state.micro];
+        
+        // Homologous Temp restriction
+        if (state.temp > mat.Tm - 50) {
+            state.temp = mat.Tm - 50;
+            els.temp.value = state.temp;
+        }
+
+        const Thomo = state.temp / mat.Tm;
+        document.getElementById('val-temp').innerText = state.temp + ' K';
+        document.getElementById('val-homo').innerText = Thomo.toFixed(2);
+        document.getElementById('val-stress').innerText = state.stress + ' MPa';
+
+        // 1. Instantaneous Strain (Elastic)
+        physicsCache.e0 = state.stress / mat.E; 
+        
+        // 2. Steady-State Creep Rate (Arrhenius + Power Law)
+        // Adjusted for visual scale, heavily dependent on GB sliding multiplier at high T
+        let thermalFactor = Math.exp(-mat.Qc / (R * state.temp));
+        let stressFactor = Math.pow(state.stress, micro.n);
+        let gbFactor = 1 + (micro.gbMultiplier * Math.pow(Thomo, 4)); // GB sliding turns on strongly at high T
+        
+        physicsCache.rate = mat.K * stressFactor * thermalFactor * gbFactor;
+        
+        // Normalize for simulation visual scaling so it doesn't take literally years, but keeps relative math
+        let simScale = 1e8; 
+        physicsCache.simRate = physicsCache.rate * simScale;
+
+        // 3. Rupture Time (Monkman-Grant approximation: rate * tr = constant)
+        const C_MG = 0.15; // Typical strain at failure
+        physicsCache.tr = C_MG / physicsCache.simRate;
+
+        // Update Readouts
+        document.getElementById('out-inst').innerText = (physicsCache.e0 * 100).toFixed(2) + '%';
+        document.getElementById('out-n').innerText = micro.n.toFixed(1);
+        
+        if (physicsCache.simRate < 1e-6) {
+            document.getElementById('out-rate').innerText = "Negligible";
+            document.getElementById('out-tr').innerText = "Infinite";
+        } else {
+            document.getElementById('out-rate').innerText = physicsCache.simRate.toExponential(2) + ' hr⁻¹';
+            document.getElementById('out-tr').innerText = Math.round(physicsCache.tr) + ' hrs';
+        }
+
+        generateCurve();
+        renderPlot();
+        
+        // If parameters change while running, sync strain to new curve if time is preserved
+        if(simTime > 0 && !isRuptured) {
+            currentStrain = getStrainAtTime(simTime);
+            if(simTime >= physicsCache.tr) isRuptured = true;
+        } else if (simTime === 0) {
+            currentStrain = physicsCache.e0;
+        }
+    }
+
+    function getStrainAtTime(t) {
+        if (t >= physicsCache.tr) return 0.25; // Rupture strain
+        // Model: e0 + Primary(Transient) + Secondary(Steady) + Tertiary(Exponential)
+        const tr = physicsCache.tr;
+        const e0 = physicsCache.e0;
+        const rate = physicsCache.simRate;
+        
+        let primary = 0.02 * (1 - Math.exp(-5 * t / tr)); // Decaying transient
+        let secondary = rate * t;
+        let tertiary = 0.005 * Math.exp(10 * (t - tr) / tr); // Blows up at tr
+        
+        return e0 + primary + secondary + tertiary;
+    }
+
+    function generateCurve() {
+        physicsCache.curve = [];
+        if (physicsCache.tr === Infinity || physicsCache.simRate < 1e-6) {
+            for(let i=0; i<=100; i++) {
+                physicsCache.curve.push({t: i, e: physicsCache.e0});
+            }
+            return;
+        }
+        
+        let tMax = physicsCache.tr * 1.05; 
+        let dt = tMax / 100;
+        for(let t=0; t<=physicsCache.tr; t+=dt) {
+            physicsCache.curve.push({t: t, e: getStrainAtTime(t)});
+        }
+    }
+
+    function updateState() {
+        state.mat = els.mat.value;
+        state.micro = els.micro.value;
+        state.temp = parseFloat(els.temp.value);
+        state.stress = parseFloat(els.stress.value);
+        state.speed = parseFloat(els.speed.value);
+        calculatePhysics();
+    }
+
+    // --- S-N Plot ---
+    function renderPlot() {
+        els.svg.innerHTML = '';
+        const w = els.svg.clientWidth, h = els.svg.clientHeight;
+        if(w === 0 || h === 0) return;
+        
+        const pad = { l: 60, r: 30, t: 20, b: 40 };
+        
+        let maxT = physicsCache.tr === Infinity ? 1000 : physicsCache.tr * 1.1;
+        let maxE = 0.3; // Max strain display 30%
+
+        const mX = (t) => pad.l + (t / maxT) * (w - pad.l - pad.r);
+        const mY = (e) => h - pad.b - (e / maxE) * (h - pad.t - pad.b);
+
+        // Grid
+        for(let e=0; e<=0.3; e+=0.1) {
+            let py = mY(e);
+            els.svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            els.svg.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${Math.round(e*100)}%</text>`;
+        }
+        
+        let tStep = maxT / 4;
+        for(let i=0; i<=4; i++) {
+            let tVal = i * tStep;
+            let px = mX(tVal);
+            els.svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
+            if(i>0) els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">${Math.round(tVal)}</text>`;
+        }
+
+        // Axes
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Time (hrs)</text>`;
+        els.svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Strain (ε)</text>`;
+
+        // Draw Curve
+        let pts = "";
+        physicsCache.curve.forEach(pt => {
+            pts += `${mX(pt.t)},${mY(pt.e)} `;
+        });
+        els.svg.innerHTML += `<polyline class="curve" points="${pts}"/>`;
+
+        // Rupture marker
+        if (physicsCache.tr !== Infinity && physicsCache.curve.length > 0) {
+            let lastPt = physicsCache.curve[physicsCache.curve.length-1];
+            els.svg.innerHTML += `<text x="${mX(lastPt.t)+5}" y="${mY(lastPt.e)}" fill="var(--magenta)" font-weight="bold">X Rupture</text>`;
+        }
+
+        // Tracker
+        let trackT = simTime > maxT ? maxT : simTime;
+        let trackE = currentStrain > maxE ? maxE : currentStrain;
+        let tx = mX(trackT), ty = mY(trackE);
+        els.svg.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
+    }
+
+    // --- Visual Simulation ---
+    // Generate static grain polygons
+    const grains = [];
+    for(let i=0; i<15; i++) {
+        let x = Math.random() * 200 - 100;
+        let y = Math.random() * 300 - 150;
+        let points = [];
+        for(let a=0; a<Math.PI*2; a+=Math.PI/3) {
+            points.push({ dx: Math.cos(a)*40 + (Math.random()*15-7), dy: Math.sin(a)*40 + (Math.random()*15-7) });
+        }
+        grains.push({ x, y, points, speedMult: Math.random() * 0.5 + 0.5 });
+    }
+
+    function drawMacro() {
+        const canvas = els.macCtx.canvas;
+        const ctx = els.macCtx;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if(w === 0 || h === 0) return;
+        if(canvas.width !== w) canvas.width = w, canvas.height = h;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Furnace Glow based on Homologous Temp
+        const Thomo = state.temp / MATERIALS[state.mat].Tm;
+        let r = Math.min(255, Thomo * 300);
+        let g = Math.min(255, (Thomo - 0.5) * 400);
+        let b = Math.min(255, (Thomo - 0.8) * 500);
+        if(g<0) g=0; if(b<0) b=0;
+        
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
+        ctx.fillRect(0, 0, w, h);
+        
+        // Furnace Heating Elements
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.8)`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        for(let y=40; y<h-40; y+=30) {
+            ctx.moveTo(10, y); ctx.lineTo(30, y);
+            ctx.moveTo(w-30, y); ctx.lineTo(w-10, y);
+        }
+        ctx.stroke();
+
+        // Specimen
+        const baseX = w/2;
+        const baseY = 40;
+        const L0 = h/2.5; // Original length
+        
+        // Calculate stretch and necking
+        let displayStrain = currentStrain;
+        if(displayStrain > 0.25) displayStrain = 0.25;
+        let currentL = L0 * (1 + displayStrain * 2); // Exaggerated visually
+        let width = 24 - (displayStrain * 40); // Poisson effect / necking
+        
+        // Anchor
+        ctx.fillStyle = '#444';
+        ctx.fillRect(baseX - 30, 0, 60, baseY);
+
+        ctx.fillStyle = isRuptured ? '#222' : 'var(--cyan)';
+        if(isRuptured) {
+            // Broken Bar
+            ctx.fillRect(baseX - width/2, baseY, width, currentL*0.6);
+            ctx.fillStyle = 'var(--magenta)';
+            ctx.fillText("FRACTURED", baseX - 40, baseY + currentL*0.6 + 20);
+            
+            // Dropped weight
+            ctx.fillStyle = '#222';
+            ctx.fillRect(baseX - width/2, h - 60, width, currentL*0.4);
+            ctx.fillStyle = 'var(--orange)';
+            ctx.fillRect(baseX - 20, h - 20, 40, 20);
+        } else {
+            // Intact Bar
+            ctx.shadowBlur = 10; ctx.shadowColor = 'var(--cyan)';
+            ctx.fillRect(baseX - width/2, baseY, width, currentL);
+            ctx.shadowBlur = 0;
+            
+            // Weight based on stress
+            let wtH = 20 + (state.stress / 500) * 40;
+            ctx.fillStyle = 'var(--orange)';
+            ctx.fillRect(baseX - 20, baseY + currentL, 40, wtH);
+            
+            ctx.fillStyle = '#000'; ctx.font = "12px sans-serif";
+            ctx.fillText("LOAD", baseX - 15, baseY + currentL + wtH/2 + 4);
+        }
+    }
+
+    function drawMicro() {
+        const canvas = els.micCtx.canvas;
+        const ctx = els.micCtx;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        if(w === 0 || h === 0) return;
+        if(canvas.width !== w) canvas.width = w, canvas.height = h;
+
+        ctx.clearRect(0, 0, w, h);
+        
+        ctx.save();
+        ctx.translate(w/2, h/2);
+
+        // Visual stretching
+        let stretchY = 1 + currentStrain * 2;
+        let stretchX = 1 - currentStrain * 0.8;
+        
+        if (state.micro === 'single') {
+            // No grain boundaries, just a single crystal lattice grid that stretches
+            ctx.scale(stretchX, stretchY);
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i=-w; i<w; i+=20) { ctx.moveTo(i, -h); ctx.lineTo(i, h); }
+            for(let j=-h; j<h; j+=20) { ctx.moveTo(-w, j); ctx.lineTo(w, j); }
+            ctx.stroke();
+            
+            if(isRuptured) {
+                ctx.strokeStyle = 'var(--magenta)'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(-w/2, 0); ctx.lineTo(w/2, 20); ctx.stroke();
+            }
+            
+        } else {
+            // Polycrystalline
+            ctx.scale(stretchX, stretchY);
+            let isFine = state.micro === 'fine';
+            let visualScale = isFine ? 0.6 : 1.2;
+            ctx.scale(visualScale, visualScale);
+
+            grains.forEach((g, i) => {
+                // Grain boundary sliding effect (grains translate downwards at different rates based on strain)
+                let slideY = isRuptured ? 0 : (currentStrain * 150 * g.speedMult);
+                if (state.micro === 'coarse') slideY *= 0.3; // Coarse slides less
+
+                ctx.save();
+                ctx.translate(g.x, g.y + slideY);
+                
+                // Draw Grain
+                ctx.beginPath();
+                g.points.forEach((p, index) => {
+                    if(index === 0) ctx.moveTo(p.dx, p.dy);
+                    else ctx.lineTo(p.dx, p.dy);
+                });
+                ctx.closePath();
+                
+                ctx.fillStyle = `rgba(0, 255, 255, ${0.1 + (i%3)*0.1})`;
+                ctx.fill();
+                
+                // Boundaries glow magenta if sliding heavily (high temp + fine grains + high strain)
+                let slideIntensity = (currentStrain / 0.2) * (isFine ? 1 : 0.2);
+                if(slideIntensity > 1) slideIntensity = 1;
+                
+                ctx.strokeStyle = isRuptured ? '#333' : `rgba(${parseInt(slideIntensity*255)}, 255, 255, 0.8)`;
+                if(slideIntensity > 0.3) ctx.strokeStyle = `rgba(255, 0, 255, ${slideIntensity})`;
+                
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.restore();
+            });
+            
+            if(isRuptured) {
+                ctx.fillStyle = 'rgba(255, 0, 255, 0.2)';
+                ctx.fillRect(-w, -h, w*2, h*2);
+                ctx.fillStyle = 'var(--magenta)'; ctx.font = "bold 30px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("INTERGRANULAR FRACTURE", 0, 0);
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        if (activeTab !== 'sim') return;
+
+        if (!isRuptured && physicsCache.simRate > 1e-6) {
+            let dt = 0.05 * state.speed;
+            simTime += dt;
+            
+            currentStrain = getStrainAtTime(simTime);
+            
+            if (simTime >= physicsCache.tr) {
+                simTime = physicsCache.tr;
+                currentStrain = getStrainAtTime(simTime);
+                isRuptured = true;
+            }
+        }
+
+        document.getElementById('out-time').innerText = Math.floor(simTime).toLocaleString() + ' hrs';
+        if(isRuptured) document.getElementById('out-time').style.color = "var(--magenta)";
+        else document.getElementById('out-time').style.color = "var(--cyan)";
+
+        renderPlot();
+        drawMacro();
+        drawMicro();
+    }
+
+    function forceRedraw() { renderPlot(); drawMacro(); drawMicro(); }
+
+    // --- Init ---
+    Object.values(els).forEach(el => {
+        if(el && el.addEventListener && el.tagName !== 'CANVAS' && el.tagName !== 'svg') {
+            el.addEventListener('input', updateState);
+            el.addEventListener('change', updateState);
+        }
+    });
+    window.addEventListener('resize', forceRedraw);
+
+    renderFeed();
+    updateState();
+    resetSim();
+    loop(); 
+</script>
+</body>
+</html>
