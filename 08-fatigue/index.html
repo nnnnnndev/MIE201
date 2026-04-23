@@ -85,6 +85,14 @@
         <option value="random">Variable Amplitude (Real-World Telemetry)</option>
     </select>
 
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Time Acceleration</div>
+    <select id="speed-select">
+        <option value="1">1x (Real Time: ~1 Hz)</option>
+        <option value="100">100x (Fast)</option>
+        <option value="10000">10,000x (Accelerated)</option>
+        <option value="1000000">1,000,000x (Hyper-Speed)</option>
+    </select>
+
     <div class="control-block">
         <div class="label-row"><span>Mean Stress (σ<sub>m</sub>)</span><span id="val-mean">0 MPa</span></div>
         <input type="range" id="slider-mean" min="-200" max="300" step="10" value="0">
@@ -109,6 +117,10 @@
         </div>
         
         <div class="stat-main"><span>Cycles to Fail (N<sub>f</sub>):</span><span id="out-nf">--</span></div>
+        
+        <div class="stat-main" style="color: var(--cyan); border-top: none; padding-top: 0; margin-top: 5px;">
+            <span>Current Cycles:</span><span id="out-cycles">0</span>
+        </div>
     </div>
 </div>
 
@@ -224,12 +236,18 @@
     let state = {
         mat: 'steel', wave: 'sine',
         mean: 0, amp: 150,
-        Sar: 150, Nf: 0
+        Sar: 150, Nf: 0,
+        speed: 1
     };
+
+    // Tracking state for the live counter
+    let currentCycles = 0;
+    let isFailed = false;
 
     const els = {
         mat: document.getElementById('mat-select'),
         wave: document.getElementById('wave-select'),
+        speed: document.getElementById('speed-select'),
         sMean: document.getElementById('slider-mean'),
         sAmp: document.getElementById('slider-amp'),
         svg: document.getElementById('plot'),
@@ -269,21 +287,34 @@
         const nfOut = document.getElementById('out-nf');
         if (state.Nf === Infinity) {
             nfOut.innerHTML = "∞ (Infinite Life)";
-            nfOut.style.color = "#00ff00";
+            nfOut.style.color = "var(--cyan)";
         } else {
             nfOut.innerText = state.Nf.toExponential(2) + " Cycles";
-            nfOut.style.color = (state.Nf < 1e5) ? "#ff3333" : "var(--yellow)";
+            nfOut.style.color = (state.Nf < 1e5) ? "var(--orange)" : "var(--yellow)";
         }
 
         renderPlot();
         renderFeed(state.mat, state.wave);
     }
 
-    function updateState() {
-        state.mat = els.mat.value;
-        state.wave = els.wave.value;
-        state.mean = parseFloat(els.sMean.value);
-        state.amp = parseFloat(els.sAmp.value);
+    function updateState(e) {
+        // Only reset the cycle counter if a physical parameter changes (not if they just change the speed)
+        const newMat = els.mat.value;
+        const newWave = els.wave.value;
+        const newMean = parseFloat(els.sMean.value);
+        const newAmp = parseFloat(els.sAmp.value);
+
+        if (state.mat !== newMat || state.wave !== newWave || state.mean !== newMean || state.amp !== newAmp) {
+            currentCycles = 0;
+            isFailed = false;
+        }
+
+        state.mat = newMat;
+        state.wave = newWave;
+        state.mean = newMean;
+        state.amp = newAmp;
+        state.speed = parseFloat(els.speed.value);
+        
         calculatePhysics();
     }
 
@@ -309,7 +340,6 @@
         for(let logN=minLogN; logN<=maxLogN; logN++) {
             let px = mX(logN);
             els.svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
-            // Replaced HTML entity sup with SVG tspan for complete safety
             els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10<tspan dy="-5" font-size="9px">${logN}</tspan></text>`;
         }
 
@@ -333,8 +363,8 @@
         els.svg.innerHTML += `<polyline class="curve ${mat.class}" points="${pts}"/>`;
         
         if(mat.name.includes("Steel")) {
-            els.svg.innerHTML += `<line stroke="#00ff00" stroke-dasharray="4,4" x1="${mX(mat.knee)}" y1="${mY(mat.Se)}" x2="${w-pad.r}" y2="${mY(mat.Se)}"/>`;
-            els.svg.innerHTML += `<text x="${w-120}" y="${mY(mat.Se)-5}" fill="#00ff00" font-size="12px">Endurance Limit (S_e)</text>`;
+            els.svg.innerHTML += `<line stroke="#00ffff" stroke-dasharray="4,4" x1="${mX(mat.knee)}" y1="${mY(mat.Se)}" x2="${w-pad.r}" y2="${mY(mat.Se)}"/>`;
+            els.svg.innerHTML += `<text x="${w-120}" y="${mY(mat.Se)-5}" fill="#00ffff" font-size="12px">Endurance Limit (S_e)</text>`;
         }
 
         let trackLogN = state.Nf === Infinity ? 8.8 : Math.log10(state.Nf); 
@@ -364,13 +394,32 @@
 
         const mY = (stress) => h/2 - (stress / 400) * (h/2.5); 
         
+        // Base Grid
         ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(0, mY(0)); ctx.lineTo(w, mY(0)); ctx.stroke();
         ctx.fillStyle = '#888'; ctx.font = "10px sans-serif"; ctx.fillText("0 MPa", 5, mY(0)-5);
 
-        time += 0.05;
-        let activeStress = state.mean;
+        // Update Math State (Only accumulate damage if not failed)
+        if (!isFailed) {
+            // Visual wave speed (slightly accelerated at high multipliers so it feels fast, but doesn't alias into noise)
+            let visualSpeedBoost = state.speed > 100 ? 2 : 1; 
+            time += 0.05 * visualSpeedBoost;
+            
+            // Mathematical cycle accumulator (approx 60fps = 1 cycle per sec at 1x speed)
+            let cyclesPerFrame = state.speed / 60;
+            if (state.Nf !== Infinity) {
+                currentCycles += cyclesPerFrame;
+                if (currentCycles >= state.Nf) {
+                    currentCycles = state.Nf;
+                    isFailed = true;
+                }
+            } else {
+                currentCycles += cyclesPerFrame; // Count up forever if infinite life
+            }
+        }
 
+        // Generate Waveform points
+        let activeStress = state.mean;
         if (state.wave === 'sine') {
             activeStress += Math.sin(time * 2) * state.amp;
         } else {
@@ -382,9 +431,13 @@
             activeStress += currentRandom + noise;
         }
 
-        history.push(activeStress);
-        if (history.length > w) history.shift(); 
+        // Only append to history if not failed (freezes the graph on failure)
+        if (!isFailed) {
+            history.push(activeStress);
+            if (history.length > w) history.shift(); 
+        }
 
+        // Draw Stress Bounds
         ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean + state.amp)); ctx.lineTo(w, mY(state.mean + state.amp)); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean - state.amp)); ctx.lineTo(w, mY(state.mean - state.amp)); ctx.stroke();
@@ -393,6 +446,7 @@
         ctx.beginPath(); ctx.moveTo(0, mY(state.mean)); ctx.lineTo(w, mY(state.mean)); ctx.stroke();
         ctx.setLineDash([]);
 
+        // Draw Oscilloscope Line
         ctx.strokeStyle = (state.wave === 'sine') ? '#00ffff' : '#ff8c00';
         ctx.lineWidth = 3;
         ctx.lineJoin = 'round';
@@ -408,10 +462,31 @@
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        if (history.length > 0) {
+        // Draw active head
+        if (history.length > 0 && !isFailed) {
             let headY = mY(history[history.length-1]);
             ctx.fillStyle = '#fff';
             ctx.fillRect(w - 5, headY - 5, 5, 10);
+        }
+
+        // Draw Fracture Overlay
+        if (isFailed) {
+            ctx.fillStyle = "rgba(255, 0, 255, 0.15)";
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = "var(--magenta)";
+            ctx.font = "900 28px 'Segoe UI'";
+            ctx.textAlign = "center";
+            ctx.fillText("CRITICAL FRACTURE", w/2, h/2);
+        }
+
+        // Update Counter DOM
+        const cycleOut = document.getElementById('out-cycles');
+        cycleOut.innerText = Math.floor(currentCycles).toLocaleString();
+        if (isFailed) {
+            cycleOut.innerText = "FRACTURED";
+            cycleOut.style.color = "var(--magenta)";
+        } else {
+            cycleOut.style.color = "var(--cyan)";
         }
     }
 
