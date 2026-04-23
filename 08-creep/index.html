@@ -219,12 +219,10 @@
         // Steady-State Rate (epsilon_dot_s)
         let thermal = Math.exp(-mat.Qc / (R * s.temp));
         let stressFac = Math.pow(s.stress, mic.n);
-        // GB contribution multiplies the rate at high temp for polycrystals
         let gbMult = 1 + (mic.gbSlideRate * Math.pow(Thomo, 5));
         
         phys.rate = mat.K * stressFac * thermal * gbMult;
         
-        // Sim scaling (for visual demonstration purposes)
         let simScale = 1e8; 
         phys.simRate = phys.rate * simScale;
 
@@ -272,7 +270,6 @@
 
     // --- SVGs Plotting ---
     function renderPlots() {
-        // 1. Strain Plot
         els.svgStrain.innerHTML = '';
         let w = els.svgStrain.clientWidth, h = els.svgStrain.clientHeight;
         if(w===0) return;
@@ -298,22 +295,19 @@
         let trackT = simTime > maxT ? maxT : simTime, trackE = currentStrain > maxE ? maxE : currentStrain;
         els.svgStrain.innerHTML += `<circle class="tracker" cx="${mx1(trackT)}" cy="${my1(trackE)}" r="5"/>`;
 
-        // 2. Log-Log Plot (e_dot vs Sigma)
         els.svgLog.innerHTML = '';
         w = els.svgLog.clientWidth; h = els.svgLog.clientHeight;
-        let minLogS = 1, maxLogS = 3; // 10 to 1000 MPa
-        let minLogE = -8, maxLogE = -1; // Rates
+        let minLogS = 1, maxLogS = 3; 
+        let minLogE = -8, maxLogE = -1; 
         
         let mx2 = (logS) => pad.l + ((logS - minLogS)/(maxLogS - minLogS))*(w-pad.l-pad.r);
         let my2 = (logE) => h-pad.b - ((logE - minLogE)/(maxLogE - minLogE))*(h-pad.t-pad.b);
 
-        // Axes
         els.svgLog.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>
                                  <line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>
                                  <text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Log(Stress)</text>
                                  <text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Log(ε̇)</text>`;
 
-        // Draw lines for T=800, 1000, 1200
         const calcLogE = (str, temp) => {
             let m = MAT[s.mat], mc = MICRO[s.micro];
             let therm = Math.exp(-m.Qc / (R * temp));
@@ -322,14 +316,11 @@
         };
 
         [800, 1000, 1200].forEach((T, i) => {
-            let p1 = `${mx2(minLogS)},${my2(calcLogE(10, T))}`;
-            let p2 = `${mx2(maxLogS)},${my2(calcLogE(1000, T))}`;
             let cls = i===0 ? 'curve-log-1' : (i===1 ? 'curve-log-2' : 'curve-log-3');
             els.svgLog.innerHTML += `<line class="${cls}" x1="${mx2(minLogS)}" y1="${my2(calcLogE(10, T))}" x2="${mx2(maxLogS)}" y2="${my2(calcLogE(1000, T))}"/>`;
             els.svgLog.innerHTML += `<text x="${mx2(maxLogS)-30}" y="${my2(calcLogE(1000, T))-5}">${T}K</text>`;
         });
 
-        // Current state tracker
         let cLogS = Math.log10(s.stress);
         let cLogE = phys.simRate > 0 ? Math.log10(phys.simRate) : minLogE;
         if(cLogE < minLogE) cLogE = minLogE;
@@ -339,25 +330,32 @@
         els.svgLog.innerHTML += `<circle class="tracker" cx="${mx2(cLogS)}" cy="${my2(cLogE)}" r="5"/>`;
     }
 
-    // --- Hexagon Microstructure Prep ---
-    const hexGrains = [];
-    const hexR = 25;
-    const hexW = Math.sqrt(3) * hexR;
-    const hexH = 2 * hexR;
-    for(let row = -5; row < 6; row++) {
-        for(let col = -5; col < 6; col++) {
-            let x = col * hexW + (row%2 !== 0 ? hexW/2 : 0);
-            let y = row * (hexH * 0.75);
-            // Randomize slide vector per column for inhomogeneous shear
-            let slideDir = (col % 2 === 0) ? 1 : -1;
-            hexGrains.push({ x, y, col, row, slideDir });
+    // --- Hexagon Microstructure Prep (Corrected True Scale) ---
+    function generateHexGrid(r, rows, cols) {
+        const grid = [];
+        const w = Math.sqrt(3) * r;
+        const h = 2 * r;
+        for(let row = -rows; row < rows+1; row++) {
+            for(let col = -cols; col < cols+1; col++) {
+                let x = col * w + (row%2 !== 0 ? w/2 : 0);
+                let y = row * (h * 0.75);
+                let slideDir = (col % 2 === 0) ? 1 : -1;
+                grid.push({ x, y, col, row, slideDir });
+            }
         }
+        return grid;
     }
+
+    const fineR = 20;
+    const fineGrains = generateHexGrid(fineR, 8, 8); // Lots of small grains
+
+    const coarseR = 45;
+    const coarseGrains = generateHexGrid(coarseR, 4, 4); // Fewer large grains
 
     function drawHexagon(ctx, x, y, r) {
         ctx.beginPath();
         for(let i=0; i<6; i++) {
-            let angle = (Math.PI/180) * (60 * i - 30); // Pointy top
+            let angle = (Math.PI/180) * (60 * i - 30);
             let hx = x + r * Math.cos(angle);
             let hy = y + r * Math.sin(angle);
             if(i===0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
@@ -373,7 +371,7 @@
         c.save();
         c.translate(w/2, h/2 + 20);
 
-        // Tensile strain transformations
+        // Tensile strain transformations (Affects the overall area evenly)
         let stY = 1 + currentStrain * 1.5; 
         let stX = 1 - currentStrain * 0.6; 
         
@@ -390,32 +388,33 @@
             }
         } else {
             c.scale(stX, stY);
+            
             let isFine = s.micro === 'fine';
-            c.scale(isFine ? 0.8 : 1.4, isFine ? 0.8 : 1.4);
+            let activeGrains = isFine ? fineGrains : coarseGrains;
+            let activeR = isFine ? fineR : coarseR;
 
-            hexGrains.forEach(g => {
-                // Grain Boundary Sliding logic (adjacent columns move relative to each other)
-                let slideAmt = isRuptured ? 0 : (currentStrain * 100 * g.slideDir * (isFine ? 1 : 0.3));
+            activeGrains.forEach(g => {
+                // Coarse grains slide visibly less due to interlocking & lower boundary density
+                let slideAmt = isRuptured ? 0 : (currentStrain * 100 * g.slideDir * (isFine ? 1.2 : 0.4));
                 
                 c.save();
                 c.translate(g.x, g.y + slideAmt);
                 
-                drawHexagon(c, 0, 0, hexR);
+                drawHexagon(c, 0, 0, activeR);
                 c.fillStyle = `rgba(0, 255, 255, ${0.05 + (Math.abs(g.col)%3)*0.05})`; c.fill();
                 
-                // Highlight boundaries under heavy shear
                 let shear = Math.abs(slideAmt) / 20; if(shear>1) shear=1;
                 c.strokeStyle = isRuptured ? '#333' : `rgba(${parseInt(shear*255)}, 255, 255, 0.6)`;
                 if(shear > 0.4) c.strokeStyle = `rgba(255, 0, 255, ${shear})`;
                 c.lineWidth = 2; c.stroke();
                 c.restore();
                 
-                // CAVITATION (Voids at triple points in tertiary creep)
+                // CAVITATION (Only highly pronounced in Fine grains due to high boundary sliding)
                 if(currentStrain > 0.15 && !isRuptured && isFine) {
-                    if((g.col+g.row)%3 === 0) { // arbitrary subset of triple points
+                    if((g.col+g.row)%3 === 0) { 
                         c.fillStyle = '#000'; c.strokeStyle = 'var(--magenta)'; c.lineWidth=1;
-                        let voidS = (currentStrain - 0.15) * 60; // Void growth
-                        c.beginPath(); c.arc(g.x, g.y + hexR + slideAmt, voidS, 0, Math.PI*2); 
+                        let voidS = (currentStrain - 0.15) * 60; 
+                        c.beginPath(); c.arc(g.x, g.y + activeR + slideAmt, voidS, 0, Math.PI*2); 
                         c.fill(); c.stroke();
                     }
                 }
@@ -438,10 +437,8 @@
         let Thomo = s.temp / MAT[s.mat].Tm;
         let r = Math.min(255, Thomo * 300), g = Math.max(0, Math.min(255, (Thomo - 0.5) * 400));
         
-        // Furnace BG
         c.fillStyle = `rgba(${r}, ${g}, 0, 0.1)`; c.fillRect(0, 0, w, h);
         
-        // Glowing Coils
         c.strokeStyle = `rgba(${r}, ${g}, 0, 0.7)`; c.lineWidth = 6; c.lineCap = 'round';
         c.beginPath();
         for(let y=50; y<h-30; y+=40) {
@@ -455,7 +452,6 @@
         let width = 30 - currentStrain * 40; 
         let currentBotY = botY + ext;
 
-        // Top Grip
         c.fillStyle = '#333'; c.fillRect(cx - 40, 0, 80, topY);
         
         c.fillStyle = isRuptured ? '#222' : 'var(--cyan)';
@@ -463,11 +459,9 @@
             c.fillRect(cx - width/2, topY, width, (currentBotY-topY)*0.5);
             c.fillStyle = 'var(--magenta)'; c.textAlign='center'; c.font='bold 16px sans-serif'; c.fillText("RUPTURE", cx, topY + (currentBotY-topY)*0.5 + 25);
             
-            // Fallen bot
             c.fillStyle = '#222'; c.fillRect(cx - width/2, h-60, width, 30);
             c.fillStyle = '#444'; c.fillRect(cx - 40, h-30, 80, 30);
         } else {
-            // Dogbone logic (Bezier)
             c.shadowBlur = 10; c.shadowColor = 'var(--cyan)';
             c.beginPath();
             c.moveTo(cx - 30, topY);
@@ -480,10 +474,9 @@
             c.bezierCurveTo(cx + width/2, topY+30, cx + 30, topY+20, cx + 30, topY);
             c.fill(); c.shadowBlur = 0;
 
-            // Bottom Grip / Load
             let wtH = 20 + (s.stress / 600) * 40;
-            c.fillStyle = '#444'; c.fillRect(cx - 40, currentBotY, 80, 20); // grip clamp
-            c.fillStyle = 'var(--orange)'; c.fillRect(cx - 20, currentBotY+20, 40, wtH); // weight
+            c.fillStyle = '#444'; c.fillRect(cx - 40, currentBotY, 80, 20); 
+            c.fillStyle = 'var(--orange)'; c.fillRect(cx - 20, currentBotY+20, 40, wtH); 
         }
     }
 
