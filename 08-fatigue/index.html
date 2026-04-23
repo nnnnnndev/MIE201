@@ -1,1 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 8: Fatigue Mechanics</title>
+    <style>
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --orange: #ff8c00; --grid: rgba(255, 255, 255, 0.1); }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
+        
+        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.8); overflow-y: auto; }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        
+        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 8px; margin-bottom: 15px; font-weight: bold; width: 100%; cursor: pointer; font-size: 0.85rem; }
+        
+        .control-block { background: #0a0a0a; border: 1px solid #333; padding: 12px; margin-bottom: 12px; border-radius: 4px; }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: #fff; margin-bottom: 8px; text-transform: uppercase; }
+        input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
+        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 0.95rem; margin: 6px 0; color: #ccc; }
+        .stat-main { font-size: 1.2rem; color: var(--yellow); border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; display: flex; justify-content: space-between; }
+        
+        #stage { flex: 1; display: flex; flex-direction: column; background: radial-gradient(circle at center, #111 0%, #000 100%); position: relative; }
+        
+        /* Top Panel Tabs */
+        .tab-bar { display: flex; border-bottom: 2px solid #333; background: rgba(0,0,0,0.9); z-index: 10; }
+        .tab-btn { flex: 1; padding: 15px; background: transparent; color: #666; border: none; outline: none; font-family: 'Segoe UI', sans-serif; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: 0.3s; font-size: 0.9rem; }
+        .tab-btn:hover { color: var(--cyan); background: rgba(0, 255, 255, 0.05); }
+        .tab-btn.active { color: var(--magenta); border-bottom: 3px solid var(--magenta); background: rgba(255, 0, 255, 0.05); color: #fff; }
+
+        .view-container { flex: 1; padding: 20px; gap: 20px; overflow: hidden; }
+        #view-sim { display: flex; flex-direction: column; }
+        #view-news { display: none; flex-direction: column; overflow-y: auto; padding-right: 15px; }
+
+        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
+        
+        /* Plot Area */
+        #plot-container { flex: 1; min-height: 250px; padding: 10px; overflow: hidden; }
+        svg { width: 100%; height: 100%; overflow: visible; }
+        .axis { stroke: #888; stroke-width: 2; }
+        .grid { stroke: var(--grid); stroke-width: 1; }
+        .curve { fill: none; stroke-width: 3; filter: drop-shadow(0 0 5px currentColor); }
+        .curve.steel { stroke: var(--cyan); }
+        .curve.al { stroke: var(--orange); }
+        .tracker { fill: var(--magenta); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 6px var(--magenta)); transition: cx 0.1s, cy 0.1s; }
+        .tracker-line { stroke: var(--magenta); stroke-width: 1.5; stroke-dasharray: 4,4; }
+        text { fill: #ccc; font-size: 11px; font-family: 'Consolas', monospace; font-weight: bold; }
+        .axis-lbl { fill: #fff; font-size: 13px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
+        .math-eq { font-family: 'Times New Roman', serif; font-style: italic; font-weight: normal; font-size: 16px; }
+
+        /* Sim Area */
+        #sim-container { flex: 1.2; display: flex; flex-direction: column; overflow: hidden; }
+        .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
+        canvas { width: 100%; height: 100%; flex: 1; display: block; }
+
+        /* News Feed */
+        .news-card { background: #111; border-left: 4px solid var(--cyan); padding: 20px; margin-bottom: 15px; border-radius: 0 8px 8px 0; transition: transform 0.2s; }
+        .news-card:hover { transform: translateX(3px); background: #141414; border-left-color: var(--magenta); }
+        .news-header { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .news-concept { color: var(--yellow); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .news-source { color: #888; font-size: 0.85rem; }
+        .news-title { color: #fff; font-size: 1.3rem; margin-bottom: 5px; text-decoration: none; display: inline-block; transition: 0.2s; font-weight: bold; }
+        .news-title:hover { color: var(--cyan); }
+        .news-authors { color: #777; font-size: 0.85rem; font-style: italic; margin-bottom: 12px; }
+        .news-summary { color: #ccc; font-size: 0.95rem; line-height: 1.5; font-weight: normal; margin-bottom: 15px; }
+        .preview-toggle { background: #222; color: var(--cyan); border: 1px solid #444; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .preview-toggle:hover { background: #333; border-color: var(--cyan); }
+        .abstract-preview { display: none; background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-top: 10px; border-radius: 4px; color: #aaa; font-size: 0.9rem; line-height: 1.6; border-left: 2px solid var(--yellow); }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Fatigue Mechanics</h1>
+    
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Material Profile (S-N Curve)</div>
+    <select id="mat-select">
+        <option value="steel">Ferrous (1045 Steel) - Endurance Limit</option>
+        <option value="al">Non-Ferrous (Al 7075) - Continuous Decline</option>
+    </select>
+
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Loading Waveform</div>
+    <select id="wave-select">
+        <option value="sine">Constant Amplitude (Sine Wave)</option>
+        <option value="random">Variable Amplitude (Real-World Telemetry)</option>
+    </select>
+
+    <div class="control-block">
+        <div class="label-row"><span>Mean Stress (&sigma;<sub>m</sub>)</span><span id="val-mean">0 MPa</span></div>
+        <input type="range" id="slider-mean" min="-200" max="300" step="10" value="0">
+    </div>
+
+    <div class="control-block">
+        <div class="label-row"><span>Stress Amplitude (&sigma;<sub>a</sub>)</span><span id="val-amp">150 MPa</span></div>
+        <input type="range" id="slider-amp" min="10" max="400" step="10" value="150">
+    </div>
+
+    <div style="text-align: center; color: var(--cyan); font-family: 'Times New Roman', serif; font-style: italic; margin: -5px 0 15px 0; font-size: 1.1rem; line-height: 1.4;">
+        Goodman Correction:<br>
+        <span style="font-size: 1.3rem;">S<sub>ar</sub> = &sigma;<sub>a</sub> / (1 - &sigma;<sub>m</sub>/S<sub>ut</sub>)</span>
+    </div>
+
+    <div id="readouts">
+        <div class="stat"><span>Max Stress (&sigma;<sub>max</sub>):</span><span id="out-max">--</span></div>
+        <div class="stat"><span>Min Stress (&sigma;<sub>min</sub>):</span><span id="out-min">--</span></div>
+        <div class="stat"><span>Ultimate Tensile (S<sub>ut</sub>):</span><span id="out-sut">--</span></div>
+        <div class="stat" style="color: var(--cyan); border-top: 1px solid #444; padding-top: 5px; margin-top: 5px;">
+            <span>Effective Rev. Stress (S<sub>ar</sub>):</span><span id="out-sar">--</span>
+        </div>
+        
+        <div class="stat-main"><span>Cycles to Fail (N<sub>f</sub>):</span><span id="out-nf">--</span></div>
+    </div>
+</div>
+
+<div id="stage">
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tab-sim" onclick="switchTab('sim')">Analytical Plot & Simulation</button>
+        <button class="tab-btn" id="tab-news" onclick="switchTab('news')">Real-World Context</button>
+    </div>
+
+    <div id="view-sim" class="view-container">
+        <div class="panel" id="plot-container">
+            <svg id="plot"></svg>
+        </div>
+        
+        <div class="panel" id="sim-container">
+            <div class="sim-title">Live Loading Telemetry (Time Domain)</div>
+            <canvas id="sim-canvas"></canvas>
+        </div>
+    </div>
+
+    <div id="view-news" class="view-container">
+        </div>
+</div>
+
+<script>
+    // --- Real-World Data Feed ---
+    const realWorldFeed = [
+        {
+            title: "Fatigue failure of the de Havilland Comet I",
+            authors: "P. R. Abelkis",
+            date: "1996", source: "Engineering Fracture Mechanics",
+            concept: "Catastrophic Fatigue & Stress Concentration",
+            summary: "A definitive historical review of the Comet disasters, the first commercial jetliners to fail catastrophically in mid-air. The study explains how the square windows acted as massive stress concentrators, initiating fatigue cracks during the pressurization cycles of standard flights.",
+            abstract: "The de Havilland Comet was the world's first commercial jet airliner, but its legacy was marred by structural failures. This paper reviews the failure analysis, demonstrating that repeated pressurization and depressurization cycles (variable amplitude fatigue loading) concentrated stress at the corners of the square windows. The cyclic loading caused sub-critical cracks to grow unobserved until they reached the critical length for rapid unstable fracture, changing aerospace design forever.",
+            url: "https://doi.org/10.1016/0013-7944(95)00133-6", tags: ["al", "sine"]
+        },
+        {
+            title: "Variable amplitude fatigue crack growth: Mechanisms and models",
+            authors: "Schijve, H.",
+            date: "2001", source: "International Journal of Fatigue",
+            concept: "Variable Amplitude (Real World) Loading",
+            summary: "Unlike classroom sine waves, real structures experience chaotic loading. This seminal open-access paper explores how random overloads create compressive residual stresses that can temporarily 'retard' crack growth, making fatigue prediction highly complex.",
+            abstract: "Structures such as bridges, offshore platforms, and aircraft wings are subjected to variable amplitude (VA) load histories. Under VA loading, load interaction effects occur. Specifically, a single tensile overload generates a large plastic zone at the crack tip, leaving behind residual compressive stresses that retard subsequent fatigue crack growth. Standard Miner's rule linear damage accumulation fails to account for these sequence effects, necessitating advanced cycle-by-cycle modeling.",
+            url: "https://doi.org/10.1016/S0142-1123(01)00041-7", tags: ["random", "steel"]
+        },
+        {
+            title: "The Aloha Airlines Flight 243 incident: Widespread Fatigue Damage",
+            authors: "Silva, R., et al.",
+            date: "2013", source: "Journal of Aerospace Engineering",
+            concept: "Mean Stress & Widespread Fatigue",
+            summary: "An analysis of how decades of cyclic fuselage pressurization coupled with corrosive environments led to widespread multi-site fatigue damage, causing the roof of a Boeing 737 to rip off in flight.",
+            abstract: "The 1988 Aloha Flight 243 incident, where a large section of the fuselage separated in flight, brought the concept of Widespread Fatigue Damage (WFD) to the forefront of engineering. Disbonding of lap joints increased local mean stresses on the rivet holes. The combination of high mean stress and the cyclic stress amplitude of pressurization drastically shifted the effective alternating stress via the Goodman relation, causing thousands of microscopic cracks to link up simultaneously.",
+            url: "#", tags: ["al", "sine", "random"]
+        }
+    ];
+
+    // --- Tab Logic ---
+    let activeTab = 'sim';
+    function switchTab(tabId) {
+        activeTab = tabId;
+        document.getElementById('tab-sim').classList.remove('active');
+        document.getElementById('tab-news').classList.remove('active');
+        document.getElementById('view-sim').style.display = 'none';
+        document.getElementById('view-news').style.display = 'none';
+
+        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`view-${tabId}`).style.display = 'flex';
+
+        if(tabId === 'sim') setTimeout(updateState, 10); 
+    }
+
+    window.toggleAbstract = function(id) {
+        const p = document.getElementById(`abstract-${id}`);
+        p.style.display = (p.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function renderFeed(matMode, waveMode) {
+        const container = document.getElementById('view-news');
+        container.innerHTML = '';
+        
+        let displayFeed = realWorldFeed.filter(a => a.tags.includes(matMode) || a.tags.includes(waveMode));
+        if(displayFeed.length === 0) displayFeed = realWorldFeed;
+
+        displayFeed.forEach((article, index) => {
+            container.innerHTML += `
+                <div class="news-card">
+                    <div class="news-header">
+                        <span class="news-concept">${article.concept}</span>
+                        <span class="news-source">${article.source} | ${article.date}</span>
+                    </div>
+                    <a href="${article.url}" target="_blank" class="news-title">${article.title} &nearr;</a>
+                    <div class="news-authors">${article.authors}</div>
+                    <div class="news-summary">${article.summary}</div>
+                    <button class="preview-toggle" onclick="toggleAbstract(${index})">&#9660; Read Abstract</button>
+                    <div class="abstract-preview" id="abstract-${index}"><strong>ABSTRACT:</strong><br><br>${article.abstract}</div>
+                </div>
+            `;
+        });
+    }
+
+    // --- S-N Physics Models ---
+    const MATERIALS = {
+        steel: { 
+            name: "1045 Steel", Sut: 600, S1000: 540, Se: 250, knee: 6,
+            class: "steel"
+        },
+        al: { 
+            name: "Al 7075", Sut: 500, S1000: 450, Se: 130, knee: 8, // Treated as endurance strength at 10^8
+            class: "al"
+        }
+    };
+
+    let state = {
+        mat: 'steel', wave: 'sine',
+        mean: 0, amp: 150,
+        Sar: 150, Nf: 0
+    };
+
+    const els = {
+        mat: document.getElementById('mat-select'),
+        wave: document.getElementById('wave-select'),
+        sMean: document.getElementById('slider-mean'),
+        sAmp: document.getElementById('slider-amp'),
+        svg: document.getElementById('plot'),
+        canvas: document.getElementById('sim-canvas'),
+        ctx: document.getElementById('sim-canvas').getContext('2d')
+    };
+
+    function calculatePhysics() {
+        const mat = MATERIALS[state.mat];
+        
+        // Prevent Mean Stress from exceeding Sut
+        if(state.mean >= mat.Sut) state.mean = mat.Sut - 1; 
+
+        // Modified Goodman Correction: Sar = Sa / (1 - Sm/Sut)
+        state.Sar = state.amp / (1 - (state.mean / mat.Sut));
+
+        // S-N Math (Basquin's Law: S = a * N^b)
+        // Log Form: log(S) = log(a) + b * log(N) => log(N) = (log(S) - log(a)) / b
+        const logS1000 = Math.log10(mat.S1000);
+        const logSe = Math.log10(mat.Se);
+        const b = (logS1000 - logSe) / (3 - mat.knee); // Slope of log-log line
+        const logA = logS1000 - b * 3; // Intercept
+        
+        if (state.Sar >= mat.S1000) {
+            state.Nf = 1000; // Low cycle fatigue cutoff
+        } else if (state.mat === 'steel' && state.Sar <= mat.Se) {
+            state.Nf = Infinity; // Infinite life
+        } else {
+            const logN = (Math.log10(state.Sar) - logA) / b;
+            state.Nf = Math.pow(10, logN);
+        }
+
+        // Output UI
+        document.getElementById('val-mean').innerText = state.mean + ' MPa';
+        document.getElementById('val-amp').innerText = state.amp + ' MPa';
+        document.getElementById('out-max').innerText = (state.mean + state.amp) + ' MPa';
+        document.getElementById('out-min').innerText = (state.mean - state.amp) + ' MPa';
+        document.getElementById('out-sut').innerText = mat.Sut + ' MPa';
+        document.getElementById('out-sar').innerText = Math.round(state.Sar) + ' MPa';
+
+        const nfOut = document.getElementById('out-nf');
+        if (state.Nf === Infinity) {
+            nfOut.innerHTML = "&infin; (Infinite Life)";
+            nfOut.style.color = "#00ff00";
+        } else {
+            // Format to scientific notation for readability
+            nfOut.innerText = state.Nf.toExponential(2) + " Cycles";
+            nfOut.style.color = (state.Nf < 1e5) ? "#ff3333" : "var(--yellow)";
+        }
+
+        renderPlot();
+        renderFeed(state.mat, state.wave);
+    }
+
+    function updateState() {
+        state.mat = els.mat.value;
+        state.wave = els.wave.value;
+        state.mean = parseFloat(els.sMean.value);
+        state.amp = parseFloat(els.sAmp.value);
+        calculatePhysics();
+    }
+
+    // --- S-N Plot ---
+    function renderPlot() {
+        els.svg.innerHTML = '';
+        const w = els.svg.clientWidth, h = els.svg.clientHeight;
+        if(w === 0) return;
+        
+        const pad = { l: 60, r: 30, t: 20, b: 40 };
+        const mat = MATERIALS[state.mat];
+        
+        // Log(N) scale from 3 to 9 (10^3 to 10^9)
+        const minLogN = 3, maxLogN = 9;
+        const mX = (logN) => pad.l + ((logN - minLogN) / (maxLogN - minLogN)) * (w - pad.l - pad.r);
+        const mY = (S) => h - pad.b - (S / 700) * (h - pad.t - pad.b); // Fix Y at 700 MPa
+
+        // Grid
+        for(let s=0; s<=700; s+=100) {
+            let py = mY(s);
+            els.svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            els.svg.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${s}</text>`;
+        }
+        for(let logN=minLogN; logN<=maxLogN; logN++) {
+            let px = mX(logN);
+            els.svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
+            els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10&#x207${logN};</text>`;
+        }
+
+        // Axes
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Cycles to Failure (N)</text>`;
+        els.svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Eff. Stress (S_ar)</text>`;
+
+        // Draw Material S-N Curve
+        let pts = "";
+        const b = (Math.log10(mat.S1000) - Math.log10(mat.Se)) / (3 - mat.knee);
+        const logA = Math.log10(mat.S1000) - b * 3;
+
+        for(let logN=minLogN; logN<=maxLogN; logN+=0.1) {
+            let s;
+            if(mat.name.includes("Steel") && logN >= mat.knee) s = mat.Se; // Horizontal Endurance Limit
+            else s = Math.pow(10, logA + b * logN);
+            pts += `${mX(logN)},${mY(s)} `;
+        }
+        els.svg.innerHTML += `<polyline class="curve ${mat.class}" points="${pts}"/>`;
+        
+        // Endurance Limit Callout if Steel
+        if(mat.name.includes("Steel")) {
+            els.svg.innerHTML += `<line stroke="#00ff00" stroke-dasharray="4,4" x1="${mX(mat.knee)}" y1="${mY(mat.Se)}" x2="${w-pad.r}" y2="${mY(mat.Se)}"/>`;
+            els.svg.innerHTML += `<text x="${w-120}" y="${mY(mat.Se)-5}" fill="#00ff00" font-size="12px">Endurance Limit (S_e)</text>`;
+        }
+
+        // Goodman Equivalent Tracker
+        let trackLogN = state.Nf === Infinity ? 8.8 : Math.log10(state.Nf); // Peg infinity to right side
+        if (trackLogN > maxLogN) trackLogN = maxLogN;
+        if (trackLogN < minLogN) trackLogN = minLogN;
+        
+        let tx = mX(trackLogN), ty = mY(state.Sar);
+        els.svg.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
+    }
+
+    // --- Oscilloscope (Time Domain) ---
+    let time = 0;
+    const history = []; // Array of stress values
+    let targetRandom = 0;
+    let currentRandom = 0;
+
+    function drawWaveform() {
+        if (activeTab !== 'sim') return;
+        const w = els.canvas.clientWidth, h = els.canvas.clientHeight;
+        if(w === 0) return;
+        if(els.canvas.width !== w) els.canvas.width = w, els.canvas.height = h;
+        
+        const ctx = els.ctx;
+        ctx.clearRect(0, 0, w, h);
+
+        const mY = (stress) => h/2 - (stress / 400) * (h/2.5); // Maps +/- 400 MPa
+        
+        // Background Grid / Axis
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, mY(0)); ctx.lineTo(w, mY(0)); ctx.stroke();
+        ctx.fillStyle = '#888'; ctx.font = "10px sans-serif"; ctx.fillText("0 MPa", 5, mY(0)-5);
+
+        // Generate next data point
+        time += 0.05;
+        let activeStress = state.mean;
+
+        if (state.wave === 'sine') {
+            activeStress += Math.sin(time * 2) * state.amp;
+        } else {
+            // Smooth Random Walk logic (Simulating variable telemetry)
+            if(Math.random() < 0.05) { // Pick a new target amplitude peak occasionally
+                targetRandom = (Math.random() * 2 - 1) * state.amp; 
+            }
+            currentRandom += (targetRandom - currentRandom) * 0.2; // Smooth interpolate
+            // Add high-frequency noise
+            let noise = (Math.random() * 2 - 1) * (state.amp * 0.15);
+            activeStress += currentRandom + noise;
+        }
+
+        history.push(activeStress);
+        if (history.length > w) history.shift(); // Keep array bounded to canvas width
+
+        // Draw Bounding Envelopes
+        ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(0, mY(state.mean + state.amp)); ctx.lineTo(w, mY(state.mean + state.amp)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, mY(state.mean - state.amp)); ctx.lineTo(w, mY(state.mean - state.amp)); ctx.stroke();
+        
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, mY(state.mean)); ctx.lineTo(w, mY(state.mean)); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Wave
+        ctx.strokeStyle = (state.wave === 'sine') ? '#00ffff' : '#ff8c00';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 8;
+        
+        ctx.beginPath();
+        for(let i=0; i<history.length; i++) {
+            let px = w - history.length + i;
+            if(i===0) ctx.moveTo(px, mY(history[i]));
+            else ctx.lineTo(px, mY(history[i]));
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Draw Label Tracker on the leading edge
+        if (history.length > 0) {
+            let headY = mY(history[history.length-1]);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(w - 5, headY - 5, 5, 10);
+        }
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        drawWaveform();
+    }
+
+    // --- Init ---
+    Object.values(els).forEach(el => {
+        if(el && el.addEventListener) {
+            el.addEventListener('input', updateState);
+            el.addEventListener('change', updateState);
+        }
+    });
+    window.addEventListener('resize', updateState);
+
+    updateState();
+    loop(); 
+</script>
+</body>
+</html>
