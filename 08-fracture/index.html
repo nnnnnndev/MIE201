@@ -1,1 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ch 8: Fracture Mechanics</title>
+    <style>
+        :root { --bg: #050505; --cyan: #00ffff; --magenta: #ff00ff; --yellow: #ffff00; --grid: rgba(255, 0, 255, 0.15); --plate: #2a2a2a; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--cyan); overflow: hidden; font-weight: 900; }
+        
+        #sidebar { width: 340px; background: rgba(0,0,0,0.95); border-right: 2px solid var(--magenta); padding: 20px; display: flex; flex-direction: column; z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.8); overflow-y: auto; }
+        h1 { font-size: 0.85rem; color: var(--magenta); text-transform: uppercase; margin: 0 0 15px 0; border-bottom: 1px solid var(--magenta); padding-bottom: 5px; letter-spacing: 1px; }
+        
+        select { background: #111; color: var(--cyan); border: 1px solid var(--cyan); padding: 8px; margin-bottom: 15px; font-weight: bold; width: 100%; cursor: pointer; font-size: 0.85rem; }
+        
+        .control-block { background: #0a0a0a; border: 1px solid #333; padding: 12px; margin-bottom: 12px; border-radius: 4px; }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: #fff; margin-bottom: 8px; text-transform: uppercase; }
+        input[type=range] { width: 100%; accent-color: var(--magenta); cursor: pointer; }
 
+        #readouts { margin-top: auto; border: 1px solid var(--cyan); padding: 15px; background: rgba(0, 255, 255, 0.05); }
+        .stat { display: flex; justify-content: space-between; font-size: 1rem; margin: 6px 0; color: var(--yellow); }
+        .stat-main { font-size: 1.2rem; color: #fff; border-top: 1px solid #444; padding-top: 10px; margin-top: 10px; }
+        .alert { display: none; text-align: center; background: #ff0000; color: #fff; padding: 10px; font-size: 1.2rem; margin-top: 10px; border-radius: 4px; animation: flash 1s infinite alternate; }
+        
+        @keyframes flash { from { opacity: 0.5; } to { opacity: 1; box-shadow: 0 0 20px #ff0000; } }
+
+        #stage { flex: 1; display: flex; flex-direction: column; background: radial-gradient(circle at center, #111 0%, #000 100%); padding: 20px; gap: 20px; overflow: hidden; }
+        
+        .panel { background: rgba(0,0,0,0.8); border: 1px solid #333; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; display: flex; flex-direction: column; }
+        
+        /* Plot Area */
+        #plot-container { flex: 1; min-height: 250px; padding: 10px; }
+        svg { width: 100%; height: 100%; overflow: visible; }
+        .axis { stroke: var(--magenta); stroke-width: 2; }
+        .grid { stroke: var(--grid); stroke-width: 1; }
+        .curve { fill: none; stroke: var(--cyan); stroke-width: 3; filter: drop-shadow(0 0 4px var(--cyan)); }
+        .kic-line { stroke: var(--magenta); stroke-width: 2; stroke-dasharray: 6,6; }
+        .tracker { fill: var(--magenta); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 6px var(--magenta)); }
+        .tracker-line { stroke: var(--yellow); stroke-width: 1.5; stroke-dasharray: 4,4; }
+        text { fill: var(--magenta); font-size: 12px; font-family: 'Consolas', monospace; font-weight: bold; }
+        .axis-lbl { fill: var(--yellow); font-size: 13px; text-transform: uppercase; font-family: 'Segoe UI', sans-serif; }
+        .math-eq { fill: #fff; font-size: 15px; font-family: 'Times New Roman', serif; font-style: italic; font-weight: normal; }
+
+        /* Sim Area */
+        #sim-container { flex: 1.5; display: flex; flex-direction: column; }
+        .sim-title { font-size: 0.8rem; color: var(--yellow); text-transform: uppercase; padding: 10px; border-bottom: 1px solid #333; letter-spacing: 1px; text-align: center; }
+        canvas { width: 100%; height: 100%; flex: 1; display: block; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Fracture Mechanics</h1>
+    
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Material Profile</div>
+    <select id="mat-select">
+        <option value="al">Aluminum 7075-T651 (K_Ic = 24)</option>
+        <option value="steel">4340 Steel (K_Ic = 45)</option>
+        <option value="ti">Titanium Ti-6Al-4V (K_Ic = 75)</option>
+    </select>
+
+    <div style="color: #fff; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase;">Crack Configuration</div>
+    <select id="config-select">
+        <option value="center">Center Crack (Length = 2a, Y = 1.0)</option>
+        <option value="edge">Edge Crack (Length = a, Y = 1.12)</option>
+    </select>
+
+    <div class="control-block">
+        <div class="label-row"><span>Applied Stress (&sigma;)</span><span id="val-sigma">200 MPa</span></div>
+        <input type="range" id="slider-sigma" min="0" max="800" value="200">
+    </div>
+
+    <div class="control-block">
+        <div class="label-row"><span>Crack Length (a)</span><span id="val-a">10.0 mm</span></div>
+        <input type="range" id="slider-a" min="1" max="50" step="0.1" value="10">
+    </div>
+
+    <div class="control-block">
+        <div class="label-row"><span>Tip Radius (&rho;<sub>t</sub>)</span><span id="val-rho">0.5 mm</span></div>
+        <input type="range" id="slider-rho" min="0.05" max="5" step="0.05" value="0.5">
+    </div>
+
+    <div id="readouts">
+        <div class="stat"><span>Stress Conc. (K<sub>t</sub>):</span><span id="out-kt">--</span></div>
+        <div class="stat"><span>Local Max (&sigma;<sub>max</sub>):</span><span id="out-sigmax">--</span></div>
+        <div class="stat" style="color: #888; font-size: 0.85rem; margin-bottom: 10px;"><span>Yield Strength (&sigma;<sub>y</sub>):</span><span id="out-yield">--</span></div>
+        
+        <div class="stat-main"><span>Stress Intensity (K):</span><span id="out-k">--</span></div>
+        <div class="stat" style="color: var(--magenta); font-size: 1rem;"><span>Fracture Toughness (K<sub>Ic</sub>):</span><span id="out-kic">--</span></div>
+    </div>
+    
+    <div id="alert-box" class="alert">CATASTROPHIC FRACTURE</div>
+</div>
+
+<div id="stage">
+    <div class="panel" id="plot-container">
+        <svg id="plot"></svg>
+    </div>
+    
+    <div class="panel" id="sim-container">
+        <div class="sim-title">Macroscopic Plate Stress Field</div>
+        <canvas id="sim-canvas"></canvas>
+    </div>
+</div>
+
+<script>
+    // --- Physics Models ---
+    const MATERIALS = {
+        al:    { name: "Al 7075", yield: 500, kic: 24 },
+        steel: { name: "4340 Steel", yield: 1500, kic: 45 },
+        ti:    { name: "Ti-6Al-4V", yield: 900, kic: 75 }
+    };
+
+    let state = {
+        sigma: 200, a: 10, rho: 0.5,
+        mat: 'al', config: 'center',
+        fractured: false, splitOffset: 0
+    };
+
+    const els = {
+        mat: document.getElementById('mat-select'),
+        config: document.getElementById('config-select'),
+        sSigma: document.getElementById('slider-sigma'),
+        sA: document.getElementById('slider-a'),
+        sRho: document.getElementById('slider-rho'),
+        svg: document.getElementById('plot'),
+        canvas: document.getElementById('sim-canvas'),
+        ctx: document.getElementById('sim-canvas').getContext('2d'),
+        alert: document.getElementById('alert-box')
+    };
+
+    function calculatePhysics() {
+        const mat = MATERIALS[state.mat];
+        const Y = (state.config === 'center') ? 1.0 : 1.12;
+        
+        // Geometric Stress Concentration
+        const kt = 1 + 2 * Math.sqrt(state.a / state.rho);
+        const sigma_max = kt * state.sigma;
+        
+        // Stress Intensity Factor K = Y * sigma * sqrt(pi * a_meters)
+        const a_meters = state.a / 1000;
+        const K = Y * state.sigma * Math.sqrt(Math.PI * a_meters);
+        
+        state.fractured = (K >= mat.kic);
+
+        // Update UI
+        document.getElementById('val-sigma').innerText = state.sigma + ' MPa';
+        document.getElementById('val-a').innerText = state.a.toFixed(1) + ' mm';
+        document.getElementById('val-rho').innerText = state.rho.toFixed(2) + ' mm';
+        
+        document.getElementById('out-kt').innerText = kt.toFixed(1);
+        
+        const maxEl = document.getElementById('out-sigmax');
+        maxEl.innerText = Math.round(sigma_max) + ' MPa';
+        maxEl.style.color = (sigma_max >= mat.yield) ? '#ff3333' : 'var(--yellow)';
+        
+        document.getElementById('out-yield').innerText = mat.yield + ' MPa';
+        document.getElementById('out-k').innerText = K.toFixed(1) + ' MPa√m';
+        document.getElementById('out-k').style.color = state.fractured ? '#ff0000' : '#fff';
+        document.getElementById('out-kic').innerText = mat.kic.toFixed(1) + ' MPa√m';
+
+        els.alert.style.display = state.fractured ? 'block' : 'none';
+
+        renderPlot(K, mat.kic, Y);
+    }
+
+    function updateState() {
+        state.mat = els.mat.value;
+        state.config = els.config.value;
+        state.sigma = parseFloat(els.sSigma.value);
+        state.a = parseFloat(els.sA.value);
+        state.rho = parseFloat(els.sRho.value);
+        
+        if (!state.fractured) state.splitOffset = 0; // Reset physical split
+        
+        calculatePhysics();
+    }
+
+    // --- Analytical Plot ---
+    function renderPlot(currentK, kic, Y) {
+        els.svg.innerHTML = '';
+        const w = els.svg.clientWidth, h = els.svg.clientHeight;
+        if(w === 0) return;
+        
+        const pad = { l: 60, r: 30, t: 20, b: 40 };
+        const aMax = 50; 
+        const kMax = 100; // Fixed Y axis to 100 MPa√m
+
+        const mX = (a) => pad.l + (a / aMax) * (w - pad.l - pad.r);
+        const mY = (k) => h - pad.b - (k / kMax) * (h - pad.t - pad.b);
+
+        // Grid
+        for(let k=0; k<=kMax; k+=20) {
+            let py = mY(k);
+            els.svg.innerHTML += `<line class="grid" x1="${pad.l}" y1="${py}" x2="${w-pad.r}" y2="${py}"/>`;
+            els.svg.innerHTML += `<text x="${pad.l-10}" y="${py+4}" text-anchor="end">${k}</text>`;
+        }
+        for(let a=0; a<=aMax; a+=10) {
+            let px = mX(a);
+            els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">${a}</text>`;
+        }
+
+        // Axes
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${h-pad.b}" x2="${w-pad.r}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h-pad.b}"/>`;
+        els.svg.innerHTML += `<text class="axis-lbl" x="${w/2}" y="${h-5}" text-anchor="middle">Crack Length, a (mm)</text>`;
+        els.svg.innerHTML += `<text class="axis-lbl" transform="rotate(-90, 15, ${h/2})" x="15" y="${h/2}" text-anchor="middle">Stress Intensity (K)</text>`;
+
+        // K_Ic Threshold Line
+        const yKic = mY(kic);
+        els.svg.innerHTML += `<line class="kic-line" x1="${pad.l}" y1="${yKic}" x2="${w-pad.r}" y2="${yKic}"/>`;
+        els.svg.innerHTML += `<text x="${pad.l + 10}" y="${yKic - 5}" fill="var(--magenta)">Material K_Ic Limit</text>`;
+        els.svg.innerHTML += `<text x="${w - 180}" y="${pad.t + 10}" class="math-eq">K = Y&sigma;&radic;(&pi;a)</text>`;
+
+        // The K Curve for current stress
+        let pts = "";
+        for(let a=0; a<=aMax; a+=1) {
+            let k = Y * state.sigma * Math.sqrt(Math.PI * (a/1000));
+            pts += `${mX(a)},${mY(k)} `;
+        }
+        els.svg.innerHTML += `<polyline class="curve" points="${pts}"/>`;
+
+        // Tracker
+        let tx = mX(state.a), ty = mY(currentK);
+        els.svg.innerHTML += `<line class="tracker-line" x1="${pad.l}" y1="${ty}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<line class="tracker-line" x1="${tx}" y1="${h-pad.b}" x2="${tx}" y2="${ty}"/>`;
+        els.svg.innerHTML += `<circle class="tracker" cx="${tx}" cy="${ty}" r="6"/>`;
+    }
+
+    // --- Microscopic Canvas Visualization ---
+    function drawCanvas() {
+        const w = els.canvas.clientWidth, h = els.canvas.clientHeight;
+        if(w === 0) return;
+        if(els.canvas.width !== w) { els.canvas.width = w; els.canvas.height = h; }
+
+        const ctx = els.ctx;
+        ctx.clearRect(0, 0, w, h);
+
+        // Fracture Animation Logic
+        if (state.fractured) {
+            state.splitOffset += (20 - state.splitOffset) * 0.1; // Easing apart
+        } else {
+            state.splitOffset = 0;
+        }
+
+        const plateW = Math.min(w * 0.6, 600);
+        const plateH = h * 0.8;
+        const cx = w / 2;
+        const cy = h / 2;
+        
+        // Scale 'a' (1-50mm) to pixels
+        const maxPx = plateW * 0.45;
+        const a_px = (state.a / 50) * maxPx;
+        
+        // Draw Tension Arrows
+        ctx.fillStyle = '#ff3333';
+        const arrowGap = state.splitOffset > 0 ? state.splitOffset : 0;
+        // Top
+        ctx.beginPath(); ctx.moveTo(cx, cy - plateH/2 - 20 - arrowGap); ctx.lineTo(cx-10, cy - plateH/2 - 5 - arrowGap); ctx.lineTo(cx+10, cy - plateH/2 - 5 - arrowGap); ctx.fill();
+        ctx.fillRect(cx-3, cy - plateH/2 - 5 - arrowGap, 6, -30);
+        // Bottom
+        ctx.beginPath(); ctx.moveTo(cx, cy + plateH/2 + 20 + arrowGap); ctx.lineTo(cx-10, cy + plateH/2 + 5 + arrowGap); ctx.lineTo(cx+10, cy + plateH/2 + 5 + arrowGap); ctx.fill();
+        ctx.fillRect(cx-3, cy + plateH/2 + 5 + arrowGap, 6, 30);
+
+        if (state.fractured) {
+            // Draw Split Plate
+            ctx.fillStyle = 'var(--plate)';
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            
+            // Top Half
+            ctx.beginPath();
+            ctx.rect(cx - plateW/2, cy - plateH/2 - state.splitOffset, plateW, plateH/2);
+            ctx.fill(); ctx.stroke();
+            
+            // Bottom Half
+            ctx.beginPath();
+            ctx.rect(cx - plateW/2, cy + state.splitOffset, plateW, plateH/2);
+            ctx.fill(); ctx.stroke();
+            
+            // Jagged Fracture Edges
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(cx - plateW/2, cy - state.splitOffset);
+            for(let x = cx - plateW/2; x < cx + plateW/2; x+=15) ctx.lineTo(x, cy - state.splitOffset + (Math.random()*6-3));
+            ctx.stroke();
+            
+            ctx.beginPath(); ctx.moveTo(cx - plateW/2, cy + state.splitOffset);
+            for(let x = cx - plateW/2; x < cx + plateW/2; x+=15) ctx.lineTo(x, cy + state.splitOffset + (Math.random()*6-3));
+            ctx.stroke();
+            
+        } else {
+            // Draw Solid Plate
+            ctx.fillStyle = 'var(--plate)';
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            ctx.fillRect(cx - plateW/2, cy - plateH/2, plateW, plateH);
+            ctx.strokeRect(cx - plateW/2, cy - plateH/2, plateW, plateH);
+
+            // Stress Field Math
+            const mat = MATERIALS[state.mat];
+            const kt = 1 + 2 * Math.sqrt(state.a / state.rho);
+            const sigma_max = kt * state.sigma;
+            
+            // Limit glow intensity based on yield (plastic zone blunting)
+            const intensity = Math.min(sigma_max / mat.yield, 1.2); 
+            // Localized radius based on sharp tip (small rho = tight spot, large rho = diffuse)
+            const fieldRadius = Math.max(5, 40 * (1 / state.rho) * intensity * (state.sigma/500));
+
+            // Helper to draw localized tip field
+            function drawTipField(x, y) {
+                if (state.sigma === 0) return;
+                const grad = ctx.createRadialGradient(x, y, 0, x, y, fieldRadius);
+                // Color maps: White core -> Yellow -> Transparent
+                let coreColor = intensity >= 1.0 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,0,0.8)';
+                let midColor = intensity >= 1.0 ? 'rgba(255,0,0,0.6)' : 'rgba(255,100,0,0.4)';
+                
+                grad.addColorStop(0, coreColor);
+                grad.addColorStop(0.3, midColor);
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(x, y, fieldRadius, 0, Math.PI*2);
+                ctx.fill();
+                
+                // Draw plastic zone boundary if yielding
+                if (intensity >= 1.0) {
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([2,2]);
+                    ctx.beginPath(); ctx.arc(x, y, fieldRadius*0.5, 0, Math.PI*2); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // Draw Crack & Fields based on Config
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+
+            if (state.config === 'center') {
+                // Center Crack (2a)
+                ctx.beginPath();
+                ctx.moveTo(cx - a_px, cy);
+                ctx.lineTo(cx + a_px, cy);
+                ctx.stroke();
+                
+                // Fields on both tips
+                drawTipField(cx - a_px, cy);
+                drawTipField(cx + a_px, cy);
+                
+                // Label
+                ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
+                ctx.fillText("2a", cx - 5, cy - 10);
+            } else {
+                // Edge Crack (a)
+                const leftEdge = cx - plateW/2;
+                ctx.beginPath();
+                ctx.moveTo(leftEdge, cy);
+                ctx.lineTo(leftEdge + a_px, cy);
+                ctx.stroke();
+                
+                // Field only on internal tip
+                drawTipField(leftEdge + a_px, cy);
+                
+                // Label
+                ctx.fillStyle = '#aaa'; ctx.font = '12px sans-serif';
+                ctx.fillText("a", leftEdge + a_px/2 - 5, cy - 10);
+            }
+        }
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        drawCanvas();
+    }
+
+    // --- Listeners & Init ---
+    Object.values(els).forEach(el => {
+        if(el && el.addEventListener) {
+            el.addEventListener('input', updateState);
+            el.addEventListener('change', updateState);
+        }
+    });
+    window.addEventListener('resize', updateState);
+
+    updateState();
+    loop(); 
+</script>
+</body>
+</html>
