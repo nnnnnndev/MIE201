@@ -86,23 +86,23 @@
     </select>
 
     <div class="control-block">
-        <div class="label-row"><span>Mean Stress (&sigma;<sub>m</sub>)</span><span id="val-mean">0 MPa</span></div>
+        <div class="label-row"><span>Mean Stress (σ<sub>m</sub>)</span><span id="val-mean">0 MPa</span></div>
         <input type="range" id="slider-mean" min="-200" max="300" step="10" value="0">
     </div>
 
     <div class="control-block">
-        <div class="label-row"><span>Stress Amplitude (&sigma;<sub>a</sub>)</span><span id="val-amp">150 MPa</span></div>
+        <div class="label-row"><span>Stress Amplitude (σ<sub>a</sub>)</span><span id="val-amp">150 MPa</span></div>
         <input type="range" id="slider-amp" min="10" max="400" step="10" value="150">
     </div>
 
     <div style="text-align: center; color: var(--cyan); font-family: 'Times New Roman', serif; font-style: italic; margin: -5px 0 15px 0; font-size: 1.1rem; line-height: 1.4;">
         Goodman Correction:<br>
-        <span style="font-size: 1.3rem;">S<sub>ar</sub> = &sigma;<sub>a</sub> / (1 - &sigma;<sub>m</sub>/S<sub>ut</sub>)</span>
+        <span style="font-size: 1.3rem;">S<sub>ar</sub> = σ<sub>a</sub> / (1 - σ<sub>m</sub>/S<sub>ut</sub>)</span>
     </div>
 
     <div id="readouts">
-        <div class="stat"><span>Max Stress (&sigma;<sub>max</sub>):</span><span id="out-max">--</span></div>
-        <div class="stat"><span>Min Stress (&sigma;<sub>min</sub>):</span><span id="out-min">--</span></div>
+        <div class="stat"><span>Max Stress (σ<sub>max</sub>):</span><span id="out-max">--</span></div>
+        <div class="stat"><span>Min Stress (σ<sub>min</sub>):</span><span id="out-min">--</span></div>
         <div class="stat"><span>Ultimate Tensile (S<sub>ut</sub>):</span><span id="out-sut">--</span></div>
         <div class="stat" style="color: var(--cyan); border-top: 1px solid #444; padding-top: 5px; margin-top: 5px;">
             <span>Effective Rev. Stress (S<sub>ar</sub>):</span><span id="out-sar">--</span>
@@ -202,7 +202,7 @@
                     <a href="${article.url}" target="_blank" class="news-title">${article.title} ↗</a>
                     <div class="news-authors">${article.authors}</div>
                     <div class="news-summary">${article.summary}</div>
-                    <button class="preview-toggle" onclick="toggleAbstract(${index})">&#9660; Read Abstract</button>
+                    <button class="preview-toggle" onclick="toggleAbstract(${index})">▼ Read Abstract</button>
                     <div class="abstract-preview" id="abstract-${index}"><strong>ABSTRACT:</strong><br><br>${article.abstract}</div>
                 </div>
             `;
@@ -309,7 +309,7 @@
         for(let logN=minLogN; logN<=maxLogN; logN++) {
             let px = mX(logN);
             els.svg.innerHTML += `<line class="grid" x1="${px}" y1="${pad.t}" x2="${px}" y2="${h-pad.b}"/>`;
-            // Safe, validator-friendly SVG text formatting
+            // Replaced HTML entity sup with SVG tspan for complete safety
             els.svg.innerHTML += `<text x="${px}" y="${h-pad.b+15}" text-anchor="middle">10<tspan dy="-5" font-size="9px">${logN}</tspan></text>`;
         }
 
