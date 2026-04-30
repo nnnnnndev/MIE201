@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V5</title>
+    <title>Chapter 9: Phase Engine V6</title>
     <style>
         :root {
             --bg: #050505;
@@ -139,7 +139,6 @@
             ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
         }
 
-        // Draws text with a solid background plate to prevent grid collision
         function drawAxisLabel(text, x, y, color) {
             ctx.font = 'bold 13px sans-serif';
             ctx.textAlign = 'center';
@@ -153,6 +152,46 @@
             
             ctx.fillStyle = color;
             ctx.fillText(text, x, y);
+        }
+
+        // --- DYNAMIC CENTROID LABELS ---
+        function drawDynamicLabels() {
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
+            ctx.font = 'bold 24px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Liquid Region (Top Center)
+            let c_L = nodes.eut.c;
+            let t_L = nodes.eut.t + (T_MAX - nodes.eut.t) * 0.4;
+            ctx.fillText('L', mapX(c_L), mapY(t_L));
+
+            // Alpha Region (Left Edge)
+            let c_Alpha = nodes.solA.c * 0.4;
+            let t_Alpha = nodes.solA.t * 0.8;
+            ctx.fillText('α', mapX(c_Alpha), mapY(t_Alpha));
+
+            // Beta Region (Right Edge)
+            let c_Beta = nodes.solB.c + (100 - nodes.solB.c) * 0.6;
+            let t_Beta = nodes.solB.t * 0.8;
+            ctx.fillText('β', mapX(c_Beta), mapY(t_Beta));
+
+            // L + Alpha (Midpoint of Liquidus and Solidus)
+            let t_LAlpha = nodes.solA.t + (nodes.tmA.t - nodes.solA.t) * 0.35;
+            let cLeft_LAlpha = getC_onCurve(t_LAlpha, nodes.tmA, nodes.solA, true) || 0;
+            let cRight_LAlpha = getC_onCurve(t_LAlpha, nodes.tmA, nodes.eut, false) || 0;
+            ctx.fillText('L + α', mapX((cLeft_LAlpha + cRight_LAlpha) / 2), mapY(t_LAlpha));
+
+            // L + Beta (Midpoint of Liquidus and Solidus)
+            let t_LBeta = nodes.solB.t + (nodes.tmB.t - nodes.solB.t) * 0.35;
+            let cLeft_LBeta = getC_onCurve(t_LBeta, nodes.tmB, nodes.eut, false) || 100;
+            let cRight_LBeta = getC_onCurve(t_LBeta, nodes.tmB, nodes.solB, true) || 100;
+            ctx.fillText('L + β', mapX((cLeft_LBeta + cRight_LBeta) / 2), mapY(t_LBeta));
+
+            // Alpha + Beta (Bottom Center)
+            let c_AlphaBeta = nodes.eut.c;
+            let t_AlphaBeta = nodes.eut.t * 0.5;
+            ctx.fillText('α + β', mapX(c_AlphaBeta), mapY(t_AlphaBeta));
         }
 
         // --- RENDER LOOP ---
@@ -200,16 +239,10 @@
             ctx.lineTo(mapX(nodes.solB.c), mapY(nodes.solB.t));
             ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.stroke();
 
-            // Region Labels
-            ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.font = 'bold 24px sans-serif';
-            ctx.fillText('L', mapX(50), mapY(950));
-            ctx.fillText('α', mapX(4), mapY(600));
-            ctx.fillText('β', mapX(96), mapY(600));
-            ctx.fillText('L + α', mapX(15), mapY(820));
-            ctx.fillText('L + β', mapX(65), mapY(850));
-            ctx.fillText('α + β', mapX(50), mapY(400));
+            // 3. Draw Dynamic Labels
+            drawDynamicLabels();
 
-            // 3. Interactions
+            // 4. Interactions
             if (mode === 'architect') {
                 drawNodes();
             } else if (mode === 'navigator') {
@@ -266,7 +299,6 @@
             }
 
             if (tieLeft !== null && tieRight !== null) {
-                // FORCE DATA COHERENCE: Round to 1 decimal place before any math
                 let vL = parseFloat(tieLeft.toFixed(1));
                 let v0 = parseFloat(curC.toFixed(1));
                 let vR = parseFloat(tieRight.toFixed(1));
@@ -275,7 +307,6 @@
                 let S_val = parseFloat((vR - v0).toFixed(1));
                 let Tot_val = parseFloat((vR - vL).toFixed(1));
                 
-                // Force strict 1.00 summation
                 let w1_num = S_val / Tot_val;
                 w1 = w1_num.toFixed(2);
                 w2 = (1.00 - w1_num).toFixed(2); 
@@ -287,34 +318,28 @@
                     ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
                     ctx.fillRect(mapX(v0), mapY(curT)-20, mapX(vR)-mapX(v0), 40);
 
-                    // Drop lines
                     ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
                     ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vL), canvas.height - PAD); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Undeniable R and S labels directly on the tie-line
                     ctx.fillStyle = '#ff8800'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
                     ctx.fillText(`R = ${R_val}`, mapX(vL + R_val/2), mapY(curT) - 25);
                     ctx.fillStyle = '#00ffff';
                     ctx.fillText(`S = ${S_val}`, mapX(v0 + S_val/2), mapY(curT) - 25);
 
-                    // Anti-Collision X-Axis Labels
                     let axisY = canvas.height - PAD;
                     drawAxisLabel(`${cLeftName}=${vL}`, mapX(vL), axisY, '#00ffff');
                     drawAxisLabel(`C0=${v0}`, mapX(v0), axisY, '#ffffff');
                     drawAxisLabel(`${cRightName}=${vR}`, mapX(vR), axisY, '#ff8800');
 
-                    // Store perfectly synchronized state for Math Panel
                     lastMathState = { cLeftName, cRightName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1: w1, w2: w2 };
                 }
 
-                // Tie-Line
                 ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
                 
-                // Intersection Nodes
                 ctx.fillStyle = '#00ffff';
                 ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
@@ -334,7 +359,6 @@
             document.getElementById('out-w2').innerText = w2;
         }
 
-        // --- MATH EXPANSION UI ---
         function updateMathPanel() {
             let panel = document.getElementById('math-panel');
             if(!isFrozen || !lastMathState) {
@@ -368,16 +392,13 @@
 
         function snapToEutectic() {
             setMode('navigator');
-            // FIX: Snap EXACTLY to the Eutectic Composition (e.g., 28.1)
             mouseX = mapX(nodes.eut.c); 
-            // FIX: Drop exactly 1 degree below the isotherm to trigger the solid-solid region
             mouseY = mapY(nodes.eut.t - 1); 
             isFrozen = true;
             draw();
             updateMathPanel();
         }
 
-        // --- EVENTS ---
         function setMode(newMode) {
             mode = newMode;
             isFrozen = false; updateMathPanel();
@@ -397,8 +418,9 @@
 
             if (mode === 'architect' && activeNode) {
                 let newC = invX(mouseX); let newT = invY(mouseY);
-                if(newC < 5) newC = 5; if(newC > 95) newC = 95;
-                if(newT > 900) newT = 900; if(newT < 200) newT = 200;
+                // FIXED constraints: You can now crush the nodes against the axes (1% and 99%)
+                if(newC < 1) newC = 1; if(newC > 99) newC = 99;
+                if(newT > 1150) newT = 1150; if(newT < 100) newT = 100;
 
                 if (activeNode === 'eut') {
                     nodes.eut.c = newC; nodes.eut.t = newT;
