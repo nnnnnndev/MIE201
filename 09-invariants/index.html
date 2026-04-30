@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V2</title>
+    <title>Chapter 9: Phase Engine V3</title>
     <style>
         :root {
             --bg: #050505;
@@ -40,9 +40,9 @@
         .stat .val { color: #fff; font-weight: bold; }
 
         /* Math Expansion Panel */
-        #math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--magenta); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
-        .math-line { color: var(--silver); margin-bottom: 8px; }
-        .math-hl { color: var(--cyan); font-weight: bold; }
+        #math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
+        .math-line { color: var(--silver); margin-bottom: 6px; }
+        .math-hl { color: #fff; font-weight: bold; }
 
         canvas { width: 100%; height: 100%; display: block; touch-action: none; }
     </style>
@@ -60,25 +60,25 @@
                 <div class="toggle-btn active" id="btn-navigator" onclick="setMode('navigator')">Navigator</div>
                 <div class="toggle-btn" id="btn-architect" onclick="setMode('architect')">Architect</div>
             </div>
-            <button class="action-btn" id="btn-preset" onclick="snapToEutectic()">Snap to Eutectic Line</button>
+            <button class="action-btn" id="btn-preset" onclick="snapToEutectic()">Snap to Below Eutectic</button>
             <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
                 Hover to cast tie-line. <strong>Click</strong> to freeze and view calculation.
             </p>
 
             <div id="math-panel">
-                <div class="label" style="color:var(--magenta)">Lever Rule Calculation</div>
+                <div class="label" style="color:var(--cyan)">Tie-Line Expansion</div>
                 <div id="math-content"></div>
             </div>
         </div>
 
         <div class="readout-panel">
-            <span class="label">Telemetry</span>
+            <span class="label">Lever Rule Telemetry</span>
             <div class="stat"><span>Temp (°C):</span> <span class="val" id="out-t">--</span></div>
-            <div class="stat"><span>Comp (wt% B):</span> <span class="val" id="out-c">--</span></div>
+            <div class="stat"><span>Comp (wt% Cu):</span> <span class="val" id="out-c">--</span></div>
             <hr style="border-color:#333; margin:15px 0;">
             <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="out-region">--</span></div>
-            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">W(L):</span> <span class="val" id="out-w1">--</span></div>
-            <div class="stat" style="color: var(--orange);"><span id="lbl-right">W(Solid):</span> <span class="val" id="out-w2">--</span></div>
+            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">W(Phase 1):</span> <span class="val" id="out-w1">--</span></div>
+            <div class="stat" style="color: var(--orange);"><span id="lbl-right">W(Phase 2):</span> <span class="val" id="out-w2">--</span></div>
         </div>
     </div>
 
@@ -100,7 +100,7 @@
         // Coordinate Boundaries
         const T_MIN = 0, T_MAX = 1200;
         const C_MIN = 0, C_MAX = 100;
-        const PAD = 70; // Padding for axes
+        const PAD = 70;
 
         // Topological Nodes
         let nodes = {
@@ -122,9 +122,9 @@
         function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
             let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; // Adjusted power values to prevent corner twisting
+            let p = isConvex ? 1.4 : 0.7;
             let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
-            return Math.max(0, Math.min(100, c)); // Strict clamping
+            return Math.max(0, Math.min(100, c));
         }
 
         function drawCurve(nodeTop, nodeBot, isConvex, color) {
@@ -169,7 +169,7 @@
             ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
             ctx.fillText('Temp (°C)', PAD - 10, PAD - 20);
             ctx.textAlign = 'center';
-            ctx.fillText('Composition (wt% B)', canvas.width/2, canvas.height - 20);
+            ctx.fillText('Composition (wt% Cu)', canvas.width/2, canvas.height - 20);
 
             // 2. Draw Boundaries
             drawCurve(nodes.tmA, nodes.eut, false, '#ff00ff'); 
@@ -229,7 +229,7 @@
                 let cLiquidus = getC_onCurve(curT, nodes.tmA, nodes.eut, false);
                 if (curC > cSolidus && curC < cLiquidus) {
                     region = "L + α"; tieLeft = cSolidus; tieRight = cLiquidus;
-                    lbl1 = "W(α)"; lbl2 = "W(L)"; cLeftName = "C_α"; cRightName = "C_L";
+                    lbl1 = "W(α)"; lbl2 = "W(L)"; cLeftName = "Cα"; cRightName = "CL";
                 }
             }
             if (curT > nodes.eut.t && curT < nodes.tmB.t) {
@@ -237,7 +237,7 @@
                 let cSolidus = getC_onCurve(curT, nodes.tmB, nodes.solB, true);
                 if (curC > cLiquidus && curC < cSolidus) {
                     region = "L + β"; tieLeft = cLiquidus; tieRight = cSolidus;
-                    lbl1 = "W(L)"; lbl2 = "W(β)"; cLeftName = "C_L"; cRightName = "C_β";
+                    lbl1 = "W(L)"; lbl2 = "W(β)"; cLeftName = "CL"; cRightName = "Cβ";
                 }
             }
             if (curT <= nodes.eut.t && curT > 0) {
@@ -245,52 +245,60 @@
                 let cSolvusB = getC_onCurve(curT, nodes.solB, nodes.termB, true) || nodes.solB.c;
                 if (curC > cSolvusA && curC < cSolvusB) {
                     region = "α + β"; tieLeft = cSolvusA; tieRight = cSolvusB;
-                    lbl1 = "W(α)"; lbl2 = "W(β)"; cLeftName = "C_α"; cRightName = "C_β";
+                    lbl1 = "W(α)"; lbl2 = "W(β)"; cLeftName = "Cα"; cRightName = "Cβ";
                 }
             }
 
             if (tieLeft !== null && tieRight !== null) {
-                let R = Math.abs(curC - tieLeft);
-                let S = Math.abs(tieRight - curC);
-                let total = tieRight - tieLeft;
-                
-                w1 = (S / total).toFixed(2);
-                w2 = (R / total).toFixed(2);
+                // FORCE DATA COHERENCE: Parse back to explicit 1-decimal numbers before math
+                let vL = parseFloat(tieLeft.toFixed(1));
+                let v0 = parseFloat(curC.toFixed(1));
+                let vR = parseFloat(tieRight.toFixed(1));
 
-                // Sketch Overlay (R, S, and Dotted lines)
+                let R_val = parseFloat((v0 - vL).toFixed(1));
+                let S_val = parseFloat((vR - v0).toFixed(1));
+                let Tot_val = parseFloat((vR - vL).toFixed(1));
+                
+                w1 = (S_val / Tot_val).toFixed(2);
+                w2 = (R_val / Tot_val).toFixed(2);
+
+                // Sketch Overlay
                 if (isFrozen) {
                     ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
-                    ctx.fillRect(mapX(tieLeft), mapY(curT)-20, mapX(curC)-mapX(tieLeft), 40);
+                    ctx.fillRect(mapX(vL), mapY(curT)-20, mapX(v0)-mapX(vL), 40);
                     ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-                    ctx.fillRect(mapX(curC), mapY(curT)-20, mapX(tieRight)-mapX(curC), 40);
+                    ctx.fillRect(mapX(v0), mapY(curT)-20, mapX(vR)-mapX(v0), 40);
 
                     // Drop lines
                     ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(mapX(tieLeft), mapY(curT)); ctx.lineTo(mapX(tieLeft), canvas.height - PAD); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mapX(curC), mapY(curT)); ctx.lineTo(mapX(curC), canvas.height - PAD); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mapX(tieRight), mapY(curT)); ctx.lineTo(mapX(tieRight), canvas.height - PAD); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vL), canvas.height - PAD); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Labels
+                    // Segment Labels
                     ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText('R', mapX(tieLeft + R/2), mapY(curT) - 25);
-                    ctx.fillText('S', mapX(curC + S/2), mapY(curT) - 25);
-                    ctx.fillText(cLeftName, mapX(tieLeft), mapY(curT) + 20);
-                    ctx.fillText('C_0', mapX(curC), mapY(curT) + 20);
-                    ctx.fillText(cRightName, mapX(tieRight), mapY(curT) + 20);
+                    ctx.fillText('R', mapX(vL + R_val/2), mapY(curT) - 25);
+                    ctx.fillText('S', mapX(v0 + S_val/2), mapY(curT) - 25);
 
-                    // Store for Math Panel
-                    lastMathState = { lbl1, lbl2, w1, w2, cL: tieLeft.toFixed(1), c0: curC.toFixed(1), cR: tieRight.toFixed(1), R: R.toFixed(1), S: S.toFixed(1), tot: total.toFixed(1) };
+                    // X-Axis Number Callouts (Aligned to bottom grid)
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillStyle = '#00ffff'; ctx.fillText(`${cLeftName}=${vL}`, mapX(vL), canvas.height - PAD + 25);
+                    ctx.fillStyle = '#fff'; ctx.fillText(`C0=${v0}`, mapX(v0), canvas.height - PAD + 25);
+                    ctx.fillStyle = '#ff8800'; ctx.fillText(`${cRightName}=${vR}`, mapX(vR), canvas.height - PAD + 25);
+
+                    // Store perfectly synchronized state for Math Panel
+                    lastMathState = { cLeftName, cRightName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1: w1, w2: w2 };
                 }
 
                 // Tie-Line
-                ctx.beginPath(); ctx.moveTo(mapX(tieLeft), mapY(curT)); ctx.lineTo(mapX(tieRight), mapY(curT));
+                ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
                 
-                // Nodes
+                // Intersection Nodes
                 ctx.fillStyle = '#00ffff';
-                ctx.beginPath(); ctx.arc(mapX(tieLeft), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(mapX(tieRight), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
             }
 
             // Crosshair
@@ -316,20 +324,34 @@
             }
             panel.style.display = 'block';
             let m = lastMathState;
+            
+            // Generate exact 1-to-1 math string matching the UI
             document.getElementById('math-content').innerHTML = `
-                <div class="math-line">Total Length = ${m.cR} - ${m.cL} = <span class="math-hl">${m.tot}</span></div>
-                <div class="math-line">Segment R = ${m.c0} - ${m.cL} = <span class="math-hl">${m.R}</span></div>
-                <div class="math-line">Segment S = ${m.cR} - ${m.c0} = <span class="math-hl">${m.S}</span></div>
+                <div class="math-line" style="color:#aaa;">1. Identify Intersections:</div>
+                <div class="math-line">&nbsp;&nbsp;${m.cLeftName} = <span class="math-hl" style="color:var(--cyan)">${m.cL}</span></div>
+                <div class="math-line">&nbsp;&nbsp;C0 = <span class="math-hl">${m.c0}</span></div>
+                <div class="math-line">&nbsp;&nbsp;${m.cRightName} = <span class="math-hl" style="color:var(--orange)">${m.cR}</span></div>
+                
                 <hr style="border-color:#333; margin:10px 0;">
-                <div class="math-line">${m.lbl1} = S / Total = ${m.S} / ${m.tot} = <span class="math-hl" style="color:var(--cyan)">${m.w1}</span></div>
-                <div class="math-line">${m.lbl2} = R / Total = ${m.R} / ${m.tot} = <span class="math-hl" style="color:var(--orange)">${m.w2}</span></div>
+                <div class="math-line" style="color:#aaa;">2. Calculate Segments:</div>
+                <div class="math-line">&nbsp;&nbsp;Total = ${m.cR} - ${m.cL} = <span class="math-hl">${m.tot}</span></div>
+                <div class="math-line">&nbsp;&nbsp;R = ${m.c0} - ${m.cL} = <span class="math-hl">${m.R}</span></div>
+                <div class="math-line">&nbsp;&nbsp;S = ${m.cR} - ${m.c0} = <span class="math-hl">${m.S}</span></div>
+                
+                <hr style="border-color:#333; margin:10px 0;">
+                <div class="math-line" style="color:#aaa;">3. Apply Lever Rule:</div>
+                <div class="math-line">&nbsp;&nbsp;${m.lbl1} = S / Total</div>
+                <div class="math-line">&nbsp;&nbsp;${m.lbl1} = ${m.S} / ${m.tot} = <span class="math-hl" style="color:var(--cyan)">${m.w1}</span></div>
+                <br>
+                <div class="math-line">&nbsp;&nbsp;${m.lbl2} = R / Total</div>
+                <div class="math-line">&nbsp;&nbsp;${m.lbl2} = ${m.R} / ${m.tot} = <span class="math-hl" style="color:var(--orange)">${m.w2}</span></div>
             `;
         }
 
         function snapToEutectic() {
             setMode('navigator');
-            mouseX = mapX(nodes.eut.c);
-            mouseY = mapY(nodes.eut.t - 1); // Drop 1 degree below to show solid-solid mixture
+            mouseX = mapX(40); // Offset C0 slightly to show a clean R/S split
+            mouseY = mapY(nodes.eut.t - 20); // Drop 20 degrees below eutectic
             isFrozen = true;
             draw();
             updateMathPanel();
@@ -376,7 +398,7 @@
             if (mode === 'navigator') {
                 isFrozen = !isFrozen;
                 updateMathPanel();
-                draw(); // Redraw crosshair state
+                draw();
                 return;
             }
             canvas.style.cursor = 'grabbing';
