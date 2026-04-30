@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V6</title>
+    <title>Chapter 9: Phase Engine V7 (Mg-Pb)</title>
     <style>
         :root {
             --bg: #050505;
@@ -32,7 +32,8 @@
         .toggle-btn.active { background: rgba(0, 255, 255, 0.1); color: var(--cyan); border-bottom: 2px solid var(--cyan); }
         .toggle-btn:not(.active) { color: #666; }
 
-        button.action-btn { background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; width: 100%; transition: 0.2s; }
+        .btn-row { display: flex; gap: 10px; }
+        button.action-btn { flex: 1; background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; transition: 0.2s; }
         button.action-btn:hover { background: var(--orange); color: #000; }
 
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
@@ -51,7 +52,7 @@
 
     <div id="sidebar">
         <div class="header">
-            <h1>Phase Engine: Ag-Cu</h1>
+            <h1>Engine: Mg-Pb Array</h1>
         </div>
         
         <div class="control-group">
@@ -60,9 +61,14 @@
                 <div class="toggle-btn active" id="btn-navigator" onclick="setMode('navigator')">Navigator</div>
                 <div class="toggle-btn" id="btn-architect" onclick="setMode('architect')">Architect</div>
             </div>
-            <button class="action-btn" id="btn-preset" onclick="snapToEutectic()">Snap to Invariant Reaction</button>
+            
+            <div class="btn-row" id="preset-controls">
+                <button class="action-btn" onclick="snapTo(1)">Snap E1 (Mg)</button>
+                <button class="action-btn" onclick="snapTo(2)">Snap E2 (Pb)</button>
+            </div>
+            
             <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
-                Hover to cast tie-line. <strong>Click</strong> to freeze and view calculation.
+                Hover across the intermetallic boundary. <strong>Click</strong> to freeze.
             </p>
 
             <div id="math-panel">
@@ -74,7 +80,7 @@
         <div class="readout-panel">
             <span class="label">Lever Rule Telemetry</span>
             <div class="stat"><span>Temp (°C):</span> <span class="val" id="out-t">--</span></div>
-            <div class="stat"><span>Comp (wt% Cu):</span> <span class="val" id="out-c">--</span></div>
+            <div class="stat"><span>Comp (wt% Pb):</span> <span class="val" id="out-c">--</span></div>
             <hr style="border-color:#333; margin:15px 0;">
             <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="out-region">--</span></div>
             <div class="stat" style="color: var(--cyan);"><span id="lbl-left">W(Phase 1):</span> <span class="val" id="out-w1">--</span></div>
@@ -90,39 +96,64 @@
         const canvas = document.getElementById('plotCanvas');
         const ctx = canvas.getContext('2d');
 
-        // State
         let mode = 'navigator';
         let mouseX = 0, mouseY = 0;
         let activeNode = null;
+        let activeNodeKey = null;
+        let activeSys = null;
         let isFrozen = false;
         let lastMathState = null;
 
-        // Coordinate Boundaries
-        const T_MIN = 0, T_MAX = 1200;
-        const C_MIN = 0, C_MAX = 100;
         const PAD = 70;
 
-        // Topological Nodes
-        let nodes = {
-            tmA: { c: 0, t: 962, fixed: true },
-            tmB: { c: 100, t: 1085, fixed: true },
-            eut: { c: 28.1, t: 779, fixed: false },
-            solA: { c: 8.8, t: 779, fixed: false },
-            solB: { c: 92.1, t: 779, fixed: false },
-            termA: { c: 1, t: 0, fixed: true },
-            termB: { c: 99, t: 0, fixed: true }
+        // --- THE PROCEDURAL PILLAR ENGINE ---
+        // We define the diagram as an array of adjacent eutectic "valleys"
+        const engineDef = {
+            name: "Mg-Pb",
+            T_MAX: 800,
+            subsystems: [
+                {
+                    id: 'sys1', 
+                    bounds: [0, 81], // Mg to Mg2Pb Peak
+                    lblL: 'α', lblR: 'Mg₂Pb',
+                    nodes: {
+                        tmL: {c: 0, t: 650, fixed: true},
+                        tmR: {c: 81, t: 550, fixed: true}, // The Intermetallic Peak
+                        eut: {c: 67, t: 460, fixed: false},
+                        solL: {c: 5, t: 460, fixed: false},
+                        solR: {c: 79, t: 460, fixed: false},
+                        termL: {c: 2, t: 0, fixed: true},
+                        termR: {c: 80.5, t: 0, fixed: true}
+                    }
+                },
+                {
+                    id: 'sys2', 
+                    bounds: [81, 100], // Mg2Pb Peak to Pb
+                    lblL: 'Mg₂Pb', lblR: 'β',
+                    nodes: {
+                        tmL: {c: 81, t: 550, fixed: true}, // Matches sys1 peak
+                        tmR: {c: 100, t: 327, fixed: true},
+                        eut: {c: 98, t: 253, fixed: false},
+                        solL: {c: 82, t: 253, fixed: false},
+                        solR: {c: 99.5, t: 253, fixed: false},
+                        termL: {c: 81.5, t: 0, fixed: true},
+                        termR: {c: 99.9, t: 0, fixed: true}
+                    }
+                }
+            ]
         };
 
         // --- MATH & UTILS ---
-        function mapX(c) { return PAD + (c / C_MAX) * (canvas.width - PAD * 2); }
-        function mapY(t) { return canvas.height - PAD - (t / T_MAX) * (canvas.height - PAD * 2); }
-        function invX(x) { return Math.max(0, Math.min(100, ((x - PAD) / (canvas.width - PAD * 2)) * C_MAX)); }
-        function invY(y) { return Math.max(0, Math.min(1200, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
+        function mapX(c) { return PAD + (c / 100) * (canvas.width - PAD * 2); }
+        function mapY(t) { return canvas.height - PAD - (t / engineDef.T_MAX) * (canvas.height - PAD * 2); }
+        function invX(x) { return Math.max(0, Math.min(100, ((x - PAD) / (canvas.width - PAD * 2)) * 100)); }
+        function invY(y) { return Math.max(0, Math.min(engineDef.T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * engineDef.T_MAX)); }
 
         function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
+            if (nodeTop.t === nodeBot.t) return nodeTop.c;
             let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7;
+            let p = isConvex ? 1.4 : 0.7; // Thermodyamic bulges
             let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
             return Math.max(0, Math.min(100, c));
         }
@@ -140,70 +171,23 @@
         }
 
         function drawAxisLabel(text, x, y, color) {
-            ctx.font = 'bold 13px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            let metrics = ctx.measureText(text);
-            let w = metrics.width + 10;
-            let h = 20;
-            
-            ctx.fillStyle = '#050505'; 
-            ctx.fillRect(x - w/2, y - h/2, w, h);
-            
-            ctx.fillStyle = color;
-            ctx.fillText(text, x, y);
-        }
-
-        // --- DYNAMIC CENTROID LABELS ---
-        function drawDynamicLabels() {
-            ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
-            ctx.font = 'bold 24px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            // Liquid Region (Top Center)
-            let c_L = nodes.eut.c;
-            let t_L = nodes.eut.t + (T_MAX - nodes.eut.t) * 0.4;
-            ctx.fillText('L', mapX(c_L), mapY(t_L));
-
-            // Alpha Region (Left Edge)
-            let c_Alpha = nodes.solA.c * 0.4;
-            let t_Alpha = nodes.solA.t * 0.8;
-            ctx.fillText('α', mapX(c_Alpha), mapY(t_Alpha));
-
-            // Beta Region (Right Edge)
-            let c_Beta = nodes.solB.c + (100 - nodes.solB.c) * 0.6;
-            let t_Beta = nodes.solB.t * 0.8;
-            ctx.fillText('β', mapX(c_Beta), mapY(t_Beta));
-
-            // L + Alpha (Midpoint of Liquidus and Solidus)
-            let t_LAlpha = nodes.solA.t + (nodes.tmA.t - nodes.solA.t) * 0.35;
-            let cLeft_LAlpha = getC_onCurve(t_LAlpha, nodes.tmA, nodes.solA, true) || 0;
-            let cRight_LAlpha = getC_onCurve(t_LAlpha, nodes.tmA, nodes.eut, false) || 0;
-            ctx.fillText('L + α', mapX((cLeft_LAlpha + cRight_LAlpha) / 2), mapY(t_LAlpha));
-
-            // L + Beta (Midpoint of Liquidus and Solidus)
-            let t_LBeta = nodes.solB.t + (nodes.tmB.t - nodes.solB.t) * 0.35;
-            let cLeft_LBeta = getC_onCurve(t_LBeta, nodes.tmB, nodes.eut, false) || 100;
-            let cRight_LBeta = getC_onCurve(t_LBeta, nodes.tmB, nodes.solB, true) || 100;
-            ctx.fillText('L + β', mapX((cLeft_LBeta + cRight_LBeta) / 2), mapY(t_LBeta));
-
-            // Alpha + Beta (Bottom Center)
-            let c_AlphaBeta = nodes.eut.c;
-            let t_AlphaBeta = nodes.eut.t * 0.5;
-            ctx.fillText('α + β', mapX(c_AlphaBeta), mapY(t_AlphaBeta));
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            let w = ctx.measureText(text).width + 10;
+            ctx.fillStyle = '#050505'; ctx.fillRect(x - w/2, y - 10, w, 20);
+            ctx.fillStyle = color; ctx.fillText(text, x, y);
         }
 
         // --- RENDER LOOP ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Draw Axes & Ticks
+            // 1. Draw Axes
             ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(PAD, PAD); ctx.lineTo(PAD, canvas.height - PAD); // Y
-            ctx.lineTo(canvas.width - PAD, canvas.height - PAD); // X
-            ctx.lineTo(canvas.width - PAD, PAD); // Right border
+            ctx.moveTo(PAD, PAD); ctx.lineTo(PAD, canvas.height - PAD);
+            ctx.lineTo(canvas.width - PAD, canvas.height - PAD);
+            ctx.lineTo(canvas.width - PAD, PAD);
             ctx.stroke();
 
             ctx.fillStyle = '#888'; ctx.font = '12px sans-serif';
@@ -215,7 +199,7 @@
             }
             
             ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-            for(let i=0; i<=1200; i+=200) {
+            for(let i=0; i<=engineDef.T_MAX; i+=100) {
                 let y = mapY(i);
                 ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(PAD - 5, y); ctx.stroke();
                 ctx.fillText(i, PAD - 10, y);
@@ -224,99 +208,125 @@
             ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
             ctx.fillText('Temp (°C)', PAD - 10, PAD - 20);
             ctx.textAlign = 'center';
-            ctx.fillText('Composition (wt% Cu)', canvas.width/2, canvas.height - 20);
+            ctx.fillText('Composition (wt% Pb)', canvas.width/2, canvas.height - 20);
 
-            // 2. Draw Boundaries
-            drawCurve(nodes.tmA, nodes.eut, false, '#ff00ff'); 
-            drawCurve(nodes.tmB, nodes.eut, false, '#ff00ff');
-            drawCurve(nodes.tmA, nodes.solA, true, '#00ffff');
-            drawCurve(nodes.tmB, nodes.solB, true, '#00ffff');
-            drawCurve(nodes.solA, nodes.termA, true, '#00ffff');
-            drawCurve(nodes.solB, nodes.termB, true, '#00ffff');
-            
-            ctx.beginPath();
-            ctx.moveTo(mapX(nodes.solA.c), mapY(nodes.solA.t));
-            ctx.lineTo(mapX(nodes.solB.c), mapY(nodes.solB.t));
-            ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.stroke();
+            // 2. Procedural Boundary Rendering
+            engineDef.subsystems.forEach(sys => {
+                let n = sys.nodes;
+                drawCurve(n.tmL, n.eut, false, '#ff00ff'); // Liq L
+                drawCurve(n.tmR, n.eut, false, '#ff00ff'); // Liq R
+                drawCurve(n.tmL, n.solL, true, '#00ffff'); // Sol L
+                drawCurve(n.tmR, n.solR, true, '#00ffff'); // Sol R
+                drawCurve(n.solL, n.termL, true, '#00ffff'); // Solvus L
+                drawCurve(n.solR, n.termR, true, '#00ffff'); // Solvus R
+                
+                // Isotherm
+                ctx.beginPath();
+                ctx.moveTo(mapX(n.solL.c), mapY(n.solL.t));
+                ctx.lineTo(mapX(n.solR.c), mapY(n.solR.t));
+                ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.stroke();
+            });
 
-            // 3. Draw Dynamic Labels
-            drawDynamicLabels();
+            // 3. Dynamic Region Labels
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
+            ctx.font = 'bold 20px sans-serif';
+            ctx.fillText('L', mapX(50), mapY(700)); // Global Liq
+            ctx.fillText('α', mapX(2), mapY(300)); // Term Alpha
+            ctx.fillText('β', mapX(98), mapY(150)); // Term Beta
+            ctx.fillText('Mg₂Pb', mapX(81), mapY(150)); // Intermetallic Pillar
+
+            engineDef.subsystems.forEach(sys => {
+                let n = sys.nodes;
+                // Subsystem L+Left
+                let tL = n.solL.t + (n.tmL.t - n.solL.t) * 0.35;
+                let cL1 = getC_onCurve(tL, n.tmL, n.solL, true) ?? n.tmL.c;
+                let cR1 = getC_onCurve(tL, n.tmL, n.eut, false) ?? n.tmL.c;
+                if(cR1 > cL1) ctx.fillText(`L+${sys.lblL}`, mapX((cL1+cR1)/2), mapY(tL));
+
+                // Subsystem L+Right
+                let tR = n.solR.t + (n.tmR.t - n.solR.t) * 0.35;
+                let cL2 = getC_onCurve(tR, n.tmR, n.eut, false) ?? n.tmR.c;
+                let cR2 = getC_onCurve(tR, n.tmR, n.solR, true) ?? n.tmR.c;
+                if(cR2 > cL2) ctx.fillText(`L+${sys.lblR}`, mapX((cL2+cR2)/2), mapY(tR));
+
+                // Subsystem Solid+Solid
+                let tBot = n.eut.t * 0.5;
+                ctx.fillText(`${sys.lblL}+${sys.lblR}`, mapX(n.eut.c), mapY(tBot));
+            });
 
             // 4. Interactions
-            if (mode === 'architect') {
-                drawNodes();
-            } else if (mode === 'navigator') {
-                handleTieLine();
-            }
+            if (mode === 'architect') drawNodes();
+            else if (mode === 'navigator') handleTieLine();
         }
 
         function drawNodes() {
-            for (let key in nodes) {
-                let n = nodes[key];
-                if (!n.fixed) {
-                    ctx.beginPath(); ctx.arc(mapX(n.c), mapY(n.t), 8, 0, Math.PI*2);
-                    ctx.fillStyle = '#ff8800'; ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            engineDef.subsystems.forEach(sys => {
+                for (let key in sys.nodes) {
+                    let n = sys.nodes[key];
+                    if (!n.fixed) {
+                        ctx.beginPath(); ctx.arc(mapX(n.c), mapY(n.t), 7, 0, Math.PI*2);
+                        ctx.fillStyle = '#ff8800'; ctx.fill();
+                        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                    }
                 }
-            }
+            });
         }
 
         function handleTieLine() {
-            let curC = invX(mouseX);
-            let curT = invY(mouseY);
+            let curC = invX(mouseX); let curT = invY(mouseY);
+            if(curC < 0 || curC > 100 || curT < 0 || curT > engineDef.T_MAX) return;
+
+            // Phase 2 Magic: Find which valley the mouse is in based on boundaries
+            let actSys = engineDef.subsystems.find(s => curC >= s.bounds[0] && curC < s.bounds[1]);
+            if (!actSys) actSys = engineDef.subsystems[engineDef.subsystems.length - 1]; // Fallback for exactly 100%
+
+            let s = actSys.nodes;
+            let region = "Single Phase", tieLeft = null, tieRight = null;
+            let lbl1 = "-", lbl2 = "-", w1 = "-", w2 = "-", cLName = "", cRName = "";
+
+            // Safely resolve undefined boundary extensions
+            let isLiqL = curT > s.tmL.t;
+            let isLiqR = curT > s.tmR.t;
+
+            let cSolL = isLiqL ? s.tmL.c : (getC_onCurve(curT, s.tmL, s.solL, true) ?? (getC_onCurve(curT, s.solL, s.termL, true) ?? s.solL.c));
+            let cSolR = isLiqR ? s.tmR.c : (getC_onCurve(curT, s.tmR, s.solR, true) ?? (getC_onCurve(curT, s.solR, s.termR, true) ?? s.solR.c));
             
-            if(curC < 0 || curC > 100 || curT < 0 || curT > T_MAX) return;
+            let cLiqL = isLiqL ? s.tmL.c : getC_onCurve(curT, s.tmL, s.eut, false);
+            let cLiqR = isLiqR ? s.tmR.c : getC_onCurve(curT, s.tmR, s.eut, false);
 
-            let region = "Single Phase";
-            let tieLeft = null, tieRight = null;
-            let lbl1 = "W(Phase 1)", lbl2 = "W(Phase 2)";
-            let w1 = "-", w2 = "-";
-            let cLeftName = "", cRightName = "";
-
-            if (curT > nodes.eut.t && curT < nodes.tmA.t) {
-                let cSolidus = getC_onCurve(curT, nodes.tmA, nodes.solA, true);
-                let cLiquidus = getC_onCurve(curT, nodes.tmA, nodes.eut, false);
-                if (curC > cSolidus && curC < cLiquidus) {
-                    region = "L + α"; tieLeft = cSolidus; tieRight = cLiquidus;
-                    lbl1 = "W(α)"; lbl2 = "W(L)"; cLeftName = "Cα"; cRightName = "CL";
+            // Generic Valley Routing
+            if (curT > s.eut.t) {
+                if (curC < cSolL) region = actSys.lblL;
+                else if (curC > cSolR) region = actSys.lblR; // E.g., The Intermetallic Pillar!
+                else if (cLiqL !== null && curC >= cSolL && curC <= cLiqL) {
+                    region = `L + ${actSys.lblL}`; tieLeft = cSolL; tieRight = cLiqL;
+                    lbl1 = actSys.lblL; lbl2 = 'L'; cLName = `C${actSys.lblL}`; cRName = 'CL';
                 }
-            }
-            if (curT > nodes.eut.t && curT < nodes.tmB.t) {
-                let cLiquidus = getC_onCurve(curT, nodes.tmB, nodes.eut, false);
-                let cSolidus = getC_onCurve(curT, nodes.tmB, nodes.solB, true);
-                if (curC > cLiquidus && curC < cSolidus) {
-                    region = "L + β"; tieLeft = cLiquidus; tieRight = cSolidus;
-                    lbl1 = "W(L)"; lbl2 = "W(β)"; cLeftName = "CL"; cRightName = "Cβ";
+                else if (cLiqR !== null && curC >= cLiqR && curC <= cSolR) {
+                    region = `L + ${actSys.lblR}`; tieLeft = cLiqR; tieRight = cSolR;
+                    lbl1 = 'L'; lbl2 = actSys.lblR; cLName = 'CL'; cRName = `C${actSys.lblR}`;
                 }
-            }
-            if (curT <= nodes.eut.t && curT > 0) {
-                let cSolvusA = getC_onCurve(curT, nodes.solA, nodes.termA, true) || nodes.solA.c;
-                let cSolvusB = getC_onCurve(curT, nodes.solB, nodes.termB, true) || nodes.solB.c;
-                if (curC > cSolvusA && curC < cSolvusB) {
-                    region = "α + β"; tieLeft = cSolvusA; tieRight = cSolvusB;
-                    lbl1 = "W(α)"; lbl2 = "W(β)"; cLeftName = "Cα"; cRightName = "Cβ";
+                else region = "L";
+            } else { // Below Eutectic
+                if (curC < cSolL) region = actSys.lblL;
+                else if (curC > cSolR) region = actSys.lblR;
+                else {
+                    region = `${actSys.lblL} + ${actSys.lblR}`; tieLeft = cSolL; tieRight = cSolR;
+                    lbl1 = actSys.lblL; lbl2 = actSys.lblR; cLName = `C${actSys.lblL}`; cRName = `C${actSys.lblR}`;
                 }
             }
 
+            // Calculation & Rendering Overlays
             if (tieLeft !== null && tieRight !== null) {
-                let vL = parseFloat(tieLeft.toFixed(1));
-                let v0 = parseFloat(curC.toFixed(1));
-                let vR = parseFloat(tieRight.toFixed(1));
-
-                let R_val = parseFloat((v0 - vL).toFixed(1));
-                let S_val = parseFloat((vR - v0).toFixed(1));
-                let Tot_val = parseFloat((vR - vL).toFixed(1));
+                let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
+                let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
                 
                 let w1_num = S_val / Tot_val;
-                w1 = w1_num.toFixed(2);
-                w2 = (1.00 - w1_num).toFixed(2); 
+                w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
 
-                // Sketch Overlay
                 if (isFrozen) {
-                    ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
-                    ctx.fillRect(mapX(vL), mapY(curT)-20, mapX(v0)-mapX(vL), 40);
-                    ctx.fillStyle = 'rgba(0, 255, 255, 0.2)';
-                    ctx.fillRect(mapX(v0), mapY(curT)-20, mapX(vR)-mapX(v0), 40);
+                    ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(v0)-mapX(vL), 30);
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; ctx.fillRect(mapX(v0), mapY(curT)-15, mapX(vR)-mapX(v0), 30);
 
                     ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
                     ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vL), canvas.height - PAD); ctx.stroke();
@@ -324,17 +334,16 @@
                     ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
                     ctx.setLineDash([]);
 
-                    ctx.fillStyle = '#ff8800'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText(`R = ${R_val}`, mapX(vL + R_val/2), mapY(curT) - 25);
-                    ctx.fillStyle = '#00ffff';
-                    ctx.fillText(`S = ${S_val}`, mapX(v0 + S_val/2), mapY(curT) - 25);
+                    ctx.fillStyle = '#ff8800'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(`R = ${R_val}`, mapX(vL + R_val/2), mapY(curT) - 22);
+                    ctx.fillStyle = '#00ffff'; ctx.fillText(`S = ${S_val}`, mapX(v0 + S_val/2), mapY(curT) - 22);
 
-                    let axisY = canvas.height - PAD;
-                    drawAxisLabel(`${cLeftName}=${vL}`, mapX(vL), axisY, '#00ffff');
+                    let axisY = canvas.height - PAD + 20;
+                    drawAxisLabel(`${cLName}=${vL}`, mapX(vL), axisY, '#00ffff');
                     drawAxisLabel(`C0=${v0}`, mapX(v0), axisY, '#ffffff');
-                    drawAxisLabel(`${cRightName}=${vR}`, mapX(vR), axisY, '#ff8800');
+                    drawAxisLabel(`${cRName}=${vR}`, mapX(vR), axisY, '#ff8800');
 
-                    lastMathState = { cLeftName, cRightName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1: w1, w2: w2 };
+                    lastMathState = { cLName, cRName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
                 }
 
                 ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
@@ -345,126 +354,97 @@
                 ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
             }
 
-            // Crosshair
             ctx.beginPath(); ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
             ctx.fillStyle = isFrozen ? '#ff00ff' : '#fff'; ctx.fill();
 
-            // Telemetry Update
-            document.getElementById('out-t').innerText = Math.round(curT);
-            document.getElementById('out-c').innerText = curC.toFixed(1);
+            document.getElementById('out-t').innerText = Math.round(curT); document.getElementById('out-c').innerText = curC.toFixed(1);
             document.getElementById('out-region').innerText = region;
-            document.getElementById('lbl-left').innerText = lbl1;
-            document.getElementById('out-w1').innerText = w1;
-            document.getElementById('lbl-right').innerText = lbl2;
-            document.getElementById('out-w2').innerText = w2;
+            document.getElementById('lbl-left').innerText = `W(${lbl1}):`; document.getElementById('out-w1').innerText = w1;
+            document.getElementById('lbl-right').innerText = `W(${lbl2}):`; document.getElementById('out-w2').innerText = w2;
         }
 
         function updateMathPanel() {
             let panel = document.getElementById('math-panel');
-            if(!isFrozen || !lastMathState) {
-                panel.style.display = 'none';
-                return;
-            }
-            panel.style.display = 'block';
-            let m = lastMathState;
+            if(!isFrozen || !lastMathState) { panel.style.display = 'none'; return; }
+            panel.style.display = 'block'; let m = lastMathState;
             
             document.getElementById('math-content').innerHTML = `
-                <div class="math-line" style="color:#aaa;">1. Identify Intersections:</div>
-                <div class="math-line">&nbsp;&nbsp;${m.cLeftName} = <span class="math-hl" style="color:var(--cyan)">${m.cL}</span></div>
+                <div class="math-line" style="color:#aaa;">1. Intersections:</div>
+                <div class="math-line">&nbsp;&nbsp;${m.cLName} = <span class="math-hl" style="color:var(--cyan)">${m.cL}</span></div>
                 <div class="math-line">&nbsp;&nbsp;C0 = <span class="math-hl">${m.c0}</span></div>
-                <div class="math-line">&nbsp;&nbsp;${m.cRightName} = <span class="math-hl" style="color:var(--orange)">${m.cR}</span></div>
-                
+                <div class="math-line">&nbsp;&nbsp;${m.cRName} = <span class="math-hl" style="color:var(--orange)">${m.cR}</span></div>
                 <hr style="border-color:#333; margin:10px 0;">
-                <div class="math-line" style="color:#aaa;">2. Calculate Segments:</div>
+                <div class="math-line" style="color:#aaa;">2. Segments:</div>
                 <div class="math-line">&nbsp;&nbsp;Total = ${m.cR} - ${m.cL} = <span class="math-hl">${m.tot}</span></div>
                 <div class="math-line">&nbsp;&nbsp;R = ${m.c0} - ${m.cL} = <span class="math-hl" style="color:var(--orange)">${m.R}</span></div>
                 <div class="math-line">&nbsp;&nbsp;S = ${m.cR} - ${m.c0} = <span class="math-hl" style="color:var(--cyan)">${m.S}</span></div>
-                
                 <hr style="border-color:#333; margin:10px 0;">
-                <div class="math-line" style="color:#aaa;">3. Apply Lever Rule:</div>
-                <div class="math-line">&nbsp;&nbsp;${m.lbl1} = S / Total</div>
-                <div class="math-line">&nbsp;&nbsp;${m.lbl1} = ${m.S} / ${m.tot} = <span class="math-hl" style="color:var(--cyan)">${m.w1}</span></div>
-                <br>
-                <div class="math-line">&nbsp;&nbsp;${m.lbl2} = R / Total</div>
-                <div class="math-line">&nbsp;&nbsp;${m.lbl2} = ${m.R} / ${m.tot} = <span class="math-hl" style="color:var(--orange)">${m.w2}</span></div>
+                <div class="math-line" style="color:#aaa;">3. Lever Rule:</div>
+                <div class="math-line">&nbsp;&nbsp;W(${m.lbl1}) = ${m.S} / ${m.tot} = <span class="math-hl" style="color:var(--cyan)">${m.w1}</span></div>
+                <div class="math-line">&nbsp;&nbsp;W(${m.lbl2}) = ${m.R} / ${m.tot} = <span class="math-hl" style="color:var(--orange)">${m.w2}</span></div>
             `;
         }
 
-        function snapToEutectic() {
+        function snapTo(sysNum) {
             setMode('navigator');
-            mouseX = mapX(nodes.eut.c); 
-            mouseY = mapY(nodes.eut.t - 1); 
-            isFrozen = true;
-            draw();
-            updateMathPanel();
+            let sys = engineDef.subsystems[sysNum - 1];
+            mouseX = mapX(sys.nodes.eut.c); 
+            mouseY = mapY(sys.nodes.eut.t - 1); 
+            isFrozen = true; draw(); updateMathPanel();
         }
 
         function setMode(newMode) {
-            mode = newMode;
-            isFrozen = false; updateMathPanel();
+            mode = newMode; isFrozen = false; updateMathPanel();
             document.getElementById('btn-navigator').classList.toggle('active', mode === 'navigator');
             document.getElementById('btn-architect').classList.toggle('active', mode === 'architect');
-            document.getElementById('btn-preset').style.display = mode === 'navigator' ? 'block' : 'none';
-            canvas.style.cursor = mode === 'architect' ? 'grab' : 'crosshair';
-            draw();
+            document.getElementById('preset-controls').style.display = mode === 'navigator' ? 'flex' : 'none';
+            canvas.style.cursor = mode === 'architect' ? 'grab' : 'crosshair'; draw();
         }
 
         canvas.addEventListener('mousemove', (e) => {
             if (isFrozen && mode === 'navigator') return;
-            
-            let rect = canvas.getBoundingClientRect();
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
+            let rect = canvas.getBoundingClientRect(); mouseX = e.clientX - rect.left; mouseY = e.clientY - rect.top;
 
             if (mode === 'architect' && activeNode) {
                 let newC = invX(mouseX); let newT = invY(mouseY);
-                // FIXED constraints: You can now crush the nodes against the axes (1% and 99%)
                 if(newC < 1) newC = 1; if(newC > 99) newC = 99;
-                if(newT > 1150) newT = 1150; if(newT < 100) newT = 100;
+                if(newT > engineDef.T_MAX-50) newT = engineDef.T_MAX-50; if(newT < 50) newT = 50;
 
-                if (activeNode === 'eut') {
-                    nodes.eut.c = newC; nodes.eut.t = newT;
-                    nodes.solA.t = newT; nodes.solB.t = newT;
-                } else if (activeNode === 'solA') {
-                    if (newC >= nodes.eut.c) newC = nodes.eut.c - 1;
-                    nodes.solA.c = newC;
-                } else if (activeNode === 'solB') {
-                    if (newC <= nodes.eut.c) newC = nodes.eut.c + 1;
-                    nodes.solB.c = newC;
+                if (activeNodeKey === 'eut') {
+                    activeNode.c = newC; activeNode.t = newT;
+                    activeSys.nodes.solL.t = newT; activeSys.nodes.solR.t = newT;
+                } else if (activeNodeKey === 'solL') {
+                    if (newC >= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c - 0.5;
+                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
+                    activeNode.c = newC;
+                } else if (activeNodeKey === 'solR') {
+                    if (newC <= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c + 0.5;
+                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
+                    activeNode.c = newC;
                 }
             }
             draw();
         });
 
         canvas.addEventListener('mousedown', (e) => {
-            if (mode === 'navigator') {
-                isFrozen = !isFrozen;
-                updateMathPanel();
-                draw();
-                return;
-            }
+            if (mode === 'navigator') { isFrozen = !isFrozen; updateMathPanel(); draw(); return; }
             canvas.style.cursor = 'grabbing';
-            for (let key in nodes) {
-                if (!nodes[key].fixed) {
-                    let dx = mouseX - mapX(nodes[key].c);
-                    let dy = mouseY - mapY(nodes[key].t);
-                    if (Math.sqrt(dx*dx + dy*dy) < 15) { activeNode = key; break; }
+            for (let sys of engineDef.subsystems) {
+                for (let key in sys.nodes) {
+                    let n = sys.nodes[key];
+                    if (!n.fixed) {
+                        let dx = mouseX - mapX(n.c); let dy = mouseY - mapY(n.t);
+                        if (dx*dx + dy*dy < 100) { activeNode = n; activeNodeKey = key; activeSys = sys; break; }
+                    }
                 }
+                if (activeNode) break;
             }
         });
 
-        canvas.addEventListener('mouseup', () => {
-            activeNode = null;
-            if (mode === 'architect') canvas.style.cursor = 'grab';
-        });
+        canvas.addEventListener('mouseup', () => { activeNode = null; if (mode === 'architect') canvas.style.cursor = 'grab'; });
 
-        function resize() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-            draw();
-        }
-        window.addEventListener('resize', resize);
-        resize();
+        function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; draw(); }
+        window.addEventListener('resize', resize); resize();
     </script>
 </body>
 </html>
