@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V7 (Mg-Pb)</title>
+    <title>Chapter 9: Phase Engine V9 (Generic A-B)</title>
     <style>
         :root {
             --bg: #050505;
@@ -40,7 +40,6 @@
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
 
-        /* Math Expansion Panel */
         #math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         .math-hl { color: #fff; font-weight: bold; }
@@ -52,7 +51,7 @@
 
     <div id="sidebar">
         <div class="header">
-            <h1>Engine: Mg-Pb Array</h1>
+            <h1>Generic A-B Sandbox</h1>
         </div>
         
         <div class="control-group">
@@ -63,8 +62,8 @@
             </div>
             
             <div class="btn-row" id="preset-controls">
-                <button class="action-btn" onclick="snapTo(1)">Snap E1 (Mg)</button>
-                <button class="action-btn" onclick="snapTo(2)">Snap E2 (Pb)</button>
+                <button class="action-btn" onclick="snapTo(1)">Snap E1</button>
+                <button class="action-btn" onclick="snapTo(2)">Snap E2</button>
             </div>
             
             <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
@@ -72,19 +71,19 @@
             </p>
 
             <div id="math-panel">
-                <div class="label" style="color:var(--cyan)">Tie-Line Expansion</div>
+                <div class="label" style="color:var(--cyan)">Math Expansion (Mole Fractions)</div>
                 <div id="math-content"></div>
             </div>
         </div>
 
         <div class="readout-panel">
             <span class="label">Lever Rule Telemetry</span>
-            <div class="stat"><span>Temp (°C):</span> <span class="val" id="out-t">--</span></div>
-            <div class="stat"><span>Comp (wt% Pb):</span> <span class="val" id="out-c">--</span></div>
+            <div class="stat"><span>Temp (K):</span> <span class="val" id="out-t">--</span></div>
+            <div class="stat"><span>Comp (at% B):</span> <span class="val" id="out-c">--</span></div>
             <hr style="border-color:#333; margin:15px 0;">
             <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="out-region">--</span></div>
-            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">W(Phase 1):</span> <span class="val" id="out-w1">--</span></div>
-            <div class="stat" style="color: var(--orange);"><span id="lbl-right">W(Phase 2):</span> <span class="val" id="out-w2">--</span></div>
+            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">X(Phase 1):</span> <span class="val" id="out-w1">--</span></div>
+            <div class="stat" style="color: var(--orange);"><span id="lbl-right">X(Phase 2):</span> <span class="val" id="out-w2">--</span></div>
         </div>
     </div>
 
@@ -106,44 +105,38 @@
 
         const PAD = 70;
 
-        // --- THE PROCEDURAL PILLAR ENGINE ---
-        // We define the diagram as an array of adjacent eutectic "valleys"
+        // --- THE PROCEDURAL PILLAR ENGINE (A-B Generic) ---
         const engineDef = {
-            name: "Mg-Pb",
-            T_MAX: 800,
+            name: "A-B Generic",
+            T_MAX: 1200,
             subsystems: [
                 {
-                    id: 'sys1', 
-                    bounds: [0, 81], // Mg to Mg2Pb Peak
-                    lblL: 'α', lblR: 'Mg₂Pb',
+                    id: 'sys1', bounds: [0, 66.7], lblL: 'α', lblR: 'AB₂',
                     nodes: {
-                        tmL: {c: 0, t: 650, fixed: true},
-                        tmR: {c: 81, t: 550, fixed: true}, // The Intermetallic Peak
-                        eut: {c: 67, t: 460, fixed: false},
-                        solL: {c: 5, t: 460, fixed: false},
-                        solR: {c: 79, t: 460, fixed: false},
+                        tmL: {c: 0, t: 1000, fixed: false, dragAxis: 'y'}, // Unlocked Y
+                        tmR: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, // The AB2 Peak
+                        eut: {c: 35, t: 600, fixed: false, dragAxis: 'both'},
+                        solL: {c: 10, t: 600, fixed: false, dragAxis: 'x'},
+                        solR: {c: 65, t: 600, fixed: false, dragAxis: 'x'},
                         termL: {c: 2, t: 0, fixed: true},
-                        termR: {c: 80.5, t: 0, fixed: true}
+                        termR: {c: 66, t: 0, fixed: true}
                     }
                 },
                 {
-                    id: 'sys2', 
-                    bounds: [81, 100], // Mg2Pb Peak to Pb
-                    lblL: 'Mg₂Pb', lblR: 'β',
+                    id: 'sys2', bounds: [66.7, 100], lblL: 'AB₂', lblR: 'β',
                     nodes: {
-                        tmL: {c: 81, t: 550, fixed: true}, // Matches sys1 peak
-                        tmR: {c: 100, t: 327, fixed: true},
-                        eut: {c: 98, t: 253, fixed: false},
-                        solL: {c: 82, t: 253, fixed: false},
-                        solR: {c: 99.5, t: 253, fixed: false},
-                        termL: {c: 81.5, t: 0, fixed: true},
-                        termR: {c: 99.9, t: 0, fixed: true}
+                        tmL: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, // Linked to sys1.tmR
+                        tmR: {c: 100, t: 800, fixed: false, dragAxis: 'y'}, // Unlocked Y
+                        eut: {c: 85, t: 500, fixed: false, dragAxis: 'both'},
+                        solL: {c: 68, t: 500, fixed: false, dragAxis: 'x'},
+                        solR: {c: 95, t: 500, fixed: false, dragAxis: 'x'},
+                        termL: {c: 67.5, t: 0, fixed: true},
+                        termR: {c: 98, t: 0, fixed: true}
                     }
                 }
             ]
         };
 
-        // --- MATH & UTILS ---
         function mapX(c) { return PAD + (c / 100) * (canvas.width - PAD * 2); }
         function mapY(t) { return canvas.height - PAD - (t / engineDef.T_MAX) * (canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(100, ((x - PAD) / (canvas.width - PAD * 2)) * 100)); }
@@ -153,7 +146,7 @@
             if (T > nodeTop.t || T < nodeBot.t) return null;
             if (nodeTop.t === nodeBot.t) return nodeTop.c;
             let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; // Thermodyamic bulges
+            let p = isConvex ? 1.4 : 0.7; 
             let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
             return Math.max(0, Math.min(100, c));
         }
@@ -178,11 +171,10 @@
             ctx.fillStyle = color; ctx.fillText(text, x, y);
         }
 
-        // --- RENDER LOOP ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Draw Axes
+            // Axes
             ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(PAD, PAD); ctx.lineTo(PAD, canvas.height - PAD);
@@ -199,62 +191,60 @@
             }
             
             ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-            for(let i=0; i<=engineDef.T_MAX; i+=100) {
+            for(let i=0; i<=engineDef.T_MAX; i+=200) {
                 let y = mapY(i);
                 ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(PAD - 5, y); ctx.stroke();
                 ctx.fillText(i, PAD - 10, y);
             }
 
             ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
-            ctx.fillText('Temp (°C)', PAD - 10, PAD - 20);
+            ctx.fillText('Temp (K)', PAD - 10, PAD - 20);
             ctx.textAlign = 'center';
-            ctx.fillText('Composition (wt% Pb)', canvas.width/2, canvas.height - 20);
+            ctx.fillText('Composition (at% B)', canvas.width/2, canvas.height - 20);
 
-            // 2. Procedural Boundary Rendering
+            // Boundaries
             engineDef.subsystems.forEach(sys => {
                 let n = sys.nodes;
-                drawCurve(n.tmL, n.eut, false, '#ff00ff'); // Liq L
-                drawCurve(n.tmR, n.eut, false, '#ff00ff'); // Liq R
-                drawCurve(n.tmL, n.solL, true, '#00ffff'); // Sol L
-                drawCurve(n.tmR, n.solR, true, '#00ffff'); // Sol R
-                drawCurve(n.solL, n.termL, true, '#00ffff'); // Solvus L
-                drawCurve(n.solR, n.termR, true, '#00ffff'); // Solvus R
+                drawCurve(n.tmL, n.eut, false, '#ff00ff'); 
+                drawCurve(n.tmR, n.eut, false, '#ff00ff'); 
+                drawCurve(n.tmL, n.solL, true, '#00ffff'); 
+                drawCurve(n.tmR, n.solR, true, '#00ffff'); 
+                drawCurve(n.solL, n.termL, true, '#00ffff'); 
+                drawCurve(n.solR, n.termR, true, '#00ffff'); 
                 
-                // Isotherm
                 ctx.beginPath();
                 ctx.moveTo(mapX(n.solL.c), mapY(n.solL.t));
                 ctx.lineTo(mapX(n.solR.c), mapY(n.solR.t));
                 ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.stroke();
             });
 
-            // 3. Dynamic Region Labels
+            // Region Labels
             ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
             ctx.font = 'bold 20px sans-serif';
-            ctx.fillText('L', mapX(50), mapY(700)); // Global Liq
-            ctx.fillText('α', mapX(2), mapY(300)); // Term Alpha
-            ctx.fillText('β', mapX(98), mapY(150)); // Term Beta
-            ctx.fillText('Mg₂Pb', mapX(81), mapY(150)); // Intermetallic Pillar
+            ctx.fillText('L', mapX(50), mapY(1150)); 
+            
+            let alphaC = engineDef.subsystems[0].nodes.solL.c * 0.4;
+            let betaC = engineDef.subsystems[1].nodes.solR.c + (100 - engineDef.subsystems[1].nodes.solR.c) * 0.6;
+            ctx.fillText('α', mapX(alphaC), mapY(300)); 
+            ctx.fillText('β', mapX(betaC), mapY(300)); 
+            ctx.fillText('AB₂', mapX(66.7), mapY(300)); 
 
             engineDef.subsystems.forEach(sys => {
                 let n = sys.nodes;
-                // Subsystem L+Left
                 let tL = n.solL.t + (n.tmL.t - n.solL.t) * 0.35;
                 let cL1 = getC_onCurve(tL, n.tmL, n.solL, true) ?? n.tmL.c;
                 let cR1 = getC_onCurve(tL, n.tmL, n.eut, false) ?? n.tmL.c;
                 if(cR1 > cL1) ctx.fillText(`L+${sys.lblL}`, mapX((cL1+cR1)/2), mapY(tL));
 
-                // Subsystem L+Right
                 let tR = n.solR.t + (n.tmR.t - n.solR.t) * 0.35;
                 let cL2 = getC_onCurve(tR, n.tmR, n.eut, false) ?? n.tmR.c;
                 let cR2 = getC_onCurve(tR, n.tmR, n.solR, true) ?? n.tmR.c;
                 if(cR2 > cL2) ctx.fillText(`L+${sys.lblR}`, mapX((cL2+cR2)/2), mapY(tR));
 
-                // Subsystem Solid+Solid
                 let tBot = n.eut.t * 0.5;
                 ctx.fillText(`${sys.lblL}+${sys.lblR}`, mapX(n.eut.c), mapY(tBot));
             });
 
-            // 4. Interactions
             if (mode === 'architect') drawNodes();
             else if (mode === 'navigator') handleTieLine();
         }
@@ -276,15 +266,13 @@
             let curC = invX(mouseX); let curT = invY(mouseY);
             if(curC < 0 || curC > 100 || curT < 0 || curT > engineDef.T_MAX) return;
 
-            // Phase 2 Magic: Find which valley the mouse is in based on boundaries
             let actSys = engineDef.subsystems.find(s => curC >= s.bounds[0] && curC < s.bounds[1]);
-            if (!actSys) actSys = engineDef.subsystems[engineDef.subsystems.length - 1]; // Fallback for exactly 100%
+            if (!actSys) actSys = engineDef.subsystems[engineDef.subsystems.length - 1];
 
             let s = actSys.nodes;
             let region = "Single Phase", tieLeft = null, tieRight = null;
             let lbl1 = "-", lbl2 = "-", w1 = "-", w2 = "-", cLName = "", cRName = "";
 
-            // Safely resolve undefined boundary extensions
             let isLiqL = curT > s.tmL.t;
             let isLiqR = curT > s.tmR.t;
 
@@ -294,10 +282,9 @@
             let cLiqL = isLiqL ? s.tmL.c : getC_onCurve(curT, s.tmL, s.eut, false);
             let cLiqR = isLiqR ? s.tmR.c : getC_onCurve(curT, s.tmR, s.eut, false);
 
-            // Generic Valley Routing
             if (curT > s.eut.t) {
                 if (curC < cSolL) region = actSys.lblL;
-                else if (curC > cSolR) region = actSys.lblR; // E.g., The Intermetallic Pillar!
+                else if (curC > cSolR) region = actSys.lblR; 
                 else if (cLiqL !== null && curC >= cSolL && curC <= cLiqL) {
                     region = `L + ${actSys.lblL}`; tieLeft = cSolL; tieRight = cLiqL;
                     lbl1 = actSys.lblL; lbl2 = 'L'; cLName = `C${actSys.lblL}`; cRName = 'CL';
@@ -307,7 +294,7 @@
                     lbl1 = 'L'; lbl2 = actSys.lblR; cLName = 'CL'; cRName = `C${actSys.lblR}`;
                 }
                 else region = "L";
-            } else { // Below Eutectic
+            } else { 
                 if (curC < cSolL) region = actSys.lblL;
                 else if (curC > cSolR) region = actSys.lblR;
                 else {
@@ -316,7 +303,6 @@
                 }
             }
 
-            // Calculation & Rendering Overlays
             if (tieLeft !== null && tieRight !== null) {
                 let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
                 let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
@@ -343,7 +329,7 @@
                     drawAxisLabel(`C0=${v0}`, mapX(v0), axisY, '#ffffff');
                     drawAxisLabel(`${cRName}=${vR}`, mapX(vR), axisY, '#ff8800');
 
-                    lastMathState = { cLName, cRName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
+                    lastMathState = { isSinglePhase: false, cLName, cRName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
                 }
 
                 ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
@@ -352,6 +338,16 @@
                 ctx.fillStyle = '#00ffff';
                 ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
+            } else {
+                w1 = "1.00"; w2 = "0.00"; lbl1 = region; lbl2 = "None";
+                if (isFrozen) {
+                    let v0 = parseFloat(curC.toFixed(1));
+                    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
+                    ctx.setLineDash([]);
+                    drawAxisLabel(`C0=${v0}`, mapX(v0), canvas.height - PAD + 20, '#ffffff');
+                    lastMathState = { isSinglePhase: true, region: region, c0: v0 };
+                }
             }
 
             ctx.beginPath(); ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
@@ -359,37 +355,46 @@
 
             document.getElementById('out-t').innerText = Math.round(curT); document.getElementById('out-c').innerText = curC.toFixed(1);
             document.getElementById('out-region').innerText = region;
-            document.getElementById('lbl-left').innerText = `W(${lbl1}):`; document.getElementById('out-w1').innerText = w1;
-            document.getElementById('lbl-right').innerText = `W(${lbl2}):`; document.getElementById('out-w2').innerText = w2;
+            document.getElementById('lbl-left').innerText = `X(${lbl1}):`; document.getElementById('out-w1').innerText = w1;
+            document.getElementById('lbl-right').innerText = `X(${lbl2}):`; document.getElementById('out-w2').innerText = w2;
         }
 
         function updateMathPanel() {
             let panel = document.getElementById('math-panel');
+            let content = document.getElementById('math-content');
             if(!isFrozen || !lastMathState) { panel.style.display = 'none'; return; }
             panel.style.display = 'block'; let m = lastMathState;
-            
-            document.getElementById('math-content').innerHTML = `
-                <div class="math-line" style="color:#aaa;">1. Intersections:</div>
-                <div class="math-line">&nbsp;&nbsp;${m.cLName} = <span class="math-hl" style="color:var(--cyan)">${m.cL}</span></div>
-                <div class="math-line">&nbsp;&nbsp;C0 = <span class="math-hl">${m.c0}</span></div>
-                <div class="math-line">&nbsp;&nbsp;${m.cRName} = <span class="math-hl" style="color:var(--orange)">${m.cR}</span></div>
-                <hr style="border-color:#333; margin:10px 0;">
-                <div class="math-line" style="color:#aaa;">2. Segments:</div>
-                <div class="math-line">&nbsp;&nbsp;Total = ${m.cR} - ${m.cL} = <span class="math-hl">${m.tot}</span></div>
-                <div class="math-line">&nbsp;&nbsp;R = ${m.c0} - ${m.cL} = <span class="math-hl" style="color:var(--orange)">${m.R}</span></div>
-                <div class="math-line">&nbsp;&nbsp;S = ${m.cR} - ${m.c0} = <span class="math-hl" style="color:var(--cyan)">${m.S}</span></div>
-                <hr style="border-color:#333; margin:10px 0;">
-                <div class="math-line" style="color:#aaa;">3. Lever Rule:</div>
-                <div class="math-line">&nbsp;&nbsp;W(${m.lbl1}) = ${m.S} / ${m.tot} = <span class="math-hl" style="color:var(--cyan)">${m.w1}</span></div>
-                <div class="math-line">&nbsp;&nbsp;W(${m.lbl2}) = ${m.R} / ${m.tot} = <span class="math-hl" style="color:var(--orange)">${m.w2}</span></div>
-            `;
+            content.replaceChildren(); 
+
+            const addLine = (parts, css = "") => {
+                let div = document.createElement('div'); div.className = 'math-line'; if(css) div.style.cssText = css;
+                parts.forEach(p => {
+                    if(typeof p === 'string') div.appendChild(document.createTextNode(p));
+                    else {
+                        let span = document.createElement('span'); span.className = 'math-hl';
+                        if(p.color) span.style.color = p.color; span.textContent = p.text; div.appendChild(span);
+                    }
+                });
+                content.appendChild(div);
+            };
+            const addDiv = () => { let hr = document.createElement('hr'); hr.style.cssText = "border-color:#333; margin:10px 0;"; content.appendChild(hr); };
+
+            if (m.isSinglePhase) {
+                addLine(["1. Identify Region:"], "color:#aaa;"); addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]);
+                addDiv(); addLine(["2. Apply Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X(", m.region, ") = ", {text: "1.00", color: "var(--cyan)"}]);
+            } else {
+                addLine(["1. Intersections:"], "color:#aaa;");
+                addLine(["\u00A0\u00A0", m.cLName, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]); addLine(["\u00A0\u00A0", m.cRName, " = ", {text: m.cR, color: "var(--orange)"}]);
+                addDiv(); addLine(["2. Segments:"], "color:#aaa;");
+                addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
+                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;");
+                addLine(["\u00A0\u00A0X(", m.lbl1, ") = ", m.S, " / ", m.tot, " = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X(", m.lbl2, ") = ", m.R, " / ", m.tot, " = ", {text: m.w2, color: "var(--orange)"}]);
+            }
         }
 
         function snapTo(sysNum) {
-            setMode('navigator');
-            let sys = engineDef.subsystems[sysNum - 1];
-            mouseX = mapX(sys.nodes.eut.c); 
-            mouseY = mapY(sys.nodes.eut.t - 1); 
+            setMode('navigator'); let sys = engineDef.subsystems[sysNum - 1];
+            mouseX = mapX(sys.nodes.eut.c); mouseY = mapY(sys.nodes.eut.t - 1); 
             isFrozen = true; draw(); updateMathPanel();
         }
 
@@ -407,20 +412,27 @@
 
             if (mode === 'architect' && activeNode) {
                 let newC = invX(mouseX); let newT = invY(mouseY);
-                if(newC < 1) newC = 1; if(newC > 99) newC = 99;
-                if(newT > engineDef.T_MAX-50) newT = engineDef.T_MAX-50; if(newT < 50) newT = 50;
+                if(newT > engineDef.T_MAX-50) newT = engineDef.T_MAX-50; if(newT < 100) newT = 100;
 
-                if (activeNodeKey === 'eut') {
+                // Restrict X-axis dragging to maintain system topology
+                if (activeNode.dragAxis === 'y') newC = activeNode.c; 
+                else if (activeNode.dragAxis === 'x') newT = activeNode.t;
+
+                if (activeNodeKey === 'tmR' && activeSys.id === 'sys1') {
+                    // Moving the peak updates both subsystems
+                    activeSys.nodes.tmR.t = newT;
+                    engineDef.subsystems[1].nodes.tmL.t = newT;
+                } else if (activeNodeKey === 'eut') {
                     activeNode.c = newC; activeNode.t = newT;
                     activeSys.nodes.solL.t = newT; activeSys.nodes.solR.t = newT;
                 } else if (activeNodeKey === 'solL') {
                     if (newC >= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c - 0.5;
-                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
                     activeNode.c = newC;
                 } else if (activeNodeKey === 'solR') {
                     if (newC <= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c + 0.5;
-                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
                     activeNode.c = newC;
+                } else {
+                    activeNode.c = newC; activeNode.t = newT;
                 }
             }
             draw();
