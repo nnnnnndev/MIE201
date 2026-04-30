@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V4</title>
+    <title>Chapter 9: Phase Engine V5</title>
     <style>
         :root {
             --bg: #050505;
@@ -60,7 +60,7 @@
                 <div class="toggle-btn active" id="btn-navigator" onclick="setMode('navigator')">Navigator</div>
                 <div class="toggle-btn" id="btn-architect" onclick="setMode('architect')">Architect</div>
             </div>
-            <button class="action-btn" id="btn-preset" onclick="snapToEutectic()">Snap to Below Eutectic</button>
+            <button class="action-btn" id="btn-preset" onclick="snapToEutectic()">Snap to Invariant Reaction</button>
             <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
                 Hover to cast tie-line. <strong>Click</strong> to freeze and view calculation.
             </p>
@@ -148,7 +148,7 @@
             let w = metrics.width + 10;
             let h = 20;
             
-            ctx.fillStyle = '#050505'; // Background color matches root
+            ctx.fillStyle = '#050505'; 
             ctx.fillRect(x - w/2, y - h/2, w, h);
             
             ctx.fillStyle = color;
@@ -344,7 +344,6 @@
             panel.style.display = 'block';
             let m = lastMathState;
             
-            // Generate exact 1-to-1 math string matching the UI
             document.getElementById('math-content').innerHTML = `
                 <div class="math-line" style="color:#aaa;">1. Identify Intersections:</div>
                 <div class="math-line">&nbsp;&nbsp;${m.cLeftName} = <span class="math-hl" style="color:var(--cyan)">${m.cL}</span></div>
@@ -369,8 +368,10 @@
 
         function snapToEutectic() {
             setMode('navigator');
-            mouseX = mapX(40); 
-            mouseY = mapY(nodes.eut.t - 20); // Drop 20 degrees below eutectic
+            // FIX: Snap EXACTLY to the Eutectic Composition (e.g., 28.1)
+            mouseX = mapX(nodes.eut.c); 
+            // FIX: Drop exactly 1 degree below the isotherm to trigger the solid-solid region
+            mouseY = mapY(nodes.eut.t - 1); 
             isFrozen = true;
             draw();
             updateMathPanel();
