@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V3</title>
+    <title>Chapter 9: Phase Engine V4</title>
     <style>
         :root {
             --bg: #050505;
@@ -139,6 +139,22 @@
             ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
         }
 
+        // Draws text with a solid background plate to prevent grid collision
+        function drawAxisLabel(text, x, y, color) {
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let metrics = ctx.measureText(text);
+            let w = metrics.width + 10;
+            let h = 20;
+            
+            ctx.fillStyle = '#050505'; // Background color matches root
+            ctx.fillRect(x - w/2, y - h/2, w, h);
+            
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+        }
+
         // --- RENDER LOOP ---
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -250,7 +266,7 @@
             }
 
             if (tieLeft !== null && tieRight !== null) {
-                // FORCE DATA COHERENCE: Parse back to explicit 1-decimal numbers before math
+                // FORCE DATA COHERENCE: Round to 1 decimal place before any math
                 let vL = parseFloat(tieLeft.toFixed(1));
                 let v0 = parseFloat(curC.toFixed(1));
                 let vR = parseFloat(tieRight.toFixed(1));
@@ -259,8 +275,10 @@
                 let S_val = parseFloat((vR - v0).toFixed(1));
                 let Tot_val = parseFloat((vR - vL).toFixed(1));
                 
-                w1 = (S_val / Tot_val).toFixed(2);
-                w2 = (R_val / Tot_val).toFixed(2);
+                // Force strict 1.00 summation
+                let w1_num = S_val / Tot_val;
+                w1 = w1_num.toFixed(2);
+                w2 = (1.00 - w1_num).toFixed(2); 
 
                 // Sketch Overlay
                 if (isFrozen) {
@@ -276,16 +294,17 @@
                     ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
                     ctx.setLineDash([]);
 
-                    // Segment Labels
-                    ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText('R', mapX(vL + R_val/2), mapY(curT) - 25);
-                    ctx.fillText('S', mapX(v0 + S_val/2), mapY(curT) - 25);
+                    // Undeniable R and S labels directly on the tie-line
+                    ctx.fillStyle = '#ff8800'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(`R = ${R_val}`, mapX(vL + R_val/2), mapY(curT) - 25);
+                    ctx.fillStyle = '#00ffff';
+                    ctx.fillText(`S = ${S_val}`, mapX(v0 + S_val/2), mapY(curT) - 25);
 
-                    // X-Axis Number Callouts (Aligned to bottom grid)
-                    ctx.font = 'bold 12px sans-serif';
-                    ctx.fillStyle = '#00ffff'; ctx.fillText(`${cLeftName}=${vL}`, mapX(vL), canvas.height - PAD + 25);
-                    ctx.fillStyle = '#fff'; ctx.fillText(`C0=${v0}`, mapX(v0), canvas.height - PAD + 25);
-                    ctx.fillStyle = '#ff8800'; ctx.fillText(`${cRightName}=${vR}`, mapX(vR), canvas.height - PAD + 25);
+                    // Anti-Collision X-Axis Labels
+                    let axisY = canvas.height - PAD;
+                    drawAxisLabel(`${cLeftName}=${vL}`, mapX(vL), axisY, '#00ffff');
+                    drawAxisLabel(`C0=${v0}`, mapX(v0), axisY, '#ffffff');
+                    drawAxisLabel(`${cRightName}=${vR}`, mapX(vR), axisY, '#ff8800');
 
                     // Store perfectly synchronized state for Math Panel
                     lastMathState = { cLeftName, cRightName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1: w1, w2: w2 };
@@ -335,8 +354,8 @@
                 <hr style="border-color:#333; margin:10px 0;">
                 <div class="math-line" style="color:#aaa;">2. Calculate Segments:</div>
                 <div class="math-line">&nbsp;&nbsp;Total = ${m.cR} - ${m.cL} = <span class="math-hl">${m.tot}</span></div>
-                <div class="math-line">&nbsp;&nbsp;R = ${m.c0} - ${m.cL} = <span class="math-hl">${m.R}</span></div>
-                <div class="math-line">&nbsp;&nbsp;S = ${m.cR} - ${m.c0} = <span class="math-hl">${m.S}</span></div>
+                <div class="math-line">&nbsp;&nbsp;R = ${m.c0} - ${m.cL} = <span class="math-hl" style="color:var(--orange)">${m.R}</span></div>
+                <div class="math-line">&nbsp;&nbsp;S = ${m.cR} - ${m.c0} = <span class="math-hl" style="color:var(--cyan)">${m.S}</span></div>
                 
                 <hr style="border-color:#333; margin:10px 0;">
                 <div class="math-line" style="color:#aaa;">3. Apply Lever Rule:</div>
@@ -350,7 +369,7 @@
 
         function snapToEutectic() {
             setMode('navigator');
-            mouseX = mapX(40); // Offset C0 slightly to show a clean R/S split
+            mouseX = mapX(40); 
             mouseY = mapY(nodes.eut.t - 20); // Drop 20 degrees below eutectic
             isFrozen = true;
             draw();
