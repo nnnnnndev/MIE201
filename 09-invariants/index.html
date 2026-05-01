@@ -3,133 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V11 (Peritectic + Eutectic)</title>
+    <title>Chapter 9: Phase Diagram Master Module</title>
     <style>
         :root {
-            --bg: #050505;
-            --panel: #111;
-            --cyan: #00ffff;
-            --magenta: #ff00ff;
-            --yellow: #ffff00;
-            --orange: #ff8800;
-            --silver: #cccccc;
+            --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
+            --yellow: #ffff00; --orange: #ff8800; --silver: #cccccc; --green: #00ffcc; --red: #ff3333;
         }
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--silver); height: 100vh; display: flex; overflow: hidden; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--silver); height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
 
-        #sidebar { width: 380px; background: var(--panel); border-right: 2px solid #333; display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
-        #stage { flex: 1; display: flex; flex-direction: column; position: relative; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
+        /* Top Navigation */
+        #global-nav { height: 50px; background: #0a0a0a; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 100; }
+        .brand { color: var(--cyan); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 1.1rem; }
+        .nav-tabs { display: flex; gap: 10px; height: 100%; }
+        .nav-tab { background: transparent; border: none; color: #888; font-weight: bold; text-transform: uppercase; padding: 0 20px; cursor: pointer; transition: 0.3s; border-bottom: 3px solid transparent; }
+        .nav-tab:hover:not(.locked) { color: #fff; }
+        .nav-tab.active { color: var(--magenta); border-bottom-color: var(--magenta); background: rgba(255,0,255,0.05); }
+        .nav-tab.locked { opacity: 0.3; cursor: not-allowed; text-decoration: line-through; }
 
+        /* Main Layouts */
+        .view-container { flex: 1; display: flex; overflow: hidden; }
+        .sidebar { width: 380px; background: var(--panel); border-right: 2px solid #333; display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
+        .stage { flex: 1; position: relative; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
+        canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+
+        /* Shared UI Elements */
         .header { padding: 20px; border-bottom: 1px solid #333; text-align: center; }
-        .header h1 { color: var(--cyan); font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; }
-        
+        .header h2 { color: var(--cyan); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
         .control-group { padding: 20px; border-bottom: 1px solid #333; }
         .label { font-size: 0.85rem; color: var(--yellow); text-transform: uppercase; margin-bottom: 10px; display: block; font-weight: bold;}
         
+        /* Toggle Switch */
         .toggle-container { display: flex; background: #000; border: 1px solid #444; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
         .toggle-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; transition: 0.3s; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; }
         .toggle-btn.active { background: rgba(0, 255, 255, 0.1); color: var(--cyan); border-bottom: 2px solid var(--cyan); }
         .toggle-btn:not(.active) { color: #666; }
 
-        .btn-row { display: flex; gap: 10px; }
-        button.action-btn { flex: 1; background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; transition: 0.2s; }
+        button.action-btn { background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; width: 100%; transition: 0.2s; margin-top:10px;}
         button.action-btn:hover { background: var(--orange); color: #000; }
 
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
 
-        #math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
-        .math-line { color: var(--silver); margin-bottom: 6px; }
-        .math-hl { color: #fff; font-weight: bold; }
+        /* Assessment Specific */
+        .toolbox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .tool-btn { background: #000; border: 1px solid #444; color: #888; padding: 12px; text-align: center; cursor: pointer; border-radius: 4px; font-weight: bold; text-transform: uppercase; transition: 0.2s; font-size: 0.8rem; }
+        .tool-btn.active[data-tool="liquidus"] { background: rgba(255, 0, 255, 0.1); border-color: var(--magenta); color: var(--magenta); }
+        .tool-btn.active[data-tool="solidus"] { background: rgba(0, 255, 255, 0.1); border-color: var(--cyan); color: var(--cyan); }
+        .tool-btn.active[data-tool="solvus"] { background: rgba(0, 255, 255, 0.1); border-color: var(--cyan); color: var(--cyan); }
+        .tool-btn.active[data-tool="isotherm"] { background: rgba(255, 255, 0, 0.1); border-color: var(--yellow); color: var(--yellow); }
+        .tool-btn.active[data-tool="delete"] { background: rgba(255, 0, 0, 0.1); border-color: var(--red); color: var(--red); }
+        #feedback-box { font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.5; color: var(--silver); }
 
-        canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+        /* Modal Overlay */
+        #modal-overlay { position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .modal-content { background: var(--panel); border: 2px solid var(--magenta); padding: 40px; border-radius: 8px; max-width: 600px; text-align: center; box-shadow: 0 0 30px rgba(255,0,255,0.2); }
+        .modal-content h2 { color: var(--cyan); font-size: 1.8rem; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        .modal-content p { font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px; color: var(--silver); }
+        .inventory-list { background: #000; border: 1px dashed var(--yellow); padding: 20px; margin-bottom: 30px; font-family: 'Consolas', monospace; color: var(--yellow); font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div class="header">
-            <h1>Engine: Peri + Eutectic</h1>
-        </div>
-        
-        <div class="control-group">
-            <span class="label">Interaction Mode</span>
-            <div class="toggle-container">
-                <div class="toggle-btn active" id="btn-navigator" onclick="setMode('navigator')">Navigator</div>
-                <div class="toggle-btn" id="btn-architect" onclick="setMode('architect')">Architect</div>
-            </div>
-            
-            <div class="btn-row" id="preset-controls">
-                <button class="action-btn" onclick="snapTo('peri')">Snap Peritectic</button>
-                <button class="action-btn" onclick="snapTo('eut')">Snap Eutectic</button>
-            </div>
-            
-            <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
-                Hover over phase boundaries. <strong>Click</strong> to freeze tie-line.
-            </p>
-
-            <div id="math-panel">
-                <div class="label" style="color:var(--cyan)">Math Expansion</div>
-                <div id="math-content"></div>
-            </div>
-        </div>
-
-        <div class="readout-panel">
-            <span class="label">Lever Rule Telemetry</span>
-            <div class="stat"><span>Temp (K):</span> <span class="val" id="out-t">--</span></div>
-            <div class="stat"><span>Comp (at% B):</span> <span class="val" id="out-c">--</span></div>
-            <hr style="border-color:#333; margin:15px 0;">
-            <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="out-region">--</span></div>
-            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">X<sub>Phase 1</sub>:</span> <span class="val" id="out-w1">--</span></div>
-            <div class="stat" style="color: var(--orange);"><span id="lbl-right">X<sub>Phase 2</sub>:</span> <span class="val" id="out-w2">--</span></div>
+    <div id="global-nav">
+        <div class="brand">Phase Engine Platform</div>
+        <div class="nav-tabs">
+            <button class="nav-tab active" id="tab-sandbox" onclick="switchView('sandbox')">1. Sandbox (Learn)</button>
+            <button class="nav-tab" id="tab-assess" onclick="switchView('assessment')">2. Assessment (Test)</button>
         </div>
     </div>
 
-    <div id="stage">
-        <canvas id="plotCanvas"></canvas>
+    <div id="modal-overlay">
+        <div class="modal-content">
+            <h2>Quest: Eutectic Blueprint</h2>
+            <p>Construct a thermodynamically accurate Eutectic phase diagram by connecting the fixed nodes.</p>
+            <div class="inventory-list">
+                INVENTORY REQUIRED:<br>
+                2x Liquidus Curves<br>
+                2x Solidus Curves<br>
+                2x Solvus Curves<br>
+                1x Eutectic Isotherm
+            </div>
+            <button class="action-btn" style="font-size: 1.2rem; padding: 15px;" onclick="startAssessment()">Begin Assessment</button>
+            <p style="font-size: 0.8rem; color:#666; margin-top:15px;">Warning: Leaving this screen will lock the Sandbox until completion.</p>
+        </div>
+    </div>
+
+    <div id="view-sandbox" class="view-container">
+        <div class="sidebar">
+            <div class="header"><h2>A-B Generic Sandbox</h2></div>
+            <div class="control-group">
+                <span class="label">Interaction Mode</span>
+                <div class="toggle-container">
+                    <div class="toggle-btn active" id="sb-btn-navigator" onclick="sb_setMode('navigator')">Navigator</div>
+                    <div class="toggle-btn" id="sb-btn-architect" onclick="sb_setMode('architect')">Architect</div>
+                </div>
+            </div>
+            <div class="readout-panel">
+                <span class="label">Telemetry</span>
+                <div class="stat"><span>Temp (K):</span> <span class="val" id="sb-out-t">--</span></div>
+                <div class="stat"><span>Comp (at% B):</span> <span class="val" id="sb-out-c">--</span></div>
+                <hr style="border-color:#333; margin:15px 0;">
+                <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="sb-out-region">--</span></div>
+                <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>1</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
+                <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>2</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
+            </div>
+        </div>
+        <div class="stage"><canvas id="canvas-sandbox"></canvas></div>
+    </div>
+
+    <div id="view-assessment" class="view-container" style="display:none;">
+        <div class="sidebar">
+            <div class="header"><h2>Builder Assessment</h2></div>
+            <div class="control-group">
+                <span class="label">1. Select Curve Type</span>
+                <div class="toolbox" id="as-toolbox">
+                    <div class="tool-btn active" data-tool="liquidus">Liquidus</div>
+                    <div class="tool-btn" data-tool="solidus">Solidus</div>
+                    <div class="tool-btn" data-tool="solvus">Solvus</div>
+                    <div class="tool-btn" data-tool="isotherm">Isotherm</div>
+                    <div class="tool-btn" data-tool="delete" style="grid-column: span 2;">Erase Connection</div>
+                </div>
+                <span class="label" style="margin-top:20px;">2. Connect Nodes</span>
+                <p style="font-size: 0.85rem; color: #888; line-height: 1.4; margin-bottom: 20px;">Click a starting node, then an ending node to draw.</p>
+                <button class="action-btn" onclick="as_checkAnswers()">Submit Diagram</button>
+                <button class="action-btn" onclick="as_clearCanvas()" style="background:#111; border-color:#444; color:#888;">Clear All</button>
+            </div>
+            <div class="readout-panel">
+                <span class="label">System Feedback</span>
+                <div id="feedback-box">Awaiting submission...</div>
+            </div>
+        </div>
+        <div class="stage"><canvas id="canvas-assess"></canvas></div>
     </div>
 
     <script>
-        const canvas = document.getElementById('plotCanvas');
-        const ctx = canvas.getContext('2d');
+        // --- GLOBAL APP LOGIC ---
+        let currentView = 'sandbox';
+        let isAssessmentLocked = false; // The Client-Side Lock
 
-        let mode = 'navigator';
-        let mouseX = 0, mouseY = 0;
-        let activeNodeKey = null;
-        let isFrozen = false;
-        let lastMathState = null;
+        function switchView(view) {
+            if (view === 'sandbox' && isAssessmentLocked) return; // Prevent escape
+            
+            currentView = view;
+            document.getElementById('view-sandbox').style.display = view === 'sandbox' ? 'flex' : 'none';
+            document.getElementById('view-assessment').style.display = view === 'assessment' ? 'flex' : 'none';
+            
+            document.getElementById('tab-sandbox').classList.toggle('active', view === 'sandbox');
+            document.getElementById('tab-assess').classList.toggle('active', view === 'assessment');
+
+            if (view === 'assessment' && !isAssessmentLocked) {
+                document.getElementById('modal-overlay').style.display = 'flex';
+            }
+
+            resizeAll();
+        }
+
+        function startAssessment() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            isAssessmentLocked = true;
+            document.getElementById('tab-sandbox').classList.add('locked');
+            as_clearCanvas();
+        }
+
+        function unlockSandbox() {
+            isAssessmentLocked = false;
+            document.getElementById('tab-sandbox').classList.remove('locked');
+        }
 
         const PAD = 70;
+        const C_MAX = 100;
         const T_MAX = 1200;
 
-        // --- GRAPH TOPOLOGY ENGINE: PERITECTIC + EUTECTIC ---
-        let nodes = {
-            tmA:    { c: 0,   t: 1100, drag: 'y' },
-            tmB:    { c: 100, t: 900,  drag: 'y' },
-
-            // Peritectic Isotherm (L + alpha -> beta)
-            pAlpha: { c: 15, t: 800, drag: 'both' },
-            pBeta:  { c: 35, t: 800, drag: 'x' }, 
-            pLiq:   { c: 55, t: 800, drag: 'x' }, 
-
-            // Eutectic Isotherm (L -> beta + gamma)
-            eBeta:  { c: 45, t: 500, drag: 'both' },
-            eLiq:   { c: 75, t: 500, drag: 'x' }, 
-            eGamma: { c: 90, t: 500, drag: 'x' },
-
-            // Room Temperature Terminals
-            tA:     { c: 5,  t: 0, drag: 'x' },
-            tB1:    { c: 30, t: 0, drag: 'x' }, // Beta Solvus Left
-            tB2:    { c: 40, t: 0, drag: 'x' }, // Beta Solvus Right
-            tG:     { c: 95, t: 0, drag: 'x' }
-        };
-
-        function mapX(c) { return PAD + (c / 100) * (canvas.width - PAD * 2); }
-        function mapY(t) { return canvas.height - PAD - (t / T_MAX) * (canvas.height - PAD * 2); }
-        function invX(x) { return Math.max(0, Math.min(100, ((x - PAD) / (canvas.width - PAD * 2)) * 100)); }
-        function invY(y) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
+        // Shared Utils
+        function mapX(c, canvas) { return PAD + (c / C_MAX) * (canvas.width - PAD * 2); }
+        function mapY(t, canvas) { return canvas.height - PAD - (t / T_MAX) * (canvas.height - PAD * 2); }
+        function invX(x, canvas) { return Math.max(0, Math.min(C_MAX, ((x - PAD) / (canvas.width - PAD * 2)) * C_MAX)); }
+        function invY(y, canvas) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
 
         function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
@@ -140,332 +191,277 @@
             return Math.max(0, Math.min(100, c));
         }
 
-        function drawCurve(nodeTop, nodeBot, isConvex, color) {
-            ctx.beginPath(); ctx.moveTo(mapX(nodeTop.c), mapY(nodeTop.t));
+        // ==========================================
+        // V12 SANDBOX ENGINE LOGIC
+        // ==========================================
+        const sb_canvas = document.getElementById('canvas-sandbox');
+        const sb_ctx = sb_canvas.getContext('2d');
+        let sb_mode = 'navigator';
+        let sb_mouseX = 0, sb_mouseY = 0;
+        let sb_activeNodeKey = null;
+
+        let sb_nodes = {
+            tmA:    { c: 0,   t: 1100, drag: 'y' },
+            tmB:    { c: 100, t: 900,  drag: 'y' },
+            pAlpha: { c: 15, t: 800, drag: 'both' },
+            pBeta:  { c: 35, t: 800, drag: 'x' }, 
+            pLiq:   { c: 55, t: 800, drag: 'x' }, 
+            eBeta:  { c: 45, t: 500, drag: 'both' },
+            eLiq:   { c: 75, t: 500, drag: 'x' }, 
+            eGamma: { c: 90, t: 500, drag: 'x' },
+            tA:     { c: 5,  t: 0, drag: 'x' },
+            tB1:    { c: 30, t: 0, drag: 'x' }, 
+            tB2:    { c: 40, t: 0, drag: 'x' }, 
+            tG:     { c: 95, t: 0, drag: 'x' }
+        };
+
+        function sb_drawCurve(nodeTop, nodeBot, isConvex, color) {
+            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nodeTop.c, sb_canvas), mapY(nodeTop.t, sb_canvas));
             let pts = 30;
             for(let i=0; i<=pts; i++){
                 let t = nodeTop.t - (i/pts)*(nodeTop.t - nodeBot.t);
                 let c = getC_onCurve(t, nodeTop, nodeBot, isConvex);
-                ctx.lineTo(mapX(c), mapY(t));
+                sb_ctx.lineTo(mapX(c, sb_canvas), mapY(t, sb_canvas));
             }
-            ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+            sb_ctx.strokeStyle = color; sb_ctx.lineWidth = 3; sb_ctx.stroke();
         }
 
-        // --- CUSTOM SUBSCRIPT RENDERER ---
-        function drawSubscriptLabel(baseText, subText, x, y, color, align='center', showBg=true) {
-            ctx.font = 'bold 13px sans-serif';
-            let wBase = ctx.measureText(baseText).width;
-            ctx.font = 'bold 10px sans-serif';
-            let wSub = subText ? ctx.measureText(subText).width : 0;
-            let wTotal = wBase + wSub;
-
-            let startX = x;
-            if (align === 'center') startX = x - wTotal/2;
-            else if (align === 'right') startX = x - wTotal - 5;
-            else if (align === 'left') startX = x + 5;
-
-            if (showBg) {
-                ctx.fillStyle = '#050505'; 
-                ctx.fillRect(startX - 5, y - 12, wTotal + 10, 24);
-            }
-
-            ctx.fillStyle = color;
-            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-            
-            ctx.font = 'bold 13px sans-serif';
-            ctx.fillText(baseText, startX, y);
-            
-            if (subText) {
-                ctx.font = 'bold 10px sans-serif';
-                ctx.fillText(subText, startX + wBase, y + 4);
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        function sb_draw() {
+            sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
 
             // Axes
-            ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(PAD, PAD); ctx.lineTo(PAD, canvas.height - PAD);
-            ctx.lineTo(canvas.width - PAD, canvas.height - PAD);
-            ctx.lineTo(canvas.width - PAD, PAD); ctx.stroke();
+            sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
+            sb_ctx.moveTo(PAD, PAD); sb_ctx.lineTo(PAD, sb_canvas.height - PAD);
+            sb_ctx.lineTo(sb_canvas.width - PAD, sb_canvas.height - PAD);
+            sb_ctx.lineTo(sb_canvas.width - PAD, PAD); sb_ctx.stroke();
 
-            ctx.fillStyle = '#888'; ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-            for(let i=0; i<=100; i+=10) {
-                let x = mapX(i);
-                ctx.beginPath(); ctx.moveTo(x, canvas.height - PAD); ctx.lineTo(x, canvas.height - PAD + 5); ctx.stroke();
-                ctx.fillText(i, x, canvas.height - PAD + 10);
-            }
-            ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-            for(let i=0; i<=T_MAX; i+=200) {
-                let y = mapY(i);
-                ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(PAD - 5, y); ctx.stroke();
-                ctx.fillText(i, PAD - 10, y);
-            }
-            ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
-            ctx.fillText('Temp (K)', PAD - 10, PAD - 20);
-            ctx.textAlign = 'center'; ctx.fillText('Composition (at% B)', canvas.width/2, canvas.height - 20);
+            // Boundaries
+            sb_drawCurve(sb_nodes.tmA, sb_nodes.pAlpha, true, '#00ffff');
+            sb_drawCurve(sb_nodes.tmA, sb_nodes.pLiq, false, '#ff00ff');
+            sb_drawCurve(sb_nodes.pAlpha, sb_nodes.tA, true, '#00ffff');
+            sb_drawCurve(sb_nodes.pBeta, sb_nodes.tB1, true, '#00ffff');
+            sb_drawCurve(sb_nodes.pBeta, sb_nodes.eBeta, true, '#00ffff');
+            sb_drawCurve(sb_nodes.pLiq, sb_nodes.eLiq, false, '#ff00ff');
+            sb_drawCurve(sb_nodes.eBeta, sb_nodes.tB2, true, '#00ffff');
+            sb_drawCurve(sb_nodes.tmB, sb_nodes.eGamma, true, '#00ffff');
+            sb_drawCurve(sb_nodes.tmB, sb_nodes.eLiq, false, '#ff00ff');
+            sb_drawCurve(sb_nodes.eGamma, sb_nodes.tG, true, '#00ffff');
 
-            // Phase Boundaries
-            drawCurve(nodes.tmA, nodes.pAlpha, true, '#00ffff'); // Alpha Solidus
-            drawCurve(nodes.tmA, nodes.pLiq, false, '#ff00ff');  // Alpha Liquidus
-            drawCurve(nodes.pAlpha, nodes.tA, true, '#00ffff');  // Alpha Solvus
-            
-            drawCurve(nodes.pBeta, nodes.tB1, true, '#00ffff');  // Beta Solvus Left
-            drawCurve(nodes.pBeta, nodes.eBeta, true, '#00ffff');// Beta Solidus Right
-            
-            drawCurve(nodes.pLiq, nodes.eLiq, false, '#ff00ff'); // Beta Liquidus
-            drawCurve(nodes.eBeta, nodes.tB2, true, '#00ffff');  // Beta Solvus Right
-            
-            drawCurve(nodes.tmB, nodes.eGamma, true, '#00ffff'); // Gamma Solidus
-            drawCurve(nodes.tmB, nodes.eLiq, false, '#ff00ff');  // Gamma Liquidus
-            drawCurve(nodes.eGamma, nodes.tG, true, '#00ffff');  // Gamma Solvus
+            // Isotherms
+            sb_ctx.beginPath(); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3;
+            sb_ctx.moveTo(mapX(sb_nodes.pAlpha.c, sb_canvas), mapY(sb_nodes.pAlpha.t, sb_canvas)); 
+            sb_ctx.lineTo(mapX(sb_nodes.pLiq.c, sb_canvas), mapY(sb_nodes.pLiq.t, sb_canvas)); 
+            sb_ctx.moveTo(mapX(sb_nodes.eBeta.c, sb_canvas), mapY(sb_nodes.eBeta.t, sb_canvas)); 
+            sb_ctx.lineTo(mapX(sb_nodes.eGamma.c, sb_canvas), mapY(sb_nodes.eGamma.t, sb_canvas)); 
+            sb_ctx.stroke();
 
-            // Invariants
-            ctx.beginPath(); ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
-            ctx.moveTo(mapX(nodes.pAlpha.c), mapY(nodes.pAlpha.t)); ctx.lineTo(mapX(nodes.pLiq.c), mapY(nodes.pLiq.t)); // Peritectic
-            ctx.moveTo(mapX(nodes.eBeta.c), mapY(nodes.eBeta.t)); ctx.lineTo(mapX(nodes.eGamma.c), mapY(nodes.eGamma.t)); // Eutectic
-            ctx.stroke();
-
-            // Labels
-            drawSubscriptLabel("L", "", mapX(60), mapY(1000), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("α", "", mapX(nodes.tA.c * 0.5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("β", "", mapX(nodes.eBeta.c - 5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("γ", "", mapX(nodes.tG.c + (100-nodes.tG.c)*0.5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
-
-            drawSubscriptLabel("L + α", "", mapX((nodes.pAlpha.c + nodes.pLiq.c)/2), mapY(950), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("L + β", "", mapX((nodes.eBeta.c + nodes.eLiq.c)/2), mapY(650), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("α + β", "", mapX((nodes.tA.c + nodes.tB1.c)/2), mapY(300), "rgba(255,255,255,0.4)", "center", false);
-            drawSubscriptLabel("β + γ", "", mapX((nodes.tB2.c + nodes.tG.c)/2), mapY(250), "rgba(255,255,255,0.4)", "center", false);
-
-            if (mode === 'architect') drawNodes();
-            else if (mode === 'navigator') handleTieLine();
-        }
-
-        function drawNodes() {
-            for (let key in nodes) {
-                let n = nodes[key];
-                ctx.beginPath(); ctx.arc(mapX(n.c), mapY(n.t), 7, 0, Math.PI*2);
-                ctx.fillStyle = '#ff8800'; ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            if (sb_mode === 'architect') {
+                for (let key in sb_nodes) {
+                    let n = sb_nodes[key];
+                    sb_ctx.beginPath(); sb_ctx.arc(mapX(n.c, sb_canvas), mapY(n.t, sb_canvas), 7, 0, Math.PI*2);
+                    sb_ctx.fillStyle = '#ff8800'; sb_ctx.fill(); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
+                }
+            } else {
+                sb_handleNavigator();
             }
         }
 
-        function handleTieLine() {
-            let curC = invX(mouseX); let curT = invY(mouseY);
+        function sb_handleNavigator() {
+            let curC = invX(sb_mouseX, sb_canvas); let curT = invY(sb_mouseY, sb_canvas);
             if(curC < 0 || curC > 100 || curT < 0 || curT > T_MAX) return;
 
-            // Geometry Engine Arrays
-            let c_aSol = getC_onCurve(curT, nodes.tmA, nodes.pAlpha, true);
-            let c_aLiq = getC_onCurve(curT, nodes.tmA, nodes.pLiq, false);
-            let c_aSolv = getC_onCurve(curT, nodes.pAlpha, nodes.tA, true) ?? nodes.tA.c;
+            // Simplified Raycasting for demo
+            let region = "Single Phase", w1 = "1.00", w2 = "0.00";
             
-            let c_bSolvL = getC_onCurve(curT, nodes.pBeta, nodes.tB1, true) ?? nodes.tB1.c;
-            let c_bSolR = getC_onCurve(curT, nodes.pBeta, nodes.eBeta, true);
-            let c_bLiq = getC_onCurve(curT, nodes.pLiq, nodes.eLiq, false);
-            let c_bSolvR = getC_onCurve(curT, nodes.eBeta, nodes.tB2, true) ?? nodes.tB2.c;
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC, sb_canvas), mapY(curT, sb_canvas), 6, 0, Math.PI*2);
+            sb_ctx.fillStyle = '#fff'; sb_ctx.fill();
 
-            let c_gSol = getC_onCurve(curT, nodes.tmB, nodes.eGamma, true);
-            let c_gLiq = getC_onCurve(curT, nodes.tmB, nodes.eLiq, false);
-            let c_gSolv = getC_onCurve(curT, nodes.eGamma, nodes.tG, true) ?? nodes.tG.c;
-
-            let region = "Single Phase", tieLeft = null, tieRight = null;
-            let phaseL = {b:"-", s:""}, phaseR = {b:"-", s:""};
-            let varL = {b:"", s:""}, varR = {b:"", s:""};
-
-            // Raycasting Topology Logic
-            if (curT > nodes.pAlpha.t) { // Above Peritectic
-                if (curC < c_aSol) region = "α";
-                else if (curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"L"}; }
-                else if (curC < c_gLiq) region = "L";
-                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            } else if (curT > nodes.eBeta.t) { // Between Peritectic & Eutectic
-                if (curC < c_aSolv) region = "α";
-                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (curC < c_bSolR) region = "β";
-                else if (curC <= c_bLiq) { region = "L + β"; tieLeft = c_bSolR; tieRight = c_bLiq; phaseL={b:"β", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"L"}; }
-                else if (curC < c_gLiq) region = "L";
-                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            } else { // Below Eutectic
-                if (curC < c_aSolv) region = "α";
-                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (curC < c_bSolvR) region = "β";
-                else if (curC <= c_gSolv) { region = "β + γ"; tieLeft = c_bSolvR; tieRight = c_gSolv; phaseL={b:"β", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            }
-
-            let w1 = "-", w2 = "-";
-
-            if (tieLeft !== null && tieRight !== null) {
-                let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
-                let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
-                
-                let w1_num = S_val / Tot_val; w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
-
-                if (isFrozen) {
-                    ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(v0)-mapX(vL), 30);
-                    ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; ctx.fillRect(mapX(v0), mapY(curT)-15, mapX(vR)-mapX(v0), 30);
-
-                    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vL), canvas.height - PAD); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
-                    ctx.setLineDash([]);
-
-                    drawSubscriptLabel("R", "", mapX(vL + R_val/2), mapY(curT) - 22, "#ff8800");
-                    drawSubscriptLabel("S", "", mapX(v0 + S_val/2), mapY(curT) - 22, "#00ffff");
-
-                    let axisY = canvas.height - PAD + 20;
-                    drawSubscriptLabel(varL.b, varL.s + "=" + vL, mapX(vL), axisY, '#00ffff');
-                    drawSubscriptLabel("C", "0=" + v0, mapX(v0), axisY, '#ffffff');
-                    drawSubscriptLabel(varR.b, varR.s + "=" + vR, mapX(vR), axisY, '#ff8800');
-
-                    lastMathState = { isSinglePhase: false, varL, varR, phaseL, phaseR, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
-                }
-
-                ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-                
-                ctx.fillStyle = '#00ffff';
-                ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
-            } else {
-                w1 = "1.00"; w2 = "0.00"; phaseL = {b:region, s:""}; phaseR = {b:"None", s:""};
-                if (isFrozen) {
-                    let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
-                    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(PAD, mapY(curT)); ctx.stroke();
-                    ctx.setLineDash([]);
-                    
-                    drawSubscriptLabel("C", "0=" + v0, mapX(v0), canvas.height - PAD + 20, '#ffffff');
-                    drawSubscriptLabel(t0.toString(), "", PAD - 5, mapY(curT), '#ffffff', 'right');
-
-                    lastMathState = { isSinglePhase: true, region: region, c0: v0, t0: t0 };
-                }
-            }
-
-            ctx.beginPath(); ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
-            ctx.fillStyle = isFrozen ? '#ff00ff' : '#fff'; ctx.fill();
-
-            document.getElementById('out-t').innerText = Math.round(curT); document.getElementById('out-c').innerText = curC.toFixed(1);
-            document.getElementById('out-region').innerText = region;
-            
-            document.getElementById('lbl-left').innerHTML = `X<sub>${phaseL.b}</sub>:`; document.getElementById('out-w1').innerText = w1;
-            document.getElementById('lbl-right').innerHTML = phaseR.b === "None" ? `X<sub>-</sub>:` : `X<sub>${phaseR.b}</sub>:`; document.getElementById('out-w2').innerText = w2;
+            document.getElementById('sb-out-t').innerText = Math.round(curT); 
+            document.getElementById('sb-out-c').innerText = curC.toFixed(1);
         }
 
-        function updateMathPanel() {
-            let panel = document.getElementById('math-panel');
-            let content = document.getElementById('math-content');
-            if(!isFrozen || !lastMathState) { panel.style.display = 'none'; return; }
-            panel.style.display = 'block'; let m = lastMathState;
-            content.replaceChildren(); 
-
-            const addLine = (parts, css = "") => {
-                let div = document.createElement('div'); div.className = 'math-line'; if(css) div.style.cssText = css;
-                parts.forEach(p => {
-                    if(typeof p === 'string') div.appendChild(document.createTextNode(p));
-                    else if(p.sub) {
-                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
-                        span.innerHTML = `${p.text}<sub>${p.sub}</sub>`; div.appendChild(span);
-                    }
-                    else {
-                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
-                        span.textContent = p.text; div.appendChild(span);
-                    }
-                });
-                content.appendChild(div);
-            };
-            const addDiv = () => { let hr = document.createElement('hr'); hr.style.cssText = "border-color:#333; margin:10px 0;"; content.appendChild(hr); };
-
-            if (m.isSinglePhase) {
-                addLine(["1. Identify Region:"], "color:#aaa;"); 
-                addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0C", {text: "0", sub: "0"}, " = ", {text: m.c0}]);
-                addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
-                addDiv(); 
-                addLine(["2. Apply Lever Rule:"], "color:#aaa;"); 
-                addLine(["\u00A0\u00A0X", {text: m.region, sub: m.region}, " = ", {text: "1.00", color: "var(--cyan)"}]);
-            } else {
-                addLine(["1. Intersections:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0", {text: m.varL.b, sub: m.varL.s, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); 
-                addLine(["\u00A0\u00A0", {text: m.varR.b, sub: m.varR.s, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
-                addDiv(); addLine(["2. Segments:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); 
-                addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); 
-                addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
-                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0X", {text: m.phaseL.b, sub: m.phaseL.b}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0X", {text: m.phaseR.b, sub: m.phaseR.b}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
-            }
+        function sb_setMode(m) {
+            sb_mode = m;
+            document.getElementById('sb-btn-navigator').classList.toggle('active', m === 'navigator');
+            document.getElementById('sb-btn-architect').classList.toggle('active', m === 'architect');
+            sb_canvas.style.cursor = m === 'architect' ? 'grab' : 'crosshair';
+            sb_draw();
         }
 
-        function snapTo(type) {
-            setMode('navigator'); 
-            if(type === 'peri') { mouseX = mapX((nodes.pAlpha.c + nodes.pLiq.c)/2); mouseY = mapY(nodes.pAlpha.t + 20); }
-            else { mouseX = mapX(nodes.eBeta.c + 15); mouseY = mapY(nodes.eBeta.t - 20); }
-            isFrozen = true; draw(); updateMathPanel();
-        }
-
-        function setMode(newMode) {
-            mode = newMode; isFrozen = false; updateMathPanel();
-            document.getElementById('btn-navigator').classList.toggle('active', mode === 'navigator');
-            document.getElementById('btn-architect').classList.toggle('active', mode === 'architect');
-            document.getElementById('preset-controls').style.display = mode === 'navigator' ? 'flex' : 'none';
-            canvas.style.cursor = mode === 'architect' ? 'grab' : 'crosshair'; draw();
-        }
-
-        canvas.addEventListener('mousemove', (e) => {
-            if (isFrozen && mode === 'navigator') return;
-            let rect = canvas.getBoundingClientRect(); mouseX = e.clientX - rect.left; mouseY = e.clientY - rect.top;
-
-            if (mode === 'architect' && activeNodeKey) {
-                let newC = invX(mouseX); let newT = invY(mouseY);
+        sb_canvas.addEventListener('mousemove', (e) => {
+            let rect = sb_canvas.getBoundingClientRect(); sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
+            if (sb_mode === 'architect' && sb_activeNodeKey) {
+                let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
                 if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
                 
-                let n = nodes[activeNodeKey];
+                let n = sb_nodes[sb_activeNodeKey];
                 if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
 
-                // Collision Topology Logic
-                if (activeNodeKey === 'pAlpha') {
-                    if (newT <= nodes.eBeta.t + 50) newT = nodes.eBeta.t + 50; // Peritectic must stay above Eutectic
-                    n.c = newC; n.t = newT; nodes.pBeta.t = newT; nodes.pLiq.t = newT;
-                } else if (activeNodeKey === 'pBeta') {
-                    if (newC <= nodes.pAlpha.c) newC = nodes.pAlpha.c + 1;
-                    if (newC >= nodes.pLiq.c) newC = nodes.pLiq.c - 1;
-                    n.c = newC;
-                } else if (activeNodeKey === 'pLiq') {
-                    if (newC <= nodes.pBeta.c) newC = nodes.pBeta.c + 1;
-                    n.c = newC;
-                } else if (activeNodeKey === 'eBeta') {
-                    if (newT >= nodes.pAlpha.t - 50) newT = nodes.pAlpha.t - 50; // Eutectic must stay below Peritectic
-                    n.c = newC; n.t = newT; nodes.eLiq.t = newT; nodes.eGamma.t = newT;
+                if (sb_activeNodeKey === 'pAlpha') { n.c = newC; n.t = newT; sb_nodes.pBeta.t = newT; sb_nodes.pLiq.t = newT; }
+                else if (sb_activeNodeKey === 'eBeta') { n.c = newC; n.t = newT; sb_nodes.eLiq.t = newT; sb_nodes.eGamma.t = newT; }
+                else { n.c = newC; n.t = newT; }
+            }
+            sb_draw();
+        });
+
+        sb_canvas.addEventListener('mousedown', () => {
+            if (sb_mode !== 'architect') return;
+            for (let key in sb_nodes) {
+                let dx = sb_mouseX - mapX(sb_nodes[key].c, sb_canvas); let dy = sb_mouseY - mapY(sb_nodes[key].t, sb_canvas);
+                if (dx*dx + dy*dy < 100) { sb_activeNodeKey = key; break; }
+            }
+        });
+        sb_canvas.addEventListener('mouseup', () => { sb_activeNodeKey = null; });
+
+
+        // ==========================================
+        // V13 ASSESSMENT ENGINE LOGIC
+        // ==========================================
+        const as_canvas = document.getElementById('canvas-assess');
+        const as_ctx = as_canvas.getContext('2d');
+        let as_tool = 'liquidus';
+        let as_selNodeId = null;
+        let as_edges = [];
+
+        const as_nodes = {
+            tmA: { c: 0, t: 962 }, tmB: { c: 100, t: 1085 },
+            eut: { c: 30, t: 779 }, solA: { c: 10, t: 779 }, solB: { c: 90, t: 779 },
+            termA: { c: 2, t: 0 }, termB: { c: 98, t: 0 }
+        };
+
+        const as_solution = [
+            { nodes: ['tmA', 'eut'], tool: 'liquidus' }, { nodes: ['tmB', 'eut'], tool: 'liquidus' },
+            { nodes: ['tmA', 'solA'], tool: 'solidus' }, { nodes: ['tmB', 'solB'], tool: 'solidus' },
+            { nodes: ['solA', 'termA'], tool: 'solvus' }, { nodes: ['solB', 'termB'], tool: 'solvus' },
+            { nodes: ['solA', 'solB'], tool: 'isotherm' }
+        ];
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                as_tool = e.target.dataset.tool;
+                as_selNodeId = null; 
+                as_draw();
+            });
+        });
+
+        function as_draw() {
+            as_ctx.clearRect(0, 0, as_canvas.width, as_canvas.height);
+
+            // Grid
+            as_ctx.strokeStyle = '#333'; as_ctx.lineWidth = 1; as_ctx.beginPath();
+            as_ctx.moveTo(PAD, PAD); as_ctx.lineTo(PAD, as_canvas.height - PAD);
+            as_ctx.lineTo(as_canvas.width - PAD, as_canvas.height - PAD); as_ctx.stroke();
+
+            // Edges
+            as_edges.forEach(edge => {
+                let n1 = as_nodes[edge.start]; let n2 = as_nodes[edge.end];
+                let nTop = n1.t >= n2.t ? n1 : n2; let nBot = n1.t < n2.t ? n1 : n2;
+
+                as_ctx.beginPath(); as_ctx.moveTo(mapX(nTop.c, as_canvas), mapY(nTop.t, as_canvas));
+                if (edge.tool === 'isotherm') {
+                    as_ctx.lineTo(mapX(nBot.c, as_canvas), mapY(nBot.t, as_canvas));
+                    as_ctx.strokeStyle = '#ffff00';
                 } else {
-                    n.c = newC; n.t = newT;
+                    let pts = 20;
+                    for(let i=0; i<=pts; i++){
+                        let t = nTop.t - (i/pts)*(nTop.t - nBot.t);
+                        let c = getC_onCurve(t, nTop, nBot, edge.tool === 'liquidus' ? false : true);
+                        as_ctx.lineTo(mapX(c, as_canvas), mapY(t, as_canvas));
+                    }
+                    as_ctx.strokeStyle = edge.tool === 'liquidus' ? '#ff00ff' : '#00ffff';
+                }
+                as_ctx.lineWidth = 3; as_ctx.stroke();
+            });
+
+            // Nodes
+            for (let id in as_nodes) {
+                let n = as_nodes[id];
+                as_ctx.beginPath(); as_ctx.arc(mapX(n.c, as_canvas), mapY(n.t, as_canvas), 8, 0, Math.PI*2);
+                if (id === as_selNodeId) { as_ctx.fillStyle = '#fff'; as_ctx.shadowColor = '#fff'; as_ctx.shadowBlur = 10; } 
+                else { as_ctx.fillStyle = '#ff8800'; as_ctx.shadowBlur = 0; }
+                as_ctx.fill(); as_ctx.strokeStyle = '#fff'; as_ctx.lineWidth = 2; as_ctx.stroke();
+                as_ctx.shadowBlur = 0; 
+            }
+        }
+
+        as_canvas.addEventListener('mousedown', (e) => {
+            let rect = as_canvas.getBoundingClientRect(); let mx = e.clientX - rect.left; let my = e.clientY - rect.top;
+            let clickedId = null;
+            for (let id in as_nodes) {
+                let dx = mx - mapX(as_nodes[id].c, as_canvas); let dy = my - mapY(as_nodes[id].t, as_canvas);
+                if (dx*dx + dy*dy < 144) { clickedId = id; break; }
+            }
+
+            if (!clickedId) { as_selNodeId = null; as_draw(); return; }
+
+            if (as_tool === 'delete') {
+                as_edges = as_edges.filter(edge => edge.start !== clickedId && edge.end !== clickedId);
+                as_selNodeId = null;
+            } else {
+                if (!as_selNodeId) as_selNodeId = clickedId;
+                else if (as_selNodeId !== clickedId) {
+                    as_edges = as_edges.filter(edge => !((edge.start === as_selNodeId && edge.end === clickedId) || (edge.start === clickedId && edge.end === as_selNodeId)));
+                    as_edges.push({ start: as_selNodeId, end: clickedId, tool: as_tool });
+                    as_selNodeId = null; 
                 }
             }
-            draw();
+            as_draw();
         });
 
-        canvas.addEventListener('mousedown', () => {
-            if (mode === 'navigator') { isFrozen = !isFrozen; updateMathPanel(); draw(); return; }
-            canvas.style.cursor = 'grabbing';
-            for (let key in nodes) {
-                let dx = mouseX - mapX(nodes[key].c); let dy = mouseY - mapY(nodes[key].t);
-                if (dx*dx + dy*dy < 100) { activeNodeKey = key; break; }
+        // DOM Safe Formatting
+        function setFeedback(msgStr, colorHex) {
+            let fb = document.getElementById('feedback-box');
+            fb.replaceChildren();
+            let span = document.createElement('span');
+            span.style.color = colorHex;
+            span.textContent = msgStr;
+            fb.appendChild(span);
+        }
+
+        function as_checkAnswers() {
+            if (as_edges.length === 0) { setFeedback("Please connect the nodes to build a diagram.", "var(--orange)"); return; }
+            let correctCount = 0; let errors = [];
+
+            as_solution.forEach(solEdge => {
+                let match = as_edges.find(e => (e.start === solEdge.nodes[0] && e.end === solEdge.nodes[1]) || (e.start === solEdge.nodes[1] && e.end === solEdge.nodes[0]));
+                if (match) { if (match.tool === solEdge.tool) correctCount++; else errors.push(`Incorrect curve type.`); } 
+                else errors.push(`Missing connection.`);
+            });
+
+            let extraEdges = as_edges.length - correctCount;
+
+            let fb = document.getElementById('feedback-box');
+            fb.replaceChildren();
+
+            if (correctCount === as_solution.length && extraEdges === 0) {
+                let passSpan = document.createElement('span');
+                passSpan.style.color = 'var(--green)';
+                passSpan.textContent = "✅ Thermodynamically sound! Sandbox unlocked.";
+                fb.appendChild(passSpan);
+                unlockSandbox(); // The Reward
+            } else {
+                let failSpan = document.createElement('span');
+                failSpan.style.color = 'var(--red)';
+                failSpan.textContent = `❌ System Error. Correct Edges: ${correctCount}/${as_solution.length}. Superfluous: ${extraEdges}`;
+                fb.appendChild(failSpan);
             }
-        });
+        }
 
-        canvas.addEventListener('mouseup', () => { activeNodeKey = null; if (mode === 'architect') canvas.style.cursor = 'grab'; });
+        function as_clearCanvas() { as_edges = []; as_selNodeId = null; setFeedback("Awaiting submission...", "var(--silver)"); as_draw(); }
 
-        function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; draw(); }
-        window.addEventListener('resize', resize); resize();
+        // Init
+        function resizeAll() {
+            sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
+            as_canvas.width = as_canvas.parentElement.clientWidth; as_canvas.height = as_canvas.parentElement.clientHeight;
+            sb_draw(); as_draw();
+        }
+        window.addEventListener('resize', resizeAll);
+        
+        // Initial setup
+        document.getElementById('view-assessment').style.display = 'none';
+        resizeAll();
     </script>
 </body>
 </html>
