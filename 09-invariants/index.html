@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V15 (Master Build)</title>
+    <title>Chapter 9: Phase Diagram Master Module</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -58,7 +58,7 @@
         #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         .math-hl { color: #fff; font-weight: bold; }
-        #as-feedback-box { font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.5; color: var(--silver); }
+        #as-feedback-box { font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.5; color: var(--silver); margin-top: 10px; }
 
         /* Modal */
         #modal-overlay { position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; justify-content: center; align-items: center; }
@@ -115,14 +115,12 @@
                     <div id="sb-math-content"></div>
                 </div>
             </div>
-            <div class="readout-panel">
+            <div class="readout-panel" id="sb-telemetry">
                 <span class="label">Telemetry</span>
                 <div class="stat"><span>Temp (K):</span> <span class="val" id="sb-out-t">--</span></div>
                 <div class="stat"><span>Comp (at% B):</span> <span class="val" id="sb-out-c">--</span></div>
                 <hr style="border-color:#333; margin:15px 0;">
                 <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="sb-out-region">--</span></div>
-                <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>1</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
-                <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>2</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
             </div>
         </div>
         <div class="stage"><canvas id="canvas-sandbox"></canvas></div>
@@ -194,7 +192,7 @@
         function invY(y, canvas) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
 
         // ==========================================
-        // V12 SANDBOX ENGINE LOGIC (Fully Restored)
+        // V16 SANDBOX ENGINE LOGIC (Fully Restored & Debugged)
         // ==========================================
         const sb_canvas = document.getElementById('canvas-sandbox');
         const sb_ctx = sb_canvas.getContext('2d');
@@ -288,12 +286,12 @@
             let t_la = sb_nodes.pAlpha.t + (sb_nodes.tmA.t - sb_nodes.pAlpha.t) * 0.5;
             let cla_1 = sb_getC_onCurve(t_la, sb_nodes.tmA, sb_nodes.pAlpha, true);
             let cla_2 = sb_getC_onCurve(t_la, sb_nodes.tmA, sb_nodes.pLiq, false);
-            if(cla_1 && cla_2) sb_drawSubscriptLabel("L + α", "", mapX((cla_1+cla_2)/2, sb_canvas), mapY(t_la, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
+            if(cla_1 !== null && cla_2 !== null) sb_drawSubscriptLabel("L + α", "", mapX((cla_1+cla_2)/2, sb_canvas), mapY(t_la, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
 
             let t_lb = sb_nodes.eBeta.t + (sb_nodes.pLiq.t - sb_nodes.eBeta.t) * 0.5;
             let clb_1 = sb_getC_onCurve(t_lb, sb_nodes.pBeta, sb_nodes.eBeta, true);
             let clb_2 = sb_getC_onCurve(t_lb, sb_nodes.pLiq, sb_nodes.eLiq, false);
-            if(clb_1 && clb_2) sb_drawSubscriptLabel("L + β", "", mapX((clb_1+clb_2)/2, sb_canvas), mapY(t_lb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
+            if(clb_1 !== null && clb_2 !== null) sb_drawSubscriptLabel("L + β", "", mapX((clb_1+clb_2)/2, sb_canvas), mapY(t_lb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
 
             let t_lg = sb_nodes.eGamma.t + (sb_nodes.tmB.t - sb_nodes.eGamma.t) * 0.35;
             let clg_1 = sb_getC_onCurve(t_lg, sb_nodes.eLiq, sb_nodes.tmB, false) ?? sb_nodes.tmB.c;
@@ -303,12 +301,12 @@
             let t_ab = sb_nodes.tA.t + (sb_nodes.pAlpha.t - sb_nodes.tA.t) * 0.7;
             let cab_1 = sb_getC_onCurve(t_ab, sb_nodes.pAlpha, sb_nodes.tA, true);
             let cab_2 = sb_getC_onCurve(t_ab, sb_nodes.pBeta, sb_nodes.tB1, true);
-            if(cab_1 && cab_2) sb_drawSubscriptLabel("α + β", "", mapX((cab_1+cab_2)/2, sb_canvas), mapY(t_ab, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
+            if(cab_1 !== null && cab_2 !== null) sb_drawSubscriptLabel("α + β", "", mapX((cab_1+cab_2)/2, sb_canvas), mapY(t_ab, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
 
             let t_bg = sb_nodes.tB2.t + (sb_nodes.eBeta.t - sb_nodes.tB2.t) * 0.5;
             let cbg_1 = sb_getC_onCurve(t_bg, sb_nodes.eBeta, sb_nodes.tB2, true);
             let cbg_2 = sb_getC_onCurve(t_bg, sb_nodes.eGamma, sb_nodes.tG, true);
-            if(cbg_1 && cbg_2) sb_drawSubscriptLabel("β + γ", "", mapX((cbg_1+cbg_2)/2, sb_canvas), mapY(t_bg, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
+            if(cbg_1 !== null && cbg_2 !== null) sb_drawSubscriptLabel("β + γ", "", mapX((cbg_1+cbg_2)/2, sb_canvas), mapY(t_bg, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
         }
 
         function sb_draw() {
@@ -368,6 +366,16 @@
             }
         }
 
+        // Cleanly updates DOM for telemetry using standard tags
+        function setTelemetryPhase(id, base, sub) {
+            let el = document.getElementById(id);
+            if (base === 'None' || base === '-') {
+                el.innerHTML = `X<sub>-</sub>:`;
+            } else {
+                el.innerHTML = `X<sub>${base}</sub>:`;
+            }
+        }
+
         function sb_handleNavigator() {
             let curC = invX(sb_mouseX, sb_canvas); let curT = invY(sb_mouseY, sb_canvas);
             if(curC < 0 || curC > 100 || curT < 0 || curT > T_MAX) return;
@@ -390,29 +398,30 @@
             let varL = {b:"", s:""}, varR = {b:"", s:""};
 
             if (curT > sb_nodes.pAlpha.t) { 
-                if (curC < c_aSol) region = "α";
-                else if (curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"L"}; }
-                else if (curC < c_gLiq) region = "L";
-                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
+                if (c_aSol !== null && curC < c_aSol) region = "α";
+                else if (c_aLiq !== null && curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"L"}; }
+                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
+                else if (c_gSol !== null && curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
                 else region = "γ";
             } else if (curT > sb_nodes.eBeta.t) { 
-                if (curC < c_aSolv) region = "α";
-                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (curC < c_bSolR) region = "β";
-                else if (curC <= c_bLiq) { region = "L + β"; tieLeft = c_bSolR; tieRight = c_bLiq; phaseL={b:"β", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"L"}; }
-                else if (curC < c_gLiq) region = "L";
-                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
+                if (c_aSolv !== null && curC < c_aSolv) region = "α";
+                else if (c_bSolvL !== null && curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
+                else if (c_bSolR !== null && curC < c_bSolR) region = "β";
+                else if (c_bLiq !== null && curC <= c_bLiq) { region = "L + β"; tieLeft = c_bSolR; tieRight = c_bLiq; phaseL={b:"β", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"L"}; }
+                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
+                else if (c_gSol !== null && curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
                 else region = "γ";
             } else { 
-                if (curC < c_aSolv) region = "α";
-                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (curC < c_bSolvR) region = "β";
-                else if (curC <= c_gSolv) { region = "β + γ"; tieLeft = c_bSolvR; tieRight = c_gSolv; phaseL={b:"β", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"γ"}; }
+                if (c_aSolv !== null && curC < c_aSolv) region = "α";
+                else if (c_bSolvL !== null && curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
+                else if (c_bSolvR !== null && curC < c_bSolvR) region = "β";
+                else if (c_gSolv !== null && curC <= c_gSolv) { region = "β + γ"; tieLeft = c_bSolvR; tieRight = c_gSolv; phaseL={b:"β", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"γ"}; }
                 else region = "γ";
             }
 
             let w1 = "-", w2 = "-";
 
+            // Two Phase
             if (tieLeft !== null && tieRight !== null) {
                 let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
                 let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
@@ -441,9 +450,12 @@
 
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(vR, sb_canvas), mapY(curT, sb_canvas));
                 sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+                
                 sb_ctx.fillStyle = '#00ffff';
                 sb_ctx.beginPath(); sb_ctx.arc(mapX(vL, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
                 sb_ctx.beginPath(); sb_ctx.arc(mapX(vR, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
+            
+            // Single Phase
             } else {
                 w1 = "1.00"; w2 = "0.00"; phaseL = {b:region, s:""}; phaseR = {b:"None", s:""};
                 if (sb_isFrozen) {
@@ -466,15 +478,27 @@
             document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1);
             document.getElementById('sb-out-region').innerText = region;
             
-            document.getElementById('sb-lbl-left').innerHTML = `X<sub>${phaseL.b}</sub>:`; document.getElementById('sb-out-w1').innerText = w1;
-            document.getElementById('sb-lbl-right').innerHTML = phaseR.b === "None" ? `X<sub>-</sub>:` : `X<sub>${phaseR.b}</sub>:`; document.getElementById('sb-out-w2').innerText = w2;
+            setTelemetryPhase('sb-lbl-left', phaseL.b, phaseL.s); document.getElementById('sb-out-w1').innerText = w1;
+            setTelemetryPhase('sb-lbl-right', phaseR.b, phaseR.s); document.getElementById('sb-out-w2').innerText = w2;
         }
 
+        // DOM-Safe Math Panel
         function sb_updateMathPanel() {
             let panel = document.getElementById('sb-math-panel');
             let content = document.getElementById('sb-math-content');
-            if(!sb_isFrozen || !sb_lastMathState) { panel.style.display = 'none'; return; }
-            panel.style.display = 'block'; let m = sb_lastMathState;
+            
+            // Manage Dynamic Display
+            let telemetryPanel = document.getElementById('sb-telemetry');
+            
+            if(!sb_isFrozen || !sb_lastMathState) { 
+                panel.style.display = 'none'; 
+                telemetryPanel.style.display = 'block'; // Show normal telemetry when not frozen
+                return; 
+            }
+            panel.style.display = 'block'; 
+            telemetryPanel.style.display = 'none'; // Hide telemetry to make room for math
+            
+            let m = sb_lastMathState;
             content.replaceChildren(); 
 
             const addLine = (parts, css = "") => {
@@ -483,7 +507,10 @@
                     if(typeof p === 'string') div.appendChild(document.createTextNode(p));
                     else if(p.sub) {
                         let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
-                        span.innerHTML = `${p.text}<sub>${p.sub}</sub>`; div.appendChild(span);
+                        span.textContent = p.text;
+                        let sub = document.createElement('sub'); sub.textContent = p.sub;
+                        span.appendChild(sub);
+                        div.appendChild(span);
                     }
                     else {
                         let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
@@ -519,8 +546,14 @@
 
         function sb_snapTo(type) {
             sb_setMode('navigator'); 
-            if(type === 'peri') { sb_mouseX = mapX((sb_nodes.pAlpha.c + sb_nodes.pLiq.c)/2, sb_canvas); sb_mouseY = mapY(sb_nodes.pAlpha.t + 20, sb_canvas); }
-            else { sb_mouseX = mapX(sb_nodes.eBeta.c + 15, sb_canvas); sb_mouseY = mapY(sb_nodes.eBeta.t - 20, sb_canvas); }
+            // FIX: Snap exactly 1 degree into the proper two-phase region to guarantee mathematical validity
+            if(type === 'peri') { 
+                sb_mouseX = mapX(35, sb_canvas); 
+                sb_mouseY = mapY(sb_nodes.pAlpha.t + 1, sb_canvas); // 801 K (L + alpha)
+            } else { 
+                sb_mouseX = mapX(75, sb_canvas); 
+                sb_mouseY = mapY(sb_nodes.eBeta.t - 1, sb_canvas); // 499 K (beta + gamma)
+            }
             sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
         }
 
@@ -532,19 +565,73 @@
             sb_canvas.style.cursor = sb_mode === 'architect' ? 'grab' : 'crosshair'; sb_draw();
         }
 
-        sb_canvas.addEventListener('mousedown', () => {
-            if (sb_mode === 'navigator') { sb_isFrozen = !sb_isFrozen; sb_updateMathPanel(); sb_draw(); return; }
+        sb_canvas.addEventListener('mousemove', (e) => {
+            if (sb_isFrozen && sb_mode === 'navigator') return;
+            let rect = sb_canvas.getBoundingClientRect(); 
+            sb_mouseX = e.clientX - rect.left; 
+            sb_mouseY = e.clientY - rect.top;
+
+            // FIX: Restored boundary-safe Architect drag logic
+            if (sb_mode === 'architect' && sb_activeNodeKey) {
+                let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
+                if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
+                
+                let n = sb_nodes[sb_activeNodeKey];
+                if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
+
+                if (sb_activeNodeKey === 'pAlpha') {
+                    if (newT <= sb_nodes.eBeta.t + 50) newT = sb_nodes.eBeta.t + 50; 
+                    n.c = newC; n.t = newT; sb_nodes.pBeta.t = newT; sb_nodes.pLiq.t = newT;
+                } else if (sb_activeNodeKey === 'pBeta') {
+                    if (newC <= sb_nodes.pAlpha.c + 1) newC = sb_nodes.pAlpha.c + 1;
+                    if (newC >= sb_nodes.pLiq.c - 1) newC = sb_nodes.pLiq.c - 1;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'pLiq') {
+                    if (newC <= sb_nodes.pBeta.c + 1) newC = sb_nodes.pBeta.c + 1;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'eBeta') {
+                    if (newT >= sb_nodes.pAlpha.t - 50) newT = sb_nodes.pAlpha.t - 50; 
+                    n.c = newC; n.t = newT; sb_nodes.eLiq.t = newT; sb_nodes.eGamma.t = newT;
+                } else if (sb_activeNodeKey === 'eLiq') {
+                    if (newC <= sb_nodes.eBeta.c + 1) newC = sb_nodes.eBeta.c + 1;
+                    if (newC >= sb_nodes.eGamma.c - 1) newC = sb_nodes.eGamma.c - 1;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'eGamma') {
+                    if (newC <= sb_nodes.eLiq.c + 1) newC = sb_nodes.eLiq.c + 1;
+                    n.c = newC;
+                } else {
+                    n.c = newC; n.t = newT;
+                }
+            }
+            sb_draw();
+        });
+
+        sb_canvas.addEventListener('mousedown', (e) => {
+            // FIX: e object correctly passed back to update coordinates on click
+            let rect = sb_canvas.getBoundingClientRect(); 
+            sb_mouseX = e.clientX - rect.left; 
+            sb_mouseY = e.clientY - rect.top;
+
+            if (sb_mode === 'navigator') { 
+                sb_isFrozen = !sb_isFrozen; 
+                sb_updateMathPanel(); 
+                sb_draw(); 
+                return; 
+            }
+            
             sb_canvas.style.cursor = 'grabbing';
             for (let key in sb_nodes) {
-                let dx = sb_mouseX - mapX(sb_nodes[key].c, sb_canvas); let dy = sb_mouseY - mapY(sb_nodes[key].t, sb_canvas);
-                if (dx*dx + dy*dy < 100) { sb_activeNodeKey = key; break; }
+                let dx = sb_mouseX - mapX(sb_nodes[key].c, sb_canvas); 
+                let dy = sb_mouseY - mapY(sb_nodes[key].t, sb_canvas);
+                if (dx*dx + dy*dy < 200) { sb_activeNodeKey = key; break; } // Hitbox expanded
             }
         });
+
         sb_canvas.addEventListener('mouseup', () => { sb_activeNodeKey = null; if (sb_mode === 'architect') sb_canvas.style.cursor = 'grab'; });
 
 
         // ==========================================
-        // V13 ASSESSMENT ENGINE LOGIC (Dumb Curves, 8 Edges)
+        // V13 ASSESSMENT ENGINE LOGIC
         // ==========================================
         const as_canvas = document.getElementById('canvas-assess');
         const as_ctx = as_canvas.getContext('2d');
@@ -558,7 +645,7 @@
             termA: { c: 2, t: 0 }, termB: { c: 98, t: 0 }
         };
 
-        // Note: Eutectic Isotherm is topologically TWO segments (solA to Eut, Eut to solB)
+        // Eutectic requires 8 boundaries (Isotherm is split into two)
         const as_solution = [
             { nodes: ['tmA', 'eut'], tool: 'liquidus' }, { nodes: ['tmB', 'eut'], tool: 'liquidus' },
             { nodes: ['tmA', 'solA'], tool: 'solidus' }, { nodes: ['tmB', 'solB'], tool: 'solidus' },
@@ -576,31 +663,14 @@
             });
         });
 
-        // "Dumb" drawing logic that avoids thermodynamic visual hints
-        function as_drawSimpleCurve(n1, n2, tool) {
-            let x1 = mapX(n1.c, as_canvas); let y1 = mapY(n1.t, as_canvas);
-            let x2 = mapX(n2.c, as_canvas); let y2 = mapY(n2.t, as_canvas);
-            
-            as_ctx.beginPath();
-            as_ctx.moveTo(x1, y1);
-
-            if (tool === 'isotherm') {
-                as_ctx.lineTo(x2, y2);
-                as_ctx.strokeStyle = '#ffff00';
-            } else {
-                // Fixed bezier control point offset (prevents thermodynamic inversions/hints)
-                let midX = (x1 + x2) / 2;
-                let midY = (y1 + y2) / 2;
-                let offset = Math.abs(x2 - x1) * 0.2; // Curve strength
-                
-                // Liquidus sags down (higher Y), Solidus/Solvus bulge up (lower Y)
-                if (tool === 'liquidus') midY += offset; 
-                else midY -= offset;
-
-                as_ctx.quadraticCurveTo(midX, midY, x2, y2);
-                as_ctx.strokeStyle = tool === 'liquidus' ? '#ff00ff' : '#00ffff';
-            }
-            as_ctx.lineWidth = 3; as_ctx.stroke();
+        // FIX: Restored native Bezier curves for assessment drawing
+        function as_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
+            if (T > nodeTop.t || T < nodeBot.t) return null;
+            if (nodeTop.t === nodeBot.t) return nodeTop.c;
+            let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
+            let p = isConvex ? 1.4 : 0.7; 
+            let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
+            return Math.max(0, Math.min(100, c));
         }
 
         function as_draw() {
@@ -611,7 +681,25 @@
             as_ctx.lineTo(as_canvas.width - PAD, as_canvas.height - PAD); as_ctx.stroke();
 
             as_edges.forEach(edge => {
-                as_drawSimpleCurve(as_nodes[edge.start], as_nodes[edge.end], edge.tool);
+                let n1 = as_nodes[edge.start]; let n2 = as_nodes[edge.end];
+                let nTop = n1.t >= n2.t ? n1 : n2; let nBot = n1.t < n2.t ? n1 : n2;
+                
+                as_ctx.beginPath(); as_ctx.moveTo(mapX(nTop.c, as_canvas), mapY(nTop.t, as_canvas));
+
+                if (edge.tool === 'isotherm') {
+                    as_ctx.lineTo(mapX(nBot.c, as_canvas), mapY(nBot.t, as_canvas));
+                    as_ctx.strokeStyle = '#ffff00';
+                } else {
+                    let pts = 30;
+                    let isConvex = edge.tool === 'liquidus' ? false : true;
+                    for(let i=0; i<=pts; i++){
+                        let t = nTop.t - (i/pts)*(nTop.t - nBot.t);
+                        let c = as_getC_onCurve(t, nTop, nBot, isConvex);
+                        as_ctx.lineTo(mapX(c, as_canvas), mapY(t, as_canvas));
+                    }
+                    as_ctx.strokeStyle = edge.tool === 'liquidus' ? '#ff00ff' : '#00ffff';
+                }
+                as_ctx.lineWidth = 3; as_ctx.stroke();
             });
 
             for (let id in as_nodes) {
@@ -652,7 +740,7 @@
             let fb = document.getElementById('as-feedback-box');
             fb.replaceChildren();
             let span = document.createElement('span');
-            span.style.color = colorHex; span.innerHTML = msgStr;
+            span.style.color = colorHex; span.textContent = msgStr;
             fb.appendChild(span);
         }
 
