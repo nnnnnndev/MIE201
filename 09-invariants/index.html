@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V10 (Generic A-B)</title>
+    <title>Chapter 9: Phase Engine V11 (Peritectic + Eutectic)</title>
     <style>
         :root {
             --bg: #050505;
@@ -51,7 +51,7 @@
 
     <div id="sidebar">
         <div class="header">
-            <h1>Generic A-B Sandbox</h1>
+            <h1>Engine: Peri + Eutectic</h1>
         </div>
         
         <div class="control-group">
@@ -62,16 +62,16 @@
             </div>
             
             <div class="btn-row" id="preset-controls">
-                <button class="action-btn" onclick="snapTo(1)">Snap E1</button>
-                <button class="action-btn" onclick="snapTo(2)">Snap E2</button>
+                <button class="action-btn" onclick="snapTo('peri')">Snap Peritectic</button>
+                <button class="action-btn" onclick="snapTo('eut')">Snap Eutectic</button>
             </div>
             
             <p id="mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
-                Hover across the intermetallic boundary. <strong>Click</strong> to freeze.
+                Hover over phase boundaries. <strong>Click</strong> to freeze tie-line.
             </p>
 
             <div id="math-panel">
-                <div class="label" style="color:var(--cyan)">Math Expansion (Mole Fractions)</div>
+                <div class="label" style="color:var(--cyan)">Math Expansion</div>
                 <div id="math-content"></div>
             </div>
         </div>
@@ -82,8 +82,8 @@
             <div class="stat"><span>Comp (at% B):</span> <span class="val" id="out-c">--</span></div>
             <hr style="border-color:#333; margin:15px 0;">
             <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="out-region">--</span></div>
-            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">X(Phase 1):</span> <span class="val" id="out-w1">--</span></div>
-            <div class="stat" style="color: var(--orange);"><span id="lbl-right">X(Phase 2):</span> <span class="val" id="out-w2">--</span></div>
+            <div class="stat" style="color: var(--cyan);"><span id="lbl-left">X<sub>Phase 1</sub>:</span> <span class="val" id="out-w1">--</span></div>
+            <div class="stat" style="color: var(--orange);"><span id="lbl-right">X<sub>Phase 2</sub>:</span> <span class="val" id="out-w2">--</span></div>
         </div>
     </div>
 
@@ -97,50 +97,39 @@
 
         let mode = 'navigator';
         let mouseX = 0, mouseY = 0;
-        let activeNode = null;
         let activeNodeKey = null;
-        let activeSys = null;
         let isFrozen = false;
         let lastMathState = null;
 
         const PAD = 70;
+        const T_MAX = 1200;
 
-        // --- THE PROCEDURAL PILLAR ENGINE (A-B Generic) ---
-        const engineDef = {
-            name: "A-B Generic",
-            T_MAX: 1200,
-            subsystems: [
-                {
-                    id: 'sys1', bounds: [0, 66.7], lblL: 'α', lblR: 'AB₂',
-                    nodes: {
-                        tmL: {c: 0, t: 1000, fixed: false, dragAxis: 'y'},
-                        tmR: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, 
-                        eut: {c: 35, t: 600, fixed: false, dragAxis: 'both'},
-                        solL: {c: 10, t: 600, fixed: false, dragAxis: 'x'},
-                        solR: {c: 65, t: 600, fixed: false, dragAxis: 'x'},
-                        termL: {c: 2, t: 0, fixed: false, dragAxis: 'x'}, // Unlocked Room Temp Limit
-                        termR: {c: 66, t: 0, fixed: false, dragAxis: 'x'} // Unlocked Room Temp Limit
-                    }
-                },
-                {
-                    id: 'sys2', bounds: [66.7, 100], lblL: 'AB₂', lblR: 'β',
-                    nodes: {
-                        tmL: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, 
-                        tmR: {c: 100, t: 800, fixed: false, dragAxis: 'y'},
-                        eut: {c: 85, t: 500, fixed: false, dragAxis: 'both'},
-                        solL: {c: 68, t: 500, fixed: false, dragAxis: 'x'},
-                        solR: {c: 95, t: 500, fixed: false, dragAxis: 'x'},
-                        termL: {c: 67.5, t: 0, fixed: false, dragAxis: 'x'}, // Unlocked Room Temp Limit
-                        termR: {c: 98, t: 0, fixed: false, dragAxis: 'x'}   // Unlocked Room Temp Limit
-                    }
-                }
-            ]
+        // --- GRAPH TOPOLOGY ENGINE: PERITECTIC + EUTECTIC ---
+        let nodes = {
+            tmA:    { c: 0,   t: 1100, drag: 'y' },
+            tmB:    { c: 100, t: 900,  drag: 'y' },
+
+            // Peritectic Isotherm (L + alpha -> beta)
+            pAlpha: { c: 15, t: 800, drag: 'both' },
+            pBeta:  { c: 35, t: 800, drag: 'x' }, 
+            pLiq:   { c: 55, t: 800, drag: 'x' }, 
+
+            // Eutectic Isotherm (L -> beta + gamma)
+            eBeta:  { c: 45, t: 500, drag: 'both' },
+            eLiq:   { c: 75, t: 500, drag: 'x' }, 
+            eGamma: { c: 90, t: 500, drag: 'x' },
+
+            // Room Temperature Terminals
+            tA:     { c: 5,  t: 0, drag: 'x' },
+            tB1:    { c: 30, t: 0, drag: 'x' }, // Beta Solvus Left
+            tB2:    { c: 40, t: 0, drag: 'x' }, // Beta Solvus Right
+            tG:     { c: 95, t: 0, drag: 'x' }
         };
 
         function mapX(c) { return PAD + (c / 100) * (canvas.width - PAD * 2); }
-        function mapY(t) { return canvas.height - PAD - (t / engineDef.T_MAX) * (canvas.height - PAD * 2); }
+        function mapY(t) { return canvas.height - PAD - (t / T_MAX) * (canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(100, ((x - PAD) / (canvas.width - PAD * 2)) * 100)); }
-        function invY(y) { return Math.max(0, Math.min(engineDef.T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * engineDef.T_MAX)); }
+        function invY(y) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
 
         function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
@@ -152,8 +141,7 @@
         }
 
         function drawCurve(nodeTop, nodeBot, isConvex, color) {
-            ctx.beginPath();
-            ctx.moveTo(mapX(nodeTop.c), mapY(nodeTop.t));
+            ctx.beginPath(); ctx.moveTo(mapX(nodeTop.c), mapY(nodeTop.t));
             let pts = 30;
             for(let i=0; i<=pts; i++){
                 let t = nodeTop.t - (i/pts)*(nodeTop.t - nodeBot.t);
@@ -163,16 +151,34 @@
             ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
         }
 
-        function drawAxisLabel(text, x, y, color, align='center') {
-            ctx.font = 'bold 12px sans-serif';
-            ctx.textAlign = align; ctx.textBaseline = 'middle';
-            let w = ctx.measureText(text).width + 10;
+        // --- CUSTOM SUBSCRIPT RENDERER ---
+        function drawSubscriptLabel(baseText, subText, x, y, color, align='center', showBg=true) {
+            ctx.font = 'bold 13px sans-serif';
+            let wBase = ctx.measureText(baseText).width;
+            ctx.font = 'bold 10px sans-serif';
+            let wSub = subText ? ctx.measureText(subText).width : 0;
+            let wTotal = wBase + wSub;
+
+            let startX = x;
+            if (align === 'center') startX = x - wTotal/2;
+            else if (align === 'right') startX = x - wTotal - 5;
+            else if (align === 'left') startX = x + 5;
+
+            if (showBg) {
+                ctx.fillStyle = '#050505'; 
+                ctx.fillRect(startX - 5, y - 12, wTotal + 10, 24);
+            }
+
+            ctx.fillStyle = color;
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             
-            ctx.fillStyle = '#050505'; 
-            if(align === 'center') ctx.fillRect(x - w/2, y - 10, w, 20);
-            else if (align === 'right') ctx.fillRect(x - w, y - 10, w, 20);
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillText(baseText, startX, y);
             
-            ctx.fillStyle = color; ctx.fillText(text, x, y);
+            if (subText) {
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(subText, startX + wBase, y + 4);
+            }
         }
 
         function draw() {
@@ -183,8 +189,7 @@
             ctx.beginPath();
             ctx.moveTo(PAD, PAD); ctx.lineTo(PAD, canvas.height - PAD);
             ctx.lineTo(canvas.width - PAD, canvas.height - PAD);
-            ctx.lineTo(canvas.width - PAD, PAD);
-            ctx.stroke();
+            ctx.lineTo(canvas.width - PAD, PAD); ctx.stroke();
 
             ctx.fillStyle = '#888'; ctx.font = '12px sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -193,127 +198,113 @@
                 ctx.beginPath(); ctx.moveTo(x, canvas.height - PAD); ctx.lineTo(x, canvas.height - PAD + 5); ctx.stroke();
                 ctx.fillText(i, x, canvas.height - PAD + 10);
             }
-            
             ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-            for(let i=0; i<=engineDef.T_MAX; i+=200) {
+            for(let i=0; i<=T_MAX; i+=200) {
                 let y = mapY(i);
                 ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(PAD - 5, y); ctx.stroke();
                 ctx.fillText(i, PAD - 10, y);
             }
-
             ctx.fillStyle = '#fff'; ctx.font = '14px sans-serif';
             ctx.fillText('Temp (K)', PAD - 10, PAD - 20);
-            ctx.textAlign = 'center';
-            ctx.fillText('Composition (at% B)', canvas.width/2, canvas.height - 20);
+            ctx.textAlign = 'center'; ctx.fillText('Composition (at% B)', canvas.width/2, canvas.height - 20);
 
-            // Boundaries
-            engineDef.subsystems.forEach(sys => {
-                let n = sys.nodes;
-                drawCurve(n.tmL, n.eut, false, '#ff00ff'); 
-                drawCurve(n.tmR, n.eut, false, '#ff00ff'); 
-                drawCurve(n.tmL, n.solL, true, '#00ffff'); 
-                drawCurve(n.tmR, n.solR, true, '#00ffff'); 
-                drawCurve(n.solL, n.termL, true, '#00ffff'); 
-                drawCurve(n.solR, n.termR, true, '#00ffff'); 
-                
-                ctx.beginPath();
-                ctx.moveTo(mapX(n.solL.c), mapY(n.solL.t));
-                ctx.lineTo(mapX(n.solR.c), mapY(n.solR.t));
-                ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3; ctx.stroke();
-            });
-
-            // Region Labels
-            ctx.fillStyle = 'rgba(255,255,255,0.4)'; 
-            ctx.font = 'bold 20px sans-serif';
-            ctx.fillText('L', mapX(50), mapY(1150)); 
+            // Phase Boundaries
+            drawCurve(nodes.tmA, nodes.pAlpha, true, '#00ffff'); // Alpha Solidus
+            drawCurve(nodes.tmA, nodes.pLiq, false, '#ff00ff');  // Alpha Liquidus
+            drawCurve(nodes.pAlpha, nodes.tA, true, '#00ffff');  // Alpha Solvus
             
-            let alphaC = engineDef.subsystems[0].nodes.solL.c * 0.4;
-            let betaC = engineDef.subsystems[1].nodes.solR.c + (100 - engineDef.subsystems[1].nodes.solR.c) * 0.6;
-            ctx.fillText('α', mapX(alphaC), mapY(300)); 
-            ctx.fillText('β', mapX(betaC), mapY(300)); 
-            ctx.fillText('AB₂', mapX(66.7), mapY(300)); 
+            drawCurve(nodes.pBeta, nodes.tB1, true, '#00ffff');  // Beta Solvus Left
+            drawCurve(nodes.pBeta, nodes.eBeta, true, '#00ffff');// Beta Solidus Right
+            
+            drawCurve(nodes.pLiq, nodes.eLiq, false, '#ff00ff'); // Beta Liquidus
+            drawCurve(nodes.eBeta, nodes.tB2, true, '#00ffff');  // Beta Solvus Right
+            
+            drawCurve(nodes.tmB, nodes.eGamma, true, '#00ffff'); // Gamma Solidus
+            drawCurve(nodes.tmB, nodes.eLiq, false, '#ff00ff');  // Gamma Liquidus
+            drawCurve(nodes.eGamma, nodes.tG, true, '#00ffff');  // Gamma Solvus
 
-            engineDef.subsystems.forEach(sys => {
-                let n = sys.nodes;
-                let tL = n.solL.t + (n.tmL.t - n.solL.t) * 0.35;
-                let cL1 = getC_onCurve(tL, n.tmL, n.solL, true) ?? n.tmL.c;
-                let cR1 = getC_onCurve(tL, n.tmL, n.eut, false) ?? n.tmL.c;
-                if(cR1 > cL1) ctx.fillText(`L+${sys.lblL}`, mapX((cL1+cR1)/2), mapY(tL));
+            // Invariants
+            ctx.beginPath(); ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
+            ctx.moveTo(mapX(nodes.pAlpha.c), mapY(nodes.pAlpha.t)); ctx.lineTo(mapX(nodes.pLiq.c), mapY(nodes.pLiq.t)); // Peritectic
+            ctx.moveTo(mapX(nodes.eBeta.c), mapY(nodes.eBeta.t)); ctx.lineTo(mapX(nodes.eGamma.c), mapY(nodes.eGamma.t)); // Eutectic
+            ctx.stroke();
 
-                let tR = n.solR.t + (n.tmR.t - n.solR.t) * 0.35;
-                let cL2 = getC_onCurve(tR, n.tmR, n.eut, false) ?? n.tmR.c;
-                let cR2 = getC_onCurve(tR, n.tmR, n.solR, true) ?? n.tmR.c;
-                if(cR2 > cL2) ctx.fillText(`L+${sys.lblR}`, mapX((cL2+cR2)/2), mapY(tR));
+            // Labels
+            drawSubscriptLabel("L", "", mapX(60), mapY(1000), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("α", "", mapX(nodes.tA.c * 0.5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("β", "", mapX(nodes.eBeta.c - 5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("γ", "", mapX(nodes.tG.c + (100-nodes.tG.c)*0.5), mapY(400), "rgba(255,255,255,0.4)", "center", false);
 
-                let tBot = n.eut.t * 0.5;
-                ctx.fillText(`${sys.lblL}+${sys.lblR}`, mapX(n.eut.c), mapY(tBot));
-            });
+            drawSubscriptLabel("L + α", "", mapX((nodes.pAlpha.c + nodes.pLiq.c)/2), mapY(950), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("L + β", "", mapX((nodes.eBeta.c + nodes.eLiq.c)/2), mapY(650), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("α + β", "", mapX((nodes.tA.c + nodes.tB1.c)/2), mapY(300), "rgba(255,255,255,0.4)", "center", false);
+            drawSubscriptLabel("β + γ", "", mapX((nodes.tB2.c + nodes.tG.c)/2), mapY(250), "rgba(255,255,255,0.4)", "center", false);
 
             if (mode === 'architect') drawNodes();
             else if (mode === 'navigator') handleTieLine();
         }
 
         function drawNodes() {
-            engineDef.subsystems.forEach(sys => {
-                for (let key in sys.nodes) {
-                    let n = sys.nodes[key];
-                    if (!n.fixed) {
-                        ctx.beginPath(); ctx.arc(mapX(n.c), mapY(n.t), 7, 0, Math.PI*2);
-                        ctx.fillStyle = '#ff8800'; ctx.fill();
-                        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-                    }
-                }
-            });
+            for (let key in nodes) {
+                let n = nodes[key];
+                ctx.beginPath(); ctx.arc(mapX(n.c), mapY(n.t), 7, 0, Math.PI*2);
+                ctx.fillStyle = '#ff8800'; ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            }
         }
 
         function handleTieLine() {
             let curC = invX(mouseX); let curT = invY(mouseY);
-            if(curC < 0 || curC > 100 || curT < 0 || curT > engineDef.T_MAX) return;
+            if(curC < 0 || curC > 100 || curT < 0 || curT > T_MAX) return;
 
-            let actSys = engineDef.subsystems.find(s => curC >= s.bounds[0] && curC < s.bounds[1]);
-            if (!actSys) actSys = engineDef.subsystems[engineDef.subsystems.length - 1];
-
-            let s = actSys.nodes;
-            let region = "Single Phase", tieLeft = null, tieRight = null;
-            let lbl1 = "-", lbl2 = "-", w1 = "-", w2 = "-", cLName = "", cRName = "";
-
-            let isLiqL = curT > s.tmL.t;
-            let isLiqR = curT > s.tmR.t;
-
-            let cSolL = isLiqL ? s.tmL.c : (getC_onCurve(curT, s.tmL, s.solL, true) ?? (getC_onCurve(curT, s.solL, s.termL, true) ?? s.solL.c));
-            let cSolR = isLiqR ? s.tmR.c : (getC_onCurve(curT, s.tmR, s.solR, true) ?? (getC_onCurve(curT, s.solR, s.termR, true) ?? s.solR.c));
+            // Geometry Engine Arrays
+            let c_aSol = getC_onCurve(curT, nodes.tmA, nodes.pAlpha, true);
+            let c_aLiq = getC_onCurve(curT, nodes.tmA, nodes.pLiq, false);
+            let c_aSolv = getC_onCurve(curT, nodes.pAlpha, nodes.tA, true) ?? nodes.tA.c;
             
-            let cLiqL = isLiqL ? s.tmL.c : getC_onCurve(curT, s.tmL, s.eut, false);
-            let cLiqR = isLiqR ? s.tmR.c : getC_onCurve(curT, s.tmR, s.eut, false);
+            let c_bSolvL = getC_onCurve(curT, nodes.pBeta, nodes.tB1, true) ?? nodes.tB1.c;
+            let c_bSolR = getC_onCurve(curT, nodes.pBeta, nodes.eBeta, true);
+            let c_bLiq = getC_onCurve(curT, nodes.pLiq, nodes.eLiq, false);
+            let c_bSolvR = getC_onCurve(curT, nodes.eBeta, nodes.tB2, true) ?? nodes.tB2.c;
 
-            if (curT > s.eut.t) {
-                if (curC < cSolL) region = actSys.lblL;
-                else if (curC > cSolR) region = actSys.lblR; 
-                else if (cLiqL !== null && curC >= cSolL && curC <= cLiqL) {
-                    region = `L + ${actSys.lblL}`; tieLeft = cSolL; tieRight = cLiqL;
-                    lbl1 = actSys.lblL; lbl2 = 'L'; cLName = `C${actSys.lblL}`; cRName = 'CL';
-                }
-                else if (cLiqR !== null && curC >= cLiqR && curC <= cSolR) {
-                    region = `L + ${actSys.lblR}`; tieLeft = cLiqR; tieRight = cSolR;
-                    lbl1 = 'L'; lbl2 = actSys.lblR; cLName = 'CL'; cRName = `C${actSys.lblR}`;
-                }
-                else region = "L";
-            } else { 
-                if (curC < cSolL) region = actSys.lblL;
-                else if (curC > cSolR) region = actSys.lblR;
-                else {
-                    region = `${actSys.lblL} + ${actSys.lblR}`; tieLeft = cSolL; tieRight = cSolR;
-                    lbl1 = actSys.lblL; lbl2 = actSys.lblR; cLName = `C${actSys.lblL}`; cRName = `C${actSys.lblR}`;
-                }
+            let c_gSol = getC_onCurve(curT, nodes.tmB, nodes.eGamma, true);
+            let c_gLiq = getC_onCurve(curT, nodes.tmB, nodes.eLiq, false);
+            let c_gSolv = getC_onCurve(curT, nodes.eGamma, nodes.tG, true) ?? nodes.tG.c;
+
+            let region = "Single Phase", tieLeft = null, tieRight = null;
+            let phaseL = {b:"-", s:""}, phaseR = {b:"-", s:""};
+            let varL = {b:"", s:""}, varR = {b:"", s:""};
+
+            // Raycasting Topology Logic
+            if (curT > nodes.pAlpha.t) { // Above Peritectic
+                if (curC < c_aSol) region = "α";
+                else if (curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"L"}; }
+                else if (curC < c_gLiq) region = "L";
+                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
+                else region = "γ";
+            } else if (curT > nodes.eBeta.t) { // Between Peritectic & Eutectic
+                if (curC < c_aSolv) region = "α";
+                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
+                else if (curC < c_bSolR) region = "β";
+                else if (curC <= c_bLiq) { region = "L + β"; tieLeft = c_bSolR; tieRight = c_bLiq; phaseL={b:"β", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"L"}; }
+                else if (curC < c_gLiq) region = "L";
+                else if (curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
+                else region = "γ";
+            } else { // Below Eutectic
+                if (curC < c_aSolv) region = "α";
+                else if (curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
+                else if (curC < c_bSolvR) region = "β";
+                else if (curC <= c_gSolv) { region = "β + γ"; tieLeft = c_bSolvR; tieRight = c_gSolv; phaseL={b:"β", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"γ"}; }
+                else region = "γ";
             }
 
+            let w1 = "-", w2 = "-";
+
             if (tieLeft !== null && tieRight !== null) {
-                // --- TWO PHASE LOGIC ---
                 let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
                 let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
                 
-                let w1_num = S_val / Tot_val;
-                w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
+                let w1_num = S_val / Tot_val; w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
 
                 if (isFrozen) {
                     ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(v0)-mapX(vL), 30);
@@ -325,16 +316,15 @@
                     ctx.beginPath(); ctx.moveTo(mapX(vR), mapY(curT)); ctx.lineTo(mapX(vR), canvas.height - PAD); ctx.stroke();
                     ctx.setLineDash([]);
 
-                    ctx.fillStyle = '#ff8800'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
-                    ctx.fillText(`R = ${R_val}`, mapX(vL + R_val/2), mapY(curT) - 22);
-                    ctx.fillStyle = '#00ffff'; ctx.fillText(`S = ${S_val}`, mapX(v0 + S_val/2), mapY(curT) - 22);
+                    drawSubscriptLabel("R", "", mapX(vL + R_val/2), mapY(curT) - 22, "#ff8800");
+                    drawSubscriptLabel("S", "", mapX(v0 + S_val/2), mapY(curT) - 22, "#00ffff");
 
                     let axisY = canvas.height - PAD + 20;
-                    drawAxisLabel(`${cLName}=${vL}`, mapX(vL), axisY, '#00ffff');
-                    drawAxisLabel(`C0=${v0}`, mapX(v0), axisY, '#ffffff');
-                    drawAxisLabel(`${cRName}=${vR}`, mapX(vR), axisY, '#ff8800');
+                    drawSubscriptLabel(varL.b, varL.s + "=" + vL, mapX(vL), axisY, '#00ffff');
+                    drawSubscriptLabel("C", "0=" + v0, mapX(v0), axisY, '#ffffff');
+                    drawSubscriptLabel(varR.b, varR.s + "=" + vR, mapX(vR), axisY, '#ff8800');
 
-                    lastMathState = { isSinglePhase: false, cLName, cRName, lbl1, lbl2, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
+                    lastMathState = { isSinglePhase: false, varL, varR, phaseL, phaseR, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
                 }
 
                 ctx.beginPath(); ctx.moveTo(mapX(vL), mapY(curT)); ctx.lineTo(mapX(vR), mapY(curT));
@@ -344,23 +334,17 @@
                 ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
             } else {
-                // --- SINGLE PHASE LOGIC ---
-                w1 = "1.00"; w2 = "0.00"; lbl1 = region; lbl2 = "None";
-                
+                w1 = "1.00"; w2 = "0.00"; phaseL = {b:region, s:""}; phaseR = {b:"None", s:""};
                 if (isFrozen) {
-                    let v0 = parseFloat(curC.toFixed(1));
-                    let t0 = Math.round(curT);
+                    let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
                     ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-                    
-                    // Vertical Composition Line
                     ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
-                    drawAxisLabel(`C0=${v0}`, mapX(v0), canvas.height - PAD + 20, '#ffffff', 'center');
-                    
-                    // Horizontal Temperature Line
                     ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(PAD, mapY(curT)); ctx.stroke();
-                    drawAxisLabel(`${t0}`, PAD - 5, mapY(curT), '#ffffff', 'right');
-
                     ctx.setLineDash([]);
+                    
+                    drawSubscriptLabel("C", "0=" + v0, mapX(v0), canvas.height - PAD + 20, '#ffffff');
+                    drawSubscriptLabel(t0.toString(), "", PAD - 5, mapY(curT), '#ffffff', 'right');
+
                     lastMathState = { isSinglePhase: true, region: region, c0: v0, t0: t0 };
                 }
             }
@@ -370,8 +354,9 @@
 
             document.getElementById('out-t').innerText = Math.round(curT); document.getElementById('out-c').innerText = curC.toFixed(1);
             document.getElementById('out-region').innerText = region;
-            document.getElementById('lbl-left').innerText = `X(${lbl1}):`; document.getElementById('out-w1').innerText = w1;
-            document.getElementById('lbl-right').innerText = `X(${lbl2}):`; document.getElementById('out-w2').innerText = w2;
+            
+            document.getElementById('lbl-left').innerHTML = `X<sub>${phaseL.b}</sub>:`; document.getElementById('out-w1').innerText = w1;
+            document.getElementById('lbl-right').innerHTML = phaseR.b === "None" ? `X<sub>-</sub>:` : `X<sub>${phaseR.b}</sub>:`; document.getElementById('out-w2').innerText = w2;
         }
 
         function updateMathPanel() {
@@ -385,9 +370,13 @@
                 let div = document.createElement('div'); div.className = 'math-line'; if(css) div.style.cssText = css;
                 parts.forEach(p => {
                     if(typeof p === 'string') div.appendChild(document.createTextNode(p));
+                    else if(p.sub) {
+                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
+                        span.innerHTML = `${p.text}<sub>${p.sub}</sub>`; div.appendChild(span);
+                    }
                     else {
-                        let span = document.createElement('span'); span.className = 'math-hl';
-                        if(p.color) span.style.color = p.color; span.textContent = p.text; div.appendChild(span);
+                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
+                        span.textContent = p.text; div.appendChild(span);
                     }
                 });
                 content.appendChild(div);
@@ -397,24 +386,30 @@
             if (m.isSinglePhase) {
                 addLine(["1. Identify Region:"], "color:#aaa;"); 
                 addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]);
+                addLine(["\u00A0\u00A0C", {text: "0", sub: "0"}, " = ", {text: m.c0}]);
                 addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
                 addDiv(); 
                 addLine(["2. Apply Lever Rule:"], "color:#aaa;"); 
-                addLine(["\u00A0\u00A0X(", m.region, ") = ", {text: "1.00", color: "var(--cyan)"}]);
+                addLine(["\u00A0\u00A0X", {text: m.region, sub: m.region}, " = ", {text: "1.00", color: "var(--cyan)"}]);
             } else {
                 addLine(["1. Intersections:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0", m.cLName, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]); addLine(["\u00A0\u00A0", m.cRName, " = ", {text: m.cR, color: "var(--orange)"}]);
+                addLine(["\u00A0\u00A0", {text: m.varL.b, sub: m.varL.s, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); 
+                addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); 
+                addLine(["\u00A0\u00A0", {text: m.varR.b, sub: m.varR.s, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
                 addDiv(); addLine(["2. Segments:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
+                addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); 
+                addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); 
+                addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
                 addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0X(", m.lbl1, ") = ", m.S, " / ", m.tot, " = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X(", m.lbl2, ") = ", m.R, " / ", m.tot, " = ", {text: m.w2, color: "var(--orange)"}]);
+                addLine(["\u00A0\u00A0X", {text: m.phaseL.b, sub: m.phaseL.b}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); 
+                addLine(["\u00A0\u00A0X", {text: m.phaseR.b, sub: m.phaseR.b}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
             }
         }
 
-        function snapTo(sysNum) {
-            setMode('navigator'); let sys = engineDef.subsystems[sysNum - 1];
-            mouseX = mapX(sys.nodes.eut.c); mouseY = mapY(sys.nodes.eut.t - 1); 
+        function snapTo(type) {
+            setMode('navigator'); 
+            if(type === 'peri') { mouseX = mapX((nodes.pAlpha.c + nodes.pLiq.c)/2); mouseY = mapY(nodes.pAlpha.t + 20); }
+            else { mouseX = mapX(nodes.eBeta.c + 15); mouseY = mapY(nodes.eBeta.t - 20); }
             isFrozen = true; draw(); updateMathPanel();
         }
 
@@ -430,61 +425,44 @@
             if (isFrozen && mode === 'navigator') return;
             let rect = canvas.getBoundingClientRect(); mouseX = e.clientX - rect.left; mouseY = e.clientY - rect.top;
 
-            if (mode === 'architect' && activeNode) {
+            if (mode === 'architect' && activeNodeKey) {
                 let newC = invX(mouseX); let newT = invY(mouseY);
-                if(newT > engineDef.T_MAX-50) newT = engineDef.T_MAX-50; if(newT < 100) newT = 100;
+                if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
+                
+                let n = nodes[activeNodeKey];
+                if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
 
-                // Restrict X/Y dragging constraints
-                if (activeNode.dragAxis === 'y') newC = activeNode.c; 
-                else if (activeNode.dragAxis === 'x') newT = activeNode.t;
-
-                if (activeNodeKey === 'tmR' && activeSys.id === 'sys1') {
-                    activeSys.nodes.tmR.t = newT;
-                    engineDef.subsystems[1].nodes.tmL.t = newT;
-                } else if (activeNodeKey === 'eut') {
-                    activeNode.c = newC; activeNode.t = newT;
-                    activeSys.nodes.solL.t = newT; activeSys.nodes.solR.t = newT;
-                } else if (activeNodeKey === 'solL') {
-                    if (newC >= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c - 0.5;
-                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
-                    if (newC <= activeSys.nodes.termL.c) newC = activeSys.nodes.termL.c + 0.1;
-                    activeNode.c = newC;
-                } else if (activeNodeKey === 'solR') {
-                    if (newC <= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c + 0.5;
-                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
-                    if (newC >= activeSys.nodes.termR.c) newC = activeSys.nodes.termR.c - 0.1;
-                    activeNode.c = newC;
-                } else if (activeNodeKey === 'termL') {
-                    if (newC >= activeSys.nodes.solL.c) newC = activeSys.nodes.solL.c - 0.1;
-                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
-                    activeNode.c = newC;
-                } else if (activeNodeKey === 'termR') {
-                    if (newC <= activeSys.nodes.solR.c) newC = activeSys.nodes.solR.c + 0.1;
-                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
-                    activeNode.c = newC;
+                // Collision Topology Logic
+                if (activeNodeKey === 'pAlpha') {
+                    if (newT <= nodes.eBeta.t + 50) newT = nodes.eBeta.t + 50; // Peritectic must stay above Eutectic
+                    n.c = newC; n.t = newT; nodes.pBeta.t = newT; nodes.pLiq.t = newT;
+                } else if (activeNodeKey === 'pBeta') {
+                    if (newC <= nodes.pAlpha.c) newC = nodes.pAlpha.c + 1;
+                    if (newC >= nodes.pLiq.c) newC = nodes.pLiq.c - 1;
+                    n.c = newC;
+                } else if (activeNodeKey === 'pLiq') {
+                    if (newC <= nodes.pBeta.c) newC = nodes.pBeta.c + 1;
+                    n.c = newC;
+                } else if (activeNodeKey === 'eBeta') {
+                    if (newT >= nodes.pAlpha.t - 50) newT = nodes.pAlpha.t - 50; // Eutectic must stay below Peritectic
+                    n.c = newC; n.t = newT; nodes.eLiq.t = newT; nodes.eGamma.t = newT;
                 } else {
-                    activeNode.c = newC; activeNode.t = newT;
+                    n.c = newC; n.t = newT;
                 }
             }
             draw();
         });
 
-        canvas.addEventListener('mousedown', (e) => {
+        canvas.addEventListener('mousedown', () => {
             if (mode === 'navigator') { isFrozen = !isFrozen; updateMathPanel(); draw(); return; }
             canvas.style.cursor = 'grabbing';
-            for (let sys of engineDef.subsystems) {
-                for (let key in sys.nodes) {
-                    let n = sys.nodes[key];
-                    if (!n.fixed) {
-                        let dx = mouseX - mapX(n.c); let dy = mouseY - mapY(n.t);
-                        if (dx*dx + dy*dy < 100) { activeNode = n; activeNodeKey = key; activeSys = sys; break; }
-                    }
-                }
-                if (activeNode) break;
+            for (let key in nodes) {
+                let dx = mouseX - mapX(nodes[key].c); let dy = mouseY - mapY(nodes[key].t);
+                if (dx*dx + dy*dy < 100) { activeNodeKey = key; break; }
             }
         });
 
-        canvas.addEventListener('mouseup', () => { activeNode = null; if (mode === 'architect') canvas.style.cursor = 'grab'; });
+        canvas.addEventListener('mouseup', () => { activeNodeKey = null; if (mode === 'architect') canvas.style.cursor = 'grab'; });
 
         function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; draw(); }
         window.addEventListener('resize', resize); resize();
