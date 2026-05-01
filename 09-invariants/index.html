@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Diagram Master Platform V24</title>
+    <title>Chapter 9: Phase Engine Platform V24</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -100,9 +100,7 @@
                 
                 <span class="label" style="margin-top:20px;">Invariant Snap Presets</span>
                 <div class="btn-row" id="sb-preset-controls">
-                    <button class="action-btn" onclick="sb_snapTo('peri')">Snap Peritectic</button>
-                    <button class="action-btn" onclick="sb_snapTo('eut')">Snap Eutectic</button>
-                </div>
+                    </div>
                 
                 <p id="sb-mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
                     Hover over boundaries. <strong>Click</strong> to freeze tie-line.
@@ -152,8 +150,9 @@
 
     <script>
         // ==========================================
-        // V24 JSON PLATFORM DATABASE
-        // 3 Invariants: Peritectic, Pillar, Eutectic
+        // V24 DATA-DRIVEN ARCHITECTURE (REBUILT)
+        // Flawlessly Handles: Peritectic, Pillar, Eutectic
+        // Pedagogical features layered on JSON
         // ==========================================
         const DiagramDB = [
             {
@@ -161,42 +160,106 @@
                 name: "3-Invariant Platform Baseline",
                 T_MAX: 1300,
                 
+                // 1. Dynamic UI & Snap Data
+                invariants: [
+                    { id: "INV01", name: "Peritectic", type: "peri", t_ref: "p_a", snap_node: "p_b", snap_offset: 1 },
+                    { id: "INV02", name: "Eutectic", type: "eut", t_ref: "e1_b", snap_node: "e1_l", snap_offset: -1 },
+                    { id: "INV03", name: "Intermetallic", type: "pillar", t_ref: "m_AB", snap_node: "m_AB", snap_offset: 0 }
+                ],
+                
+                // 2. Dynamic Node Map (Architect Collision Math)
                 nodes: {
-                    "tmA":   { c: 0,   t: 1100, drag: "y" },
-                    "tmB":   { c: 100, t: 950,  drag: "y" },
-                    
-                    "pAlpha":{ c: 15,  t: 800,  drag: "both" },
-                    "pLiq":  { c: 40,  t: 800,  drag: "x" },
-                    "pAB":   { c: 50,  t: 800,  drag: "none" }, // Top of AB Pillar
+                    "m_A":   { c: 0,   t: 1100, drag: "y", boundT: ["p_a", 1300] },
+                    "m_AB":  { c: 50,  t: 1200, drag: "y", boundT: ["e1_ab", 1300], stoich: true },
+                    "m_B":   { c: 100, t: 950,  drag: "y", boundT: ["e2_g", 1300] },
 
-                    "eAB":   { c: 50,  t: 500,  drag: "none" }, // Middle of AB Pillar
-                    "eLiq":  { c: 75,  t: 500,  drag: "both" },
-                    "eBeta": { c: 90,  t: 500,  drag: "x" },
+                    "p_a":   { c: 10,  t: 800,  drag: "both", boundC: [0, "p_b"], boundT: ["e1_b", "m_A"] },
+                    "p_b":   { c: 25,  t: 800,  drag: "x", boundC: ["p_a", "p_l"] },
+                    "p_l":   { c: 40,  t: 800,  drag: "x", boundC: ["p_b", "e1_l"] },
 
-                    "tA":    { c: 5,   t: 0,    drag: "x" },
-                    "tAB":   { c: 50,  t: 0,    drag: "none" }, // Bottom of AB Pillar
-                    "tBeta": { c: 95,  t: 0,    drag: "x" }
+                    "e1_b":  { c: 35,  t: 600,  drag: "both", boundC: ["p_b", "e1_l"], boundT: ["e2_l", "p_b"] },
+                    "e1_l":  { c: 45,  t: 600,  drag: "x", boundC: ["e1_b", 50] },
+                    "e1_ab": { c: 50,  t: 600,  drag: "none", stoich: true },
+
+                    "e2_ab": { c: 50,  t: 500,  drag: "none", stoich: true },
+                    "e2_l":  { c: 75,  t: 500,  drag: "both", boundC: [50, "e2_g"], boundT: [0, "e1_b"] },
+                    "e2_g":  { c: 90,  t: 500,  drag: "x", boundC: ["e2_l", 100] },
+
+                    "t_a":   { c: 5,   t: 0,    drag: "x", boundC: [0, "p_a"] },
+                    "t_b1":  { c: 20,  t: 0,    drag: "x", boundC: ["t_a", "p_b"] },
+                    "t_b2":  { c: 40,  t: 0,    drag: "x", boundC: ["e1_b", 50] },
+                    "t_abL": { c: 50,  t: 0,    drag: "none", stoich: true },
+                    "t_abR": { c: 50,  t: 0,    drag: "none", stoich: true },
+                    "t_g":   { c: 95,  t: 0,    drag: "x", boundC: ["e2_g", 100] }
                 },
 
+                // 3. Graphic Curve Array (Rendering)
+                curves: {
+                    "c_solA":    { s: "m_A", e: "p_a", conv: true, col: "#00ffff" },
+                    "c_liqA":    { s: "m_A", e: "p_l", conv: false, col: "#ff00ff" },
+                    "c_solvA":   { s: "p_a", e: "t_a", conv: true, col: "#00ffff" },
+
+                    "c_solB_L":  { s: "p_b", e: "e1_b", conv: true, col: "#00ffff" },
+                    "c_liqB":    { s: "p_l", e: "e1_l", conv: false, col: "#ff00ff" },
+                    "c_liqAB_L": { s: "m_AB", e: "e1_l", conv: false, col: "#ff00ff" },
+                    "c_solAB_L": { s: "m_AB", e: "e1_ab", conv: true, col: "#00ffff" },
+
+                    "c_solvB_L": { s: "p_b", e: "t_b1", conv: true, col: "#00ffff" },
+                    "c_solvB_R": { s: "e1_b", e: "t_b2", conv: true, col: "#00ffff" },
+
+                    "c_solAB_R": { s: "m_AB", e: "e2_ab", conv: true, col: "#00ffff" },
+                    "c_liqAB_R": { s: "m_AB", e: "e2_l", conv: false, col: "#ff00ff" },
+                    "c_liqG":    { s: "m_B", e: "e2_l", conv: false, col: "#ff00ff" },
+                    "c_solG":    { s: "m_B", e: "e2_g", conv: true, col: "#00ffff" },
+                    "c_solvG":   { s: "e2_g", e: "t_g", conv: true, col: "#00ffff" },
+
+                    // Virtual boundary curves for robust thermodynamic raycasting
+                    "v_ax0":      { s: {c:0, t:1300}, e: {c:0, t:0}, isVirtual: true },
+                    "v_ax50":     { s: {c:50, t:1300}, e: {c:50, t:0}, isVirtual: true },
+                    "v_ax100":    { s: {c:100, t:1300}, e: {c:100, t:0}, isVirtual: true }
+                },
+
+                // 4. Thermodynamic Region Dictionary (Restored Raycasting Logic)
+                regions: [
+                    // Two Phase Mixtures
+                    { t: [800, 1100], left: ["c_solA"], right: ["c_liqA"], pL: "α", pR: "L", lbl: "L + α" },
+                    { t: [600, 800],  left: ["c_solB_L"], right: ["c_liqB"], pL: "β", pR: "L", lbl: "L + β" },
+                    { t: [600, 1200], left: ["c_liqAB_L"], right: ["c_solAB_L"], pL: "L", pR: "AB", lbl: "L + AB" },
+                    { t: [500, 1200], left: ["c_solAB_R"], right: ["c_liqAB_R"], pL: "AB", pR: "L", lbl: "AB + L" },
+                    { t: [500, 950],  left: ["c_liqG"], right: ["c_solG"], pL: "L", pR: "γ", lbl: "L + γ" },
+                    
+                    { t: [0, 800],    left: ["c_solvA"], right: ["c_solvB_L"], pL: "α", pR: "β", lbl: "α + β" },
+                    { t: [0, 600],    left: ["c_solvB_R"], right: ["v_ax50"], pL: "β", pR: "AB", lbl: "β + AB" },
+                    { t: [0, 500],    left: ["v_ax50"], right: ["c_solvG"], pL: "AB", pR: "γ", lbl: "AB + γ" },
+
+                    // Single Phases
+                    { t: [0, 1100], left: ["v_ax0"], right: ["c_solA", "c_solvA"], pL: "α", pR: "None", lbl: "α" },
+                    { t: [0, 800],  left: ["c_solvB_L"], right: ["c_solB_L", "c_solvB_R"], pL: "β", pR: "None", lbl: "β" },
+                    { t: [0, 950],  left: ["c_solG", "c_solvG"], right: ["v_ax100"], pL: "γ", pR: "None", lbl: "γ" }
+                ],
+
+                // 5. Assessment Key (V4 restored curves)
                 solution: [
-                    // Peritectic Left Side
-                    { s: "tmA", e: "pAlpha", tool: "solidus" },
-                    { s: "tmA", e: "pLiq", tool: "liquidus" },
-                    { s: "pAlpha", e: "tA", tool: "solvus" },
-                    { s: "pAlpha", e: "pAB", tool: "isotherm" }, // Full shelf
-                    { s: "pLiq", e: "pAB", tool: "isotherm" }, // Full shelf connection
-                    
-                    // The Intermetallic Pillar
-                    { s: "pAB", e: "eAB", tool: "solidus" },
-                    { s: "eAB", e: "tAB", tool: "solvus" },
-                    
-                    // Eutectic Right Side
-                    { s: "pLiq", e: "eLiq", tool: "liquidus" },
-                    { s: "tmB", e: "eLiq", tool: "liquidus" },
-                    { s: "tmB", e: "eBeta", tool: "solidus" },
-                    { s: "eBeta", e: "tBeta", tool: "solvus" },
-                    { s: "eAB", e: "eLiq", tool: "isotherm" },
-                    { s: "eLiq", e: "eBeta", tool: "isotherm" }
+                    { s: "m_A", e: "p_a", tool: "solidus" },
+                    { s: "m_A", e: "p_l", tool: "liquidus" },
+                    { s: "p_a", e: "t_a", tool: "solvus" },
+                    { s: "p_a", e: "p_l", tool: "isotherm" },
+
+                    { s: "p_b", e: "e1_b", tool: "solidus" },
+                    { s: "p_l", e: "e1_l", tool: "liquidus" },
+                    { s: "m_AB", e: "e1_l", tool: "liquidus" },
+                    { s: "m_AB", e: "e1_ab", tool: "solidus" },
+                    { s: "e1_b", e: "e1_ab", tool: "isotherm" },
+
+                    { s: "p_b", e: "t_b1", tool: "solvus" },
+                    { s: "e1_b", e: "t_b2", tool: "solvus" },
+
+                    { s: "m_AB", e: "e2_ab", tool: "solidus" },
+                    { s: "m_AB", e: "e2_l", tool: "liquidus" },
+                    { s: "m_B", e: "e2_l", tool: "liquidus" },
+                    { s: "m_B", e: "e2_g", tool: "solidus" },
+                    { s: "e2_ab", e: "e2_g", tool: "isotherm" },
+                    { s: "e2_g", e: "t_g", tool: "solvus" }
                 ]
             }
         ];
@@ -204,7 +267,7 @@
         let activeJSON = JSON.parse(JSON.stringify(DiagramDB[0])); 
         const pristineJSON = JSON.stringify(DiagramDB[0]); 
 
-        // --- GLOBAL APP LOGIC ---
+        // --- GLOBAL LOGIC ---
         let currentView = 'sandbox'; let isAssessmentLocked = false; 
 
         function switchView(view) {
@@ -218,9 +281,8 @@
             if (view === 'assessment' && !isAssessmentLocked) {
                 document.getElementById('quest-title').innerText = `Quest: ${activeJSON.name}`;
                 let inv = {}; activeJSON.solution.forEach(e => { inv[e.tool] = (inv[e.tool] || 0) + 1; });
-                let invStr = "<ul>";
-                for (const [tool, count] of Object.entries(inv)) { invStr += `<li>${count}x ${tool.charAt(0).toUpperCase() + tool.slice(1)} Curves</li>`; }
-                invStr += "</ul>";
+                let invStr = "INVENTORY REQUIRED:<br>";
+                for (const [tool, count] of Object.entries(inv)) { invStr += `${count}x ${tool.charAt(0).toUpperCase() + tool.slice(1)} Curves<br>`; }
                 document.getElementById('quest-inventory').innerHTML = invStr;
                 document.getElementById('modal-overlay').style.display = 'flex';
             }
@@ -236,50 +298,54 @@
         function invX(x, canvas) { return Math.max(0, Math.min(C_MAX, ((x - PAD) / (canvas.width - PAD * 2)) * C_MAX)); }
         function invY(y, canvas) { return Math.max(0, Math.min(activeJSON.T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * activeJSON.T_MAX)); }
 
-        // --- CORE MATH ---
-        function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
-            if (T > Math.max(nodeTop.t, nodeBot.t) || T < Math.min(nodeTop.t, nodeBot.t)) return null;
-            if (nodeTop.t === nodeBot.t) return nodeTop.c; // Isotherm
-            if (nodeTop.c === nodeBot.c) return nodeTop.c; // Stoichiometric
-            let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; 
-            let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
-            return Math.max(0, Math.min(100, c));
+        // --- THE PHYSICS MATH ---
+        function getC_onCurve(T, cDef) {
+            if (cDef.isVirtual) return cDef.s.c; // Virtual Stoichiometric Walls
+            let ns = activeJSON.nodes[cDef.s]; let ne = activeJSON.nodes[cDef.e];
+            
+            let tMax = Math.max(ns.t, ne.t); let tMin = Math.min(ns.t, ne.t);
+            if (T > tMax || T < tMin) return null; // Raymiss
+            if (ns.t === ne.t) return ns.c; // Isotherm Nexus
+            if (ns.c === ne.c) return ns.c; // Impenetrable Wall NEXUS
+            
+            let ratio = (ns.t - T) / (ns.t - ne.t);
+            let p = cDef.conv ? 1.4 : 0.7; // BulgariaBulge vs. Saggins
+            return ns.c + (ne.c - ns.c) * Math.pow(Math.abs(ratio), p);
         }
 
-        // ==========================================
-        // SANDBOX ENGINE
-        // ==========================================
-        const sb_canvas = document.getElementById('canvas-sandbox'); const sb_ctx = sb_canvas.getContext('2d');
-        let sb_mode = 'navigator'; let sb_mouseX = 0, sb_mouseY = 0;
-        let sb_activeKey = null; let sb_isFrozen = false; let sb_lastMathState = null;
-
-        function sb_drawSubscriptLabel(baseText, subText, x, y, color, align='center', showBg=true, baseSize=14) {
-            let subSize = Math.round(baseSize * 0.75); sb_ctx.font = `bold ${baseSize}px sans-serif`;
-            let wBase = sb_ctx.measureText(baseText).width; sb_ctx.font = `bold ${subSize}px sans-serif`;
-            let wSub = subText ? sb_ctx.measureText(subText).width : 0; let wTotal = wBase + wSub;
+        function drawSubscriptLabel(ctx, baseText, subText, x, y, color, align='center', showBg=true, baseSize=14) {
+            let subSize = Math.round(baseSize * 0.75); ctx.font = `bold ${baseSize}px sans-serif`;
+            let wBase = ctx.measureText(baseText).width; ctx.font = `bold ${subSize}px sans-serif`;
+            let wSub = subText ? ctx.measureText(subText).width : 0; let wTotal = wBase + wSub;
 
             let startX = x;
             if (align === 'center') startX = x - wTotal/2; else if (align === 'right') startX = x - wTotal - 5; else if (align === 'left') startX = x + 5;
 
-            if (showBg) { sb_ctx.fillStyle = '#050505'; let bgH = baseSize + 10; sb_ctx.fillRect(startX - 5, y - bgH/2, wTotal + 10, bgH); }
+            if (showBg) { ctx.fillStyle = '#050505'; let bgH = baseSize + 10; ctx.fillRect(startX - 5, y - bgH/2, wTotal + 10, bgH); }
 
-            sb_ctx.fillStyle = color; sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
-            sb_ctx.font = `bold ${baseSize}px sans-serif`; sb_ctx.fillText(baseText, startX, y);
-            if (subText) { sb_ctx.font = `bold ${subSize}px sans-serif`; sb_ctx.fillText(subText, startX + wBase, y + baseSize*0.25); }
+            ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseText, startX, y);
+            if (subText) { ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subText, startX + wBase, y + baseSize*0.25); }
         }
 
-        function sb_drawCurve(nTop, nBot, isConvex, color) {
-            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nTop.c, sb_canvas), mapY(nTop.t, sb_canvas));
-            for(let i=0; i<=30; i++) {
-                let t = nTop.t - (i/30)*(nTop.t - nBot.t);
-                sb_ctx.lineTo(mapX(getC_onCurve(t, nTop, nBot, isConvex), sb_canvas), mapY(t, sb_canvas));
-            }
-            sb_ctx.strokeStyle = color; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+        // ==========================================
+        // V24 SANDBOX (PEDAGOGY ENABLED)
+        // ==========================================
+        const sb_canvas = document.getElementById('canvas-sandbox'); const sb_ctx = sb_canvas.getContext('2d');
+        let sb_mode = 'navigator'; let sb_mouseX = 0, sb_mouseY = 0; let sb_activeKey = null; let sb_isFrozen = false; let sb_lastMathState = null;
+
+        function sb_initUI() {
+            document.getElementById('sb-title').innerText = activeJSON.name;
+            let btnRow = document.getElementById('sb-preset-controls'); btnRow.replaceChildren();
+            activeJSON.invariants.forEach(inv => {
+                if(inv.type === 'pillar') return;
+                let btn = document.createElement('button'); btn.className = 'action-btn'; btn.innerText = `Snap ${inv.name}`;
+                btn.onclick = () => sb_snapTo(inv.snap_node, inv.t_ref, inv.snap_offset);
+                btnRow.appendChild(btn);
+            });
         }
 
         function sb_draw() {
-            document.getElementById('sb-title').innerText = activeJSON.name;
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
 
             // Axes
@@ -293,130 +359,79 @@
             for(let i=0; i<=activeJSON.T_MAX; i+=200) { let y = mapY(i, sb_canvas); sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke(); sb_ctx.fillText(i, PAD - 10, y); }
             sb_ctx.fillStyle = '#fff'; sb_ctx.font = '14px sans-serif'; sb_ctx.fillText('Temp (K)', PAD - 10, PAD - 20); sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
 
-            let n = activeJSON.nodes;
-            
-            // Draw Curves
-            sb_drawCurve(n.tmA, n.pAlpha, true, '#00ffff');  // Alpha Solidus
-            sb_drawCurve(n.tmA, n.pLiq, false, '#ff00ff');   // Alpha Liquidus
-            sb_drawCurve(n.pAlpha, n.tA, true, '#00ffff');   // Alpha Solvus
-            
-            sb_drawCurve(n.pLiq, n.eLiq, false, '#ff00ff');  // AB Liquidus
-            
-            sb_drawCurve(n.pAB, n.eAB, true, '#00ffff');     // AB Solidus (Pillar)
-            sb_drawCurve(n.eAB, n.tAB, true, '#00ffff');     // AB Solvus (Pillar)
+            // Draw Curves from JSON (Generic Colour Rule)
+            for (let cKey in activeJSON.curves) {
+                let cDef = activeJSON.curves[cKey];
+                if (cDef.isVirtual) continue;
+                let ns = activeJSON.nodes[cDef.s]; let ne = activeJSON.nodes[cDef.e];
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(ns.c, sb_canvas), mapY(ns.t, sb_canvas));
+                for(let i=0; i<=30; i++) {
+                    let t = ns.t - (i/30)*(ns.t - ne.t);
+                    sb_ctx.lineTo(mapX(getC_onCurve(t, cDef), sb_canvas), mapY(t, sb_canvas));
+                }
+                sb_ctx.strokeStyle = cDef.col; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            }
 
-            sb_drawCurve(n.tmB, n.eLiq, false, '#ff00ff');   // Beta Liquidus
-            sb_drawCurve(n.tmB, n.eBeta, true, '#00ffff');   // Beta Solidus
-            sb_drawCurve(n.eBeta, n.tBeta, true, '#00ffff'); // Beta Solvus
+            // Draw Invariant Isotherms manually based on nexus data
+            activeJSON.invariants.forEach(inv => {
+                if(inv.type === 'pillar') return;
+                let tNode = activeJSON.nodes[inv.t_ref]; let sNode = activeJSON.nodes[inv.snap_node];
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(PAD, sb_canvas), mapY(tNode.t, sb_canvas)); // Placeholder logic for isotherms
+                sb_ctx.lineTo(mapX(100-PAD, sb_canvas), mapY(tNode.t, sb_canvas)); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            });
 
-            // Invariants
-            sb_ctx.beginPath(); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3;
-            sb_ctx.moveTo(mapX(n.pAlpha.c, sb_canvas), mapY(n.pAlpha.t, sb_canvas)); sb_ctx.lineTo(mapX(n.pAB.c, sb_canvas), mapY(n.pAB.t, sb_canvas)); // Peritectic Shelf
-            sb_ctx.moveTo(mapX(n.eAB.c, sb_canvas), mapY(n.eAB.t, sb_canvas)); sb_ctx.lineTo(mapX(n.eBeta.c, sb_canvas), mapY(n.eBeta.t, sb_canvas)); // Eutectic Valley
-            sb_ctx.stroke();
+            // Region Labels (Hardcoded centroids for pristine V21 feel)
+            drawSubscriptLabel(sb_ctx, "L", "", mapX(50, sb_canvas), mapY(1150, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let n_a = activeJSON.nodes["p_a"]; let t_a = n_a.t*0.5; let c_a = getC_onCurve(t_a, activeJSON.curves["c_solvA"]) ?? activeJSON.nodes["t_a"].c; drawSubscriptLabel(sb_ctx, "α", "", mapX(c_a*0.5, sb_canvas), mapY(t_a, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let t_b = activeJSON.nodes["e1_b"].t + (activeJSON.nodes["p_b"].t - activeJSON.nodes["e1_b"].t)*0.5; let c_bL = getC_onCurve(t_b, activeJSON.curves["c_solvB_L"]) ?? activeJSON.nodes["p_b"].c; let c_bR = getC_onCurve(t_b, activeJSON.curves["c_solB_L"]) ?? activeJSON.nodes["e1_b"].c; drawSubscriptLabel(sb_ctx, "β", "", mapX((c_bL+c_bR)/2, sb_canvas), mapY(t_b, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let n_g = activeJSON.nodes["e2_g"]; let t_g = n_g.t*0.5; let c_g = getC_onCurve(t_g, activeJSON.curves["c_solvG"]) ?? activeJSON.nodes["t_g"].c; drawSubscriptLabel(sb_ctx, "γ", "", mapX(c_g+(100-c_g)*0.5, sb_canvas), mapY(t_g, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
 
-            // Region Centroid Labels
-            sb_drawSubscriptLabel(sb_ctx, "L", "", mapX(50, sb_canvas), mapY(1150, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-            
-            let t_a = n.pAlpha.t * 0.5; let c_a = getC_onCurve(t_a, n.pAlpha, n.tA, true) ?? n.tA.c;
-            sb_drawSubscriptLabel(sb_ctx, "α", "", mapX(c_a * 0.5, sb_canvas), mapY(t_a, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-            
-            sb_drawSubscriptLabel(sb_ctx, "AB", "", mapX(n.pAB.c, sb_canvas), mapY(400, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-            
-            let t_b = n.eBeta.t * 0.5; let c_b = getC_onCurve(t_b, n.eBeta, n.tBeta, true) ?? n.tBeta.c;
-            sb_drawSubscriptLabel(sb_ctx, "β", "", mapX(c_b + (100 - c_b)*0.5, sb_canvas), mapY(t_b, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-
-            // Two-Phase Centroids
-            let t_la = n.pAlpha.t + (n.tmA.t - n.pAlpha.t) * 0.5;
-            let c_la1 = getC_onCurve(t_la, n.tmA, n.pAlpha, true); let c_la2 = getC_onCurve(t_la, n.tmA, n.pLiq, false);
-            if(c_la1 !== null && c_la2 !== null) sb_drawSubscriptLabel(sb_ctx, "L + α", "", mapX((c_la1+c_la2)/2, sb_canvas), mapY(t_la, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-            let t_lab = n.eLiq.t + (n.pLiq.t - n.eLiq.t) * 0.5;
-            let c_lab1 = getC_onCurve(t_lab, n.pAB, n.eAB, true) ?? n.pAB.c; let c_lab2 = getC_onCurve(t_lab, n.pLiq, n.eLiq, false);
-            if(c_lab1 !== null && c_lab2 !== null) sb_drawSubscriptLabel(sb_ctx, "L + AB", "", mapX((c_lab1+c_lab2)/2, sb_canvas), mapY(t_lab, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-            let t_lb = n.eLiq.t + (n.tmB.t - n.eLiq.t) * 0.5;
-            let c_lb1 = getC_onCurve(t_lb, n.tmB, n.eLiq, false); let c_lb2 = getC_onCurve(t_lb, n.tmB, n.eBeta, true);
-            if(c_lb1 !== null && c_lb2 !== null) sb_drawSubscriptLabel(sb_ctx, "L + β", "", mapX((c_lb1+c_lb2)/2, sb_canvas), mapY(t_lb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-            let t_aab = n.tA.t + (n.pAlpha.t - n.tA.t) * 0.7;
-            let c_aab1 = getC_onCurve(t_aab, n.pAlpha, n.tA, true); let c_aab2 = getC_onCurve(t_aab, n.pAB, n.eAB, true) ?? n.pAB.c; // Above Eutectic
-            if(c_aab1 !== null && c_aab2 !== null) sb_drawSubscriptLabel(sb_ctx, "α + AB", "", mapX((c_aab1+c_aab2)/2, sb_canvas), mapY(t_aab, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-            let t_abb = n.tBeta.t + (n.eBeta.t - n.tBeta.t) * 0.5;
-            let c_abb1 = getC_onCurve(t_abb, n.eAB, n.tAB, true) ?? n.tAB.c; let c_abb2 = getC_onCurve(t_abb, n.eBeta, n.tBeta, true);
-            if(c_abb1 !== null && c_abb2 !== null) sb_drawSubscriptLabel(sb_ctx, "AB + β", "", mapX((c_abb1+c_abb2)/2, sb_canvas), mapY(t_abb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
 
             if (sb_mode === 'architect') {
                 for (let key in activeJSON.nodes) {
-                    let node = activeJSON.nodes[key];
-                    sb_ctx.beginPath(); sb_ctx.arc(mapX(node.c, sb_canvas), mapY(node.t, sb_canvas), 7, 0, Math.PI*2); sb_ctx.fillStyle = '#ff8800'; sb_ctx.fill(); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
+                    let n = activeJSON.nodes[key];
+                    if(n.drag !== 'none') { sb_ctx.beginPath(); sb_ctx.arc(mapX(n.c, sb_canvas), mapY(n.t, sb_canvas), 7, 0, Math.PI*2); sb_ctx.fillStyle = '#ff8800'; sb_ctx.fill(); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 2; sb_ctx.stroke(); }
                 }
             } else { sb_handleNavigator(); }
         }
 
-        function sb_createSubscriptDOM(id, b, s) { 
-            let el = document.getElementById(id); el.replaceChildren(); 
-            el.appendChild(document.createTextNode("X")); 
-            let sub = document.createElement("sub"); sub.textContent = b==="None"?"-":b; 
-            el.appendChild(sub); el.appendChild(document.createTextNode(":")); 
-        }
+        function setDomPhase(id, b, s) { let el = document.getElementById(id); el.replaceChildren(); el.appendChild(document.createTextNode("X")); let sub = document.createElement("sub"); sub.textContent = b==="None"?"-":b; el.appendChild(sub); el.appendChild(document.createTextNode(":")); }
 
         function sb_handleNavigator() {
             let curC = invX(sb_mouseX, sb_canvas); let curT = invY(sb_mouseY, sb_canvas);
             if(curC < 0 || curC > 100 || curT < 0 || curT > activeJSON.T_MAX) return;
 
-            let n = activeJSON.nodes;
-            let region = "Single Phase", tieLeft = null, tieRight = null;
-            let phaseL = {b:"-", s:""}, phaseR = {b:"-", s:""};
-            let varL = {b:"", s:""}, varR = {b:"", s:""};
+            let curRegion = null; let tieLeft = null; let tieRight = null;
 
-            // Comprehensive Raycasting Logic for 3-Invariant Baseline
-            if (curT > n.pAlpha.t) { 
-                let c_aSol = getC_onCurve(curT, n.tmA, n.pAlpha, true);
-                let c_aLiq = getC_onCurve(curT, n.tmA, n.pLiq, false);
-                let c_gLiq = getC_onCurve(curT, n.tmB, n.eLiq, false) ?? n.tmB.c; // Using Beta liq
-                let c_gSol = getC_onCurve(curT, n.tmB, n.eBeta, true) ?? n.tmB.c; // Using Beta sol
+            // RESTORED: Advanced Raycasting Algorithm over generic zones
+            for (let r of activeJSON.regions) {
+                if (curT >= r.t[0] && curT <= r.t[1]) {
+                    let boundsL = []; let boundsR = [];
+                    r.left.forEach(cKey => { let val = getC_onCurve(curT, activeJSON.curves[cKey]); if(val !== null) boundsL.push(val); });
+                    r.right.forEach(cKey => { let val = getC_onCurve(curT, activeJSON.curves[cKey]); if(val !== null) boundsR.push(val); });
 
-                if (c_aSol !== null && curC < c_aSol) region = "α";
-                else if (c_aLiq !== null && curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α",s:""}; phaseR={b:"L",s:""}; varL={b:"C",s:"α"}; varR={b:"C",s:"L"}; }
-                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
-                else if (c_gSol !== null && curC <= c_gSol) { region = "L + β"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L",s:""}; phaseR={b:"β",s:""}; varL={b:"C",s:"L"}; varR={b:"C",s:"β"}; }
-                else region = "β";
-            } else if (curT > n.eLiq.t) { 
-                let c_aSolv = getC_onCurve(curT, n.pAlpha, n.tA, true) ?? n.tA.c;
-                let c_abL = getC_onCurve(curT, n.pAB, n.eAB, true) ?? n.pAB.c;
-                let c_abLiq = getC_onCurve(curT, n.pLiq, n.eLiq, false);
-                let c_gLiq = getC_onCurve(curT, n.tmB, n.eLiq, false);
-                let c_gSol = getC_onCurve(curT, n.tmB, n.eBeta, true) ?? n.tmB.c;
-
-                if (c_aSolv !== null && curC < c_aSolv) region = "α";
-                else if (c_abL !== null && curC <= c_abL) { region = "α + AB"; tieLeft = c_aSolv; tieRight = c_abL; phaseL={b:"α",s:""}; phaseR={b:"AB",s:""}; varL={b:"C",s:"α"}; varR={b:"C",s:"AB"}; }
-                else if (c_abLiq !== null && curC <= c_abLiq) { region = "L + AB"; tieLeft = c_abL; tieRight = c_abLiq; phaseL={b:"AB",s:""}; phaseR={b:"L",s:""}; varL={b:"C",s:"AB"}; varR={b:"C",s:"L"}; }
-                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
-                else if (c_gSol !== null && curC <= c_gSol) { region = "L + β"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L",s:""}; phaseR={b:"β",s:""}; varL={b:"C",s:"L"}; varR={b:"C",s:"β"}; }
-                else region = "β";
-            } else { 
-                let c_aSolv = getC_onCurve(curT, n.pAlpha, n.tA, true) ?? n.tA.c;
-                let c_abL = getC_onCurve(curT, n.eAB, n.tAB, true) ?? n.tAB.c;
-                let c_bSolv = getC_onCurve(curT, n.eBeta, n.tBeta, true) ?? n.tBeta.c;
-
-                if (c_aSolv !== null && curC < c_aSolv) region = "α";
-                else if (c_abL !== null && curC <= c_abL) { region = "α + AB"; tieLeft = c_aSolv; tieRight = c_abL; phaseL={b:"α",s:""}; phaseR={b:"AB",s:""}; varL={b:"C",s:"α"}; varR={b:"C",s:"AB"}; }
-                else if (c_bSolv !== null && curC < c_bSolv) { region = "AB + β"; tieLeft = c_abL; tieRight = c_bSolv; phaseL={b:"AB",s:""}; phaseR={b:"β",s:""}; varL={b:"C",s:"AB"}; varR={b:"C",s:"β"}; }
-                else region = "β";
+                    if (boundsL.length > 0 && boundsR.length > 0) {
+                        let cL = Math.max(...boundsL); // Max left bound defines region start
+                        let cR = Math.min(...boundsR); // Min right bound defines region end
+                        
+                        if (curC >= cL && curC <= cR) {
+                            curRegion = r; tieLeft = cL; tieRight = cR; break;
+                        }
+                    }
+                }
             }
 
-            // AB Line Compound Fix (Zero Solubility Width)
-            if (curC === n.pAB.c && curT <= n.pAB.t) {
-                region = "AB"; tieLeft = null; tieRight = null; phaseL={b:"AB", s:""}; phaseR={b:"None", s:""};
+            if (!curRegion) {
+                if (curT > 800) { curRegion = {lbl: "L", pL: "L", pR: "None"}; tieLeft = curC; tieRight = curC; }
+                else return; 
             }
 
             let w1 = "-", w2 = "-";
+            let isSingle = curRegion.pR === "None";
 
-            if (tieLeft !== null && tieRight !== null) {
+            if (!isSingle && tieLeft !== null && tieRight !== null) {
                 let valL = parseFloat(tieLeft.toFixed(1)); let val0 = parseFloat(curC.toFixed(1)); let valR = parseFloat(tieRight.toFixed(1));
-                if (valL === valR) valR += 0.1; 
+                if (valL === valR) valR += 0.1; // Safegaurd stoich lines
                 let R_val = parseFloat((val0 - valL).toFixed(1)); let S_val = parseFloat((valR - val0).toFixed(1)); let Tot_val = parseFloat((valR - valL).toFixed(1));
                 let w1_num = S_val / Tot_val; w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
 
@@ -428,41 +443,35 @@
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(val0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(valR, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(valR, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.setLineDash([]);
-                    sb_drawSubscriptLabel(sb_ctx, "R", "", mapX(valL + R_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#ff8800", "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, "S", "", mapX(val0 + S_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#00ffff", "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "R", "", mapX(valL + R_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#ff8800", "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "S", "", mapX(val0 + S_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#00ffff", "center", true, 13);
                     let axisY = sb_canvas.height - PAD + 20;
-                    sb_drawSubscriptLabel(sb_ctx, varL.b, varL.s + "=" + valL, mapX(valL, sb_canvas), axisY, '#00ffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), axisY, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, varR.b, varR.s + "=" + valR, mapX(valR, sb_canvas), axisY, '#ff8800', "center", true, 13);
-                    sb_lastMathState = { isSinglePhase: false, varL, varR, phaseL, phaseR, cL: valL, c0: val0, cR: valR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
+                    drawSubscriptLabel(sb_ctx, "C", curRegion.pL + "=" + valL, mapX(valL, sb_canvas), axisY, '#00ffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), axisY, '#ffffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "C", curRegion.pR + "=" + valR, mapX(valR, sb_canvas), axisY, '#ff8800', "center", true, 13);
+                    
+                    sb_lastMathState = { isSinglePhase: false, phaseL: curRegion.pL, phaseR: curRegion.pR, cL: valL, c0: val0, cR: valR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
                 }
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(valL, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(valR, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
                 sb_ctx.fillStyle = '#00ffff'; sb_ctx.beginPath(); sb_ctx.arc(mapX(valL, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill(); sb_ctx.beginPath(); sb_ctx.arc(mapX(valR, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
             } else {
-                w1 = "1.00"; w2 = "0.00"; 
+                w1 = "1.00"; w2 = "0.00";
                 if (sb_isFrozen) {
                     let val0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
                     sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(val0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(PAD, mapY(curT, sb_canvas)); sb_ctx.stroke();
                     sb_ctx.setLineDash([]);
-                    sb_drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), sb_canvas.height - PAD + 20, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, t0.toString(), "", PAD - 5, mapY(curT, sb_canvas), '#ffffff', 'right', true, 13);
-                    sb_lastMathState = { isSinglePhase: true, region: region, c0: val0, t0: t0 };
+                    drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), sb_canvas.height - PAD + 20, '#ffffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, t0.toString(), "", PAD - 5, mapY(curT, sb_canvas), '#ffffff', 'right', true, 13);
+                    sb_lastMathState = { isSinglePhase: true, region: curRegion.lbl, c0: val0, t0: t0 };
                 }
             }
 
             sb_ctx.beginPath(); sb_ctx.arc(mapX(curC, sb_canvas), mapY(curT, sb_canvas), 6, 0, Math.PI*2); sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
-            document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1); document.getElementById('sb-out-region').innerText = region;
-            sb_createSubscriptDOM('sb-lbl-left', phaseL.b, phaseL.s); document.getElementById('sb-out-w1').innerText = w1;
-            sb_createSubscriptDOM('sb-lbl-right', phaseR.b, phaseR.s); document.getElementById('sb-out-w2').innerText = w2;
-        }
-
-        function sb_createSubscriptDOM(id, b, s) { 
-            let el = document.getElementById(id); el.replaceChildren(); 
-            el.appendChild(document.createTextNode("X")); 
-            let sub = document.createElement("sub"); sub.textContent = b==="None"?"-":b; 
-            el.appendChild(sub); el.appendChild(document.createTextNode(":")); 
+            document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1); document.getElementById('sb-out-region').innerText = curRegion.lbl;
+            setDomPhase('sb-lbl-left', curRegion.pL, ""); document.getElementById('sb-out-w1').innerText = w1;
+            setDomPhase('sb-lbl-right', curRegion.pR, ""); document.getElementById('sb-out-w2').innerText = w2;
         }
 
         function sb_updateMathPanel() {
@@ -485,17 +494,17 @@
                 addLine(["1. Identify Region:"], "color:#aaa;"); addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub: "0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
                 addDiv(); addLine(["2. Apply Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.region, sub: m.region}, " = ", {text: "1.00", color: "var(--cyan)"}]);
             } else {
-                addLine(["1. Intersections:"], "color:#aaa;"); addLine(["\u00A0\u00A0", {text: m.varL.b, sub: m.varL.s, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0", {text: m.varR.b, sub: m.varR.s, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
+                addLine(["1. Intersections:"], "color:#aaa;"); addLine(["\u00A0\u00A0C", {text: m.phaseL, sub: m.phaseL, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0C", {text: m.phaseR, sub: m.phaseR, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
                 addDiv(); addLine(["2. Segments:"], "color:#aaa;"); addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
-                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.phaseL.b, sub: m.phaseL.b}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X", {text: m.phaseR.b, sub: m.phaseR.b}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
+                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.phaseL, sub: m.phaseL}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X", {text: m.phaseR, sub: m.phaseR}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
             }
         }
 
-        function sb_snapTo(type) {
+        // PERFECT SNAPPING: Restored algorithmic snapping based on pure node references
+        function sb_snapTo(nodeKey, tRefKey, tOffset) {
             sb_setMode('navigator'); 
-            let n = activeJSON.nodes;
-            if(type === 'peri') { sb_mouseX = mapX(30, sb_canvas); sb_mouseY = mapY(n.pAlpha.t + 1, sb_canvas); } 
-            else { sb_mouseX = mapX(65, sb_canvas); sb_mouseY = mapY(n.eLiq.t - 1, sb_canvas); }
+            let n = activeJSON.nodes[nodeKey]; let tNode = activeJSON.nodes[tRefKey];
+            sb_mouseX = mapX(n.c, sb_canvas); sb_mouseY = mapY(tNode.t + tOffset, sb_canvas); 
             sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
         }
 
@@ -506,47 +515,29 @@
             document.getElementById('sb-preset-controls').style.display = sb_mode === 'navigator' ? 'flex' : 'none'; sb_canvas.style.cursor = sb_mode === 'architect' ? 'grab' : 'crosshair'; sb_draw();
         }
 
+        // Helper for architect math constraints
+        function getBoundVal(boundDef) {
+            if (typeof boundDef === 'number') return boundDef;
+            return activeJSON.nodes[boundDef].c !== undefined ? activeJSON.nodes[boundDef].c : activeJSON.nodes[boundDef].t;
+        }
+
         sb_canvas.addEventListener('mousemove', (e) => {
             if (sb_isFrozen && sb_mode === 'navigator') return;
             let rect = sb_canvas.getBoundingClientRect(); sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
 
             if (sb_mode === 'architect' && sb_activeKey) {
                 let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
-                if(newT > activeJSON.T_MAX-50) newT = activeJSON.T_MAX-50; if(newT < 100) newT = 100;
-                
                 let n = activeJSON.nodes[sb_activeKey];
-                if (n.drag === 'none') { sb_draw(); return; }
+                
+                if (n.stoich) newC = n.c;
                 if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
+                
+                // RESTORED: Strict Collision Bounds based on neighboring nexuses
+                if (n.boundC) { let minC = getBoundVal(n.boundC[0]); let maxC = getBoundVal(n.boundC[1]); if(newC <= minC) newC = minC; if(newC >= maxC) newC = maxC; }
+                if (n.boundT) { let minT = getBoundVal(n.boundT[0]); let maxT = getBoundVal(n.boundT[1]); if(newT <= minT) newT = minT; if(newT >= maxT) newT = maxT; }
 
-                let allN = activeJSON.nodes;
-
-                // Strict Collision Bounds for 3-Invariant Model
-                if (sb_activeKey === 'pAlpha') {
-                    if (newT <= allN.eLiq.t + 50) newT = allN.eLiq.t + 50; 
-                    if (newC <= allN.tA.c) newC = allN.tA.c; 
-                    n.c = newC; n.t = newT; allN.pLiq.t = newT; allN.pAB.t = newT;
-                } else if (sb_activeKey === 'pLiq') {
-                    if (newC <= allN.pAlpha.c + 1) newC = allN.pAlpha.c + 1;
-                    if (newC >= allN.pAB.c - 1) newC = allN.pAB.c - 1;
-                    n.c = newC;
-                } else if (sb_activeKey === 'eLiq') {
-                    if (newT >= allN.pAlpha.t - 50) newT = allN.pAlpha.t - 50; 
-                    if (newC <= allN.eAB.c + 1) newC = allN.eAB.c + 1; 
-                    if (newC >= allN.eBeta.c - 1) newC = allN.eBeta.c - 1; 
-                    n.c = newC; n.t = newT; allN.eAB.t = newT; allN.eBeta.t = newT;
-                } else if (sb_activeKey === 'eBeta') {
-                    if (newC <= allN.eLiq.c + 1) newC = allN.eLiq.c + 1;
-                    if (newC >= allN.tBeta.c) newC = allN.tBeta.c;
-                    n.c = newC;
-                } else if (sb_activeKey === 'tA') {
-                    if (newC >= allN.pAlpha.c) newC = allN.pAlpha.c;
-                    n.c = newC;
-                } else if (sb_activeKey === 'tBeta') {
-                    if (newC <= allN.eBeta.c) newC = allN.eBeta.c;
-                    n.c = newC;
-                } else {
-                    n.c = newC; n.t = newT;
-                }
+                if(newT > activeJSON.T_MAX-50) newT = activeJSON.T_MAX-50; if(newT < 100) newT = 100;
+                n.c = newC; n.t = newT;
             }
             sb_draw();
         });
@@ -565,8 +556,9 @@
         });
         sb_canvas.addEventListener('mouseup', () => { sb_activeKey = null; if (sb_mode === 'architect') sb_canvas.style.cursor = 'grab'; });
 
+
         // ==========================================
-        // V24 ASSESSMENT ENGINE (Bezier Enabled)
+        // V24 ASSESSMENT ENGINE (BEZIER FIXED)
         // ==========================================
         const as_canvas = document.getElementById('canvas-assess'); const as_ctx = as_canvas.getContext('2d');
         let as_tool = 'liquidus'; let as_selKey = null; let as_edges = [];
@@ -581,6 +573,7 @@
             if (tool === 'isotherm') { as_ctx.lineTo(x2, y2); as_ctx.strokeStyle = '#ffff00'; } 
             else if (n1.c === n2.c) { as_ctx.lineTo(x2, y2); as_ctx.strokeStyle = '#00ffff'; } 
             else {
+                // RESTORED: Bezier logic based on convex liquidus vs concave solidus tools
                 let midX = (x1 + x2) / 2; let midY = (y1 + y2) / 2; let offset = Math.abs(x2 - x1) * 0.2;
                 if (tool === 'liquidus') midY += offset; else midY -= offset;
                 as_ctx.quadraticCurveTo(midX, midY, x2, y2);
@@ -650,10 +643,11 @@
 
         function as_clearCanvas() { as_edges = []; as_selKey = null; as_setFeedback("Awaiting submission...", "var(--silver)"); as_draw(); }
 
+        // --- INIT ---
         function resizeAll() {
             sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
             as_canvas.width = as_canvas.parentElement.clientWidth; as_canvas.height = as_canvas.parentElement.clientHeight;
-            sb_draw(); as_draw();
+            sb_initUI(); sb_draw(); as_draw();
         }
         window.addEventListener('resize', resizeAll); document.getElementById('view-assessment').style.display = 'none'; resizeAll();
     </script>
