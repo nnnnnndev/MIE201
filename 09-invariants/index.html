@@ -98,6 +98,7 @@
 
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
+                if (!curve) return null; // Safety check
                 const nStart = this.schema.nodes[curve.start];
                 const nEnd = this.schema.nodes[curve.end];
 
@@ -105,7 +106,9 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                if (curve.type === "stoich_wall") return nTop.c; 
+                if (curve.type === "stoich_wall" || curve.type === "bottom_edge") return nTop.c; // Vertical or flat line exceptions
+
+                if (nTop.t === nBot.t) return nTop.c; // Prevent divide by zero
 
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t);
                 const power = curve.convexity === true ? 1.4 : 0.7; 
@@ -115,13 +118,15 @@
             buildRegionPolygons() {
                 this.polygons = {};
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar') continue; // Handled differently
+                    if (region.type === 'intermetallic-pillar') continue; 
 
                     let points = [];
                     region.bounding_curves.forEach(curveDef => {
                         const curveId = curveDef.id;
-                        const direction = curveDef.dir; // 1 for top-to-bottom, -1 for bottom-to-top
+                        const direction = curveDef.dir; 
                         const curve = this.schema.curves[curveId];
+                        if (!curve) return; // Skip if curve is missing to prevent crashes
+
                         const nStart = this.schema.nodes[curve.start];
                         const nEnd = this.schema.nodes[curve.end];
                         
@@ -145,16 +150,16 @@
             },
 
             getRegionAtPoint(targetC, targetT) {
-                // 1. Check Stoichiometric Pillars First
+                // 1. Check Stoichiometric Pillars
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
                     if (region.type === 'intermetallic-pillar') {
-                        if (Math.abs(targetC - region.stoichiometric_c) < 0.5 && targetT < 950) { // simplified height check
+                        if (Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 950) { 
                             return { id: regionId, ...region };
                         }
                     }
                 }
 
-                // 2. Standard Raycasting
+                // 2. Standard Raycasting Even-Odd Rule
                 for (const [regionId, polygon] of Object.entries(this.polygons)) {
                     let isInside = false;
                     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -211,7 +216,7 @@
                 "tmA": { "c": 0, "t": 1100 }, "p_alpha": { "c": 15, "t": 850 }, "p_beta": { "c": 25, "t": 850 }, "p_liq": { "c": 40, "t": 850 },
                 "pillar_top": { "c": 50, "t": 950 }, "pillar_bot": { "c": 50, "t": 0 },
                 "e_liq": { "c": 75, "t": 550 }, "e_gamma": { "c": 90, "t": 550 },
-                "t_A": { "c": 5, "t": 0 }, "t_B_left": { "c": 18, "t": 0 }, "t_G": { "c": 95, "t": 0 }
+                "t_A": { "c": 5, "t": 0 }, "t_B_left": { "c": 18, "t": 0 }, "t_G": { "c": 95, "t": 0 }, "tmB": { "c": 100, "t": 1050 }
             },
             "curves": {
                 "c_L_alpha": { "start": "tmA", "end": "p_liq", "type": "liquidus", "convexity": false },
@@ -220,12 +225,15 @@
                 "c_L_pillar_left": { "start": "p_liq", "end": "pillar_top", "type": "liquidus", "convexity": false },
                 "c_L_pillar_right": { "start": "pillar_top", "end": "e_liq", "type": "liquidus", "convexity": false },
                 "c_wall_pillar": { "start": "pillar_top", "end": "pillar_bot", "type": "stoich_wall", "convexity": "linear" },
-                "c_L_gamma": { "start": "e_liq", "end": "tmA", "type": "liquidus", "convexity": false }, // Simplified target to top right for demo
-                "c_S_gamma": { "start": "e_gamma", "end": "tmA", "type": "solidus", "convexity": true },
+                "c_L_gamma": { "start": "e_liq", "end": "tmB", "type": "liquidus", "convexity": false },
+                "c_S_gamma": { "start": "e_gamma", "end": "tmB", "type": "solidus", "convexity": true },
                 "c_Solv_gamma": { "start": "e_gamma", "end": "t_G", "type": "solvus", "convexity": true },
                 "c_Solv_beta_left": { "start": "p_beta", "end": "t_B_left", "type": "solvus", "convexity": true },
                 "inv_peri": { "start": "p_alpha", "end": "p_liq", "type": "invariant", "convexity": "linear"},
-                "inv_eut": { "start": "pillar_bot", "end": "e_gamma", "type": "invariant", "convexity": "linear"}
+                "inv_eut": { "start": "pillar_bot", "end": "e_gamma", "type": "invariant", "convexity": "linear"},
+                
+                // Bottom edges added to close polygons properly without crashing
+                "c_bot_alpha_beta": { "start": "t_A", "end": "t_B_left", "type": "bottom_edge", "convexity": "linear"}
             },
             "invariants": {
                 "inv_peritectic": { "type": "peritectic", "temp": 850, "nodes": ["p_alpha", "p_beta", "p_liq"] },
@@ -249,7 +257,7 @@
                 },
                 "R_Alpha_plus_Beta": {
                     "type": "two-phase", "phases": ["α", "β"],
-                    "bounding_curves": [ {id: "c_Solv_alpha", dir: 1}, {id: "t_A", dir: 1}, {id: "t_B_left", dir: -1}, {id: "c_Solv_beta_left", dir: -1}, {id: "inv_peri", dir: -1} ],
+                    "bounding_curves": [ {id: "c_Solv_alpha", dir: 1}, {id: "c_bot_alpha_beta", dir: 1}, {id: "c_Solv_beta_left", dir: -1}, {id: "inv_peri", dir: -1} ],
                     "tie_line_boundaries": { "left": ["c_Solv_alpha"], "right": ["c_Solv_beta_left"] }
                 },
                 "R_L_plus_Pillar": {
@@ -302,14 +310,12 @@
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
             if (sb_isFrozen) {
-                // Dropdown lines
                 sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
                 
-                // Highlight spans
                 sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
                 sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
             }
@@ -320,7 +326,7 @@
             drawGridAndAxes();
 
             // Layer 1: Faint Background Glow (PIP Polygon)
-            if (activeRegionId && PhaseEngine.polygons[activeRegionId]) {
+            if (activeRegionId && PhaseEngine.polygons[activeRegionId] && PhaseEngine.polygons[activeRegionId].length > 0) {
                 const poly = PhaseEngine.polygons[activeRegionId];
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(poly[0].c), mapY(poly[0].t));
                 for (let i = 1; i < poly.length; i++) sb_ctx.lineTo(mapX(poly[i].c), mapY(poly[i].t));
@@ -333,7 +339,7 @@
 
             // Layer 2: JSON Boundaries
             for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type === 'invariant') continue; 
+                if (curve.type === 'invariant' || curve.type === 'bottom_edge') continue; 
                 const nStart = PhaseEngine.schema.nodes[curve.start];
                 const nEnd = PhaseEngine.schema.nodes[curve.end];
                 
@@ -428,18 +434,26 @@
             } else if (sb_isFrozen) {
                 document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region</div>`;
             }
-            sb_draw(null, invX(sb_mouseX), invY(sb_mouseY)); // Force redraw of math lines
+            sb_draw(null, invX(sb_mouseX), invY(sb_mouseY));
         });
 
         // INIT
         function resizeAll() {
-            sb_canvas.width = sb_canvas.parentElement.clientWidth; 
-            sb_canvas.height = sb_canvas.parentElement.clientHeight;
-            PhaseEngine.buildRegionPolygons(); // Rebuild hitboxes on resize
-            sb_draw(); 
+            if(sb_canvas.parentElement) {
+                sb_canvas.width = sb_canvas.parentElement.clientWidth; 
+                sb_canvas.height = sb_canvas.parentElement.clientHeight;
+                PhaseEngine.buildRegionPolygons();
+                sb_draw(); 
+            }
         }
         window.addEventListener('resize', resizeAll);
-        resizeAll();
+        
+        // Wait for DOM to fully load before first draw
+        document.addEventListener('DOMContentLoaded', resizeAll);
+        // Fallback for immediate execution if DOMContentLoaded already fired
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            setTimeout(resizeAll, 100);
+        }
     </script>
 </body>
 </html>
