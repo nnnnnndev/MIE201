@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V20</title>
+    <title>Chapter 9: Procedural Phase Engine V21</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -28,6 +28,11 @@
         .control-group { padding: 20px; border-bottom: 1px solid #333; }
         .label { font-size: 0.85rem; color: var(--yellow); text-transform: uppercase; margin-bottom: 10px; display: block; font-weight: bold;}
         
+        .toggle-container { display: flex; background: #000; border: 1px solid #444; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+        .toggle-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; transition: 0.3s; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; }
+        .toggle-btn.active { background: rgba(0, 255, 255, 0.1); color: var(--cyan); border-bottom: 2px solid var(--cyan); }
+        .toggle-btn:not(.active) { color: #666; }
+
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
@@ -35,12 +40,14 @@
         #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         .math-hl { color: #fff; font-weight: bold; }
+        
+        .alert-box { padding: 10px; background: rgba(255, 0, 0, 0.1); border: 1px dashed var(--red); color: var(--red); font-size: 0.8rem; text-align: center; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V20)</div>
+        <div class="brand">Phase Engine Platform (V21)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -48,10 +55,18 @@
             <div class="header"><h2>Procedural Sandbox</h2></div>
             <div class="control-group">
                 <span class="label">Interaction Mode</span>
-                <p style="font-size: 0.85rem; color: #888; line-height: 1.4;">
-                    Hover over the diagram. The Raycaster will mathematically identify the active region and procedural bounds.<br><br>
-                    <strong>Click</strong> to freeze tie-line calculation.
-                </p>
+                <div class="toggle-container">
+                    <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Navigator</div>
+                    <div class="toggle-btn" id="mode-architect" onclick="setMode('architect')">Architect</div>
+                </div>
+                <div id="architect-alert" class="alert-box">Architect dragging is locked while using JSON Procedural Schemas.</div>
+
+                <span class="label" style="margin-top: 20px;">Phase Labels</span>
+                <div class="toggle-container">
+                    <div class="toggle-btn active" id="lbl-easy" onclick="setLabels('all')">Easy (All)</div>
+                    <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard (Single)</div>
+                </div>
+
                 <div id="sb-math-panel">
                     <div class="label" style="color:var(--cyan)">Math Expansion (Lever Rule)</div>
                     <div id="sb-math-content"></div>
@@ -77,28 +92,28 @@
         let sb_mouseX = 0, sb_mouseY = 0;
         let sb_isFrozen = false;
         let sb_lastMathState = null;
+        let sb_labelMode = 'all';
 
-        // Coordinate Mappers
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
         // ==========================================
-        // V20: PROCEDURAL PHASE ENGINE
+        // V21: PROCEDURAL PHASE ENGINE (Path2D API)
         // ==========================================
         const PhaseEngine = {
             schema: null,
-            polygons: {},
+            paths: {}, // Stores HTML5 Path2D objects for flawless filling and hit detection
 
             loadSchema(jsonSchema) {
                 this.schema = jsonSchema;
-                this.buildRegionPolygons();
+                this.buildRegionPaths();
             },
 
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
-                if (!curve) return null; // Safety check
+                if (!curve) return null; 
                 const nStart = this.schema.nodes[curve.start];
                 const nEnd = this.schema.nodes[curve.end];
 
@@ -106,51 +121,69 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                if (curve.type === "stoich_wall" || curve.type === "bottom_edge") return nTop.c; // Vertical or flat line exceptions
-
-                if (nTop.t === nBot.t) return nTop.c; // Prevent divide by zero
+                if (curve.type === "vertical" || curve.type === "edge") return nTop.c; 
+                if (nTop.t === nBot.t) return nTop.c; 
 
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t);
                 const power = curve.convexity === true ? 1.4 : 0.7; 
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
 
-            buildRegionPolygons() {
-                this.polygons = {};
+            buildRegionPaths() {
+                this.paths = {};
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar') continue; 
+                    if (region.type === 'intermetallic-pillar') continue;
 
-                    let points = [];
+                    const path = new Path2D();
+                    let firstPoint = true;
+
                     region.bounding_curves.forEach(curveDef => {
                         const curveId = curveDef.id;
                         const direction = curveDef.dir; 
                         const curve = this.schema.curves[curveId];
-                        if (!curve) return; // Skip if curve is missing to prevent crashes
+                        if (!curve) return; 
 
                         const nStart = this.schema.nodes[curve.start];
                         const nEnd = this.schema.nodes[curve.end];
                         
-                        const tMax = Math.max(nStart.t, nEnd.t);
-                        const tMin = Math.min(nStart.t, nEnd.t);
+                        let pts = [];
                         
-                        if (direction === 1) {
+                        // If it's a straight line, just use endpoints
+                        if (curve.type === 'horizontal' || curve.type === 'vertical' || curve.type === 'edge') {
+                            pts.push({c: nStart.c, t: nStart.t});
+                            pts.push({c: nEnd.c, t: nEnd.t});
+                        } else {
+                            // If it's a curve, sample it
+                            const tMax = Math.max(nStart.t, nEnd.t);
+                            const tMin = Math.min(nStart.t, nEnd.t);
+                            
                             for (let t = tMax; t >= tMin; t -= 5) {
                                 let c = this.getC_onCurve(t, curveId);
-                                if (c !== null) points.push({ c, t });
+                                if (c !== null) pts.push({ c, t });
                             }
-                        } else {
-                            for (let t = tMin; t <= tMax; t += 5) {
-                                let c = this.getC_onCurve(t, curveId);
-                                if (c !== null) points.push({ c, t });
-                            }
+                            let cMin = this.getC_onCurve(tMin, curveId);
+                            if(cMin !== null) pts.push({c: cMin, t: tMin});
+                            
+                            // Align array flow with start->end node definition
+                            if (nStart.t < nEnd.t) pts.reverse(); 
                         }
+
+                        // Apply JSON directional flow
+                        if (direction === -1) pts.reverse();
+
+                        pts.forEach(p => {
+                            if (firstPoint) { path.moveTo(mapX(p.c), mapY(p.t)); firstPoint = false; } 
+                            else { path.lineTo(mapX(p.c), mapY(p.t)); }
+                        });
                     });
-                    this.polygons[regionId] = points;
+                    
+                    path.closePath();
+                    this.paths[regionId] = path;
                 }
             },
 
-            getRegionAtPoint(targetC, targetT) {
-                // 1. Check Stoichiometric Pillars
+            getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
+                // 1. Check Pillars explicitly
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
                     if (region.type === 'intermetallic-pillar') {
                         if (Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 950) { 
@@ -158,35 +191,23 @@
                         }
                     }
                 }
-
-                // 2. Standard Raycasting Even-Odd Rule
-                for (const [regionId, polygon] of Object.entries(this.polygons)) {
-                    let isInside = false;
-                    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                        const xi = polygon[i].c, yi = polygon[i].t;
-                        const xj = polygon[j].c, yj = polygon[j].t;
-                        
-                        const intersect = ((yi > targetT) !== (yj > targetT))
-                            && (targetC < (xj - xi) * (targetT - yi) / (yj - yi) + xi);
-                        if (intersect) isInside = !isInside;
+                // 2. Use Native Canvas Hit Detection for Polygons
+                for (const [regionId, path] of Object.entries(this.paths)) {
+                    if (sb_ctx.isPointInPath(path, mouseX, mouseY)) {
+                        return { id: regionId, ...this.schema.regions[regionId] };
                     }
-                    if (isInside) return { id: regionId, ...this.schema.regions[regionId] };
                 }
                 return null;
             },
 
             calculateTieLine(region, T, C_mouse) {
-                if (region.type !== "two-phase") {
-                    return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
-                }
+                if (region.type !== "two-phase") return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
 
                 let cLeft = null, cRight = null;
-
                 for (const curveId of region.tie_line_boundaries.left) {
                     let c = this.getC_onCurve(T, curveId);
                     if (c !== null) { cLeft = c; break; }
                 }
-
                 for (const curveId of region.tie_line_boundaries.right) {
                     let c = this.getC_onCurve(T, curveId);
                     if (c !== null) { cRight = c; break; } 
@@ -194,13 +215,10 @@
 
                 if (cLeft !== null && cRight !== null) {
                     const total = cRight - cLeft;
-                    const wLeft = (cRight - C_mouse) / total;
-                    const wRight = (C_mouse - cLeft) / total;
-                    
                     return {
                         isTwoPhase: true, phases: region.phases,
                         cLeft: cLeft, cRight: cRight,
-                        wLeft: wLeft, wRight: wRight
+                        wLeft: (cRight - C_mouse) / total, wRight: (C_mouse - cLeft) / total
                     };
                 }
                 return null;
@@ -208,72 +226,75 @@
         };
 
         // ==========================================
-        // V20: THE JSON DATABASE
+        // V21: THE JSON DATABASE (Flawless Topology)
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
-                "tmA": { "c": 0, "t": 1100 }, "p_alpha": { "c": 15, "t": 850 }, "p_beta": { "c": 25, "t": 850 }, "p_liq": { "c": 40, "t": 850 },
-                "pillar_top": { "c": 50, "t": 950 }, "pillar_bot": { "c": 50, "t": 0 },
-                "e_liq": { "c": 75, "t": 550 }, "e_gamma": { "c": 90, "t": 550 },
-                "t_A": { "c": 5, "t": 0 }, "t_B_left": { "c": 18, "t": 0 }, "t_G": { "c": 95, "t": 0 }, "tmB": { "c": 100, "t": 1050 }
+                "tmA": { "c": 0, "t": 1100 }, "p_a": { "c": 15, "t": 850 }, "p_b": { "c": 25, "t": 850 }, "p_l": { "c": 40, "t": 850 },
+                "e1_b": { "c": 32, "t": 600 }, "e1_l": { "c": 45, "t": 600 }, "e1_p": { "c": 50, "t": 600 },
+                "pil_t": { "c": 50, "t": 950 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
+                "tmB": { "c": 100, "t": 1050 }, "t_a": { "c": 5, "t": 0 }, "t_bl": { "c": 20, "t": 0 }, "t_br": { "c": 38, "t": 0 },
+                "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 95, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
             },
             "curves": {
-                "c_L_alpha": { "start": "tmA", "end": "p_liq", "type": "liquidus", "convexity": false },
-                "c_S_alpha": { "start": "tmA", "end": "p_alpha", "type": "solidus", "convexity": true },
-                "c_Solv_alpha": { "start": "p_alpha", "end": "t_A", "type": "solvus", "convexity": true },
-                "c_L_pillar_left": { "start": "p_liq", "end": "pillar_top", "type": "liquidus", "convexity": false },
-                "c_L_pillar_right": { "start": "pillar_top", "end": "e_liq", "type": "liquidus", "convexity": false },
-                "c_wall_pillar": { "start": "pillar_top", "end": "pillar_bot", "type": "stoich_wall", "convexity": "linear" },
-                "c_L_gamma": { "start": "e_liq", "end": "tmB", "type": "liquidus", "convexity": false },
-                "c_S_gamma": { "start": "e_gamma", "end": "tmB", "type": "solidus", "convexity": true },
-                "c_Solv_gamma": { "start": "e_gamma", "end": "t_G", "type": "solvus", "convexity": true },
-                "c_Solv_beta_left": { "start": "p_beta", "end": "t_B_left", "type": "solvus", "convexity": true },
-                "inv_peri": { "start": "p_alpha", "end": "p_liq", "type": "invariant", "convexity": "linear"},
-                "inv_eut": { "start": "pillar_bot", "end": "e_gamma", "type": "invariant", "convexity": "linear"},
+                // Liquidus / Solidus / Solvus
+                "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
+                "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
+                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "convexity": true },
+                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "convexity": true },
+                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "convexity": true },
+                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "convexity": true },
+                "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
+                "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
+                "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
+                "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
+                "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "convexity": true },
+                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "convexity": true },
                 
-                // Bottom edges added to close polygons properly without crashing
-                "c_bot_alpha_beta": { "start": "t_A", "end": "t_B_left", "type": "bottom_edge", "convexity": "linear"}
-            },
-            "invariants": {
-                "inv_peritectic": { "type": "peritectic", "temp": 850, "nodes": ["p_alpha", "p_beta", "p_liq"] },
-                "inv_eutectic": { "type": "eutectic", "temp": 550, "nodes": ["pillar_bot", "e_liq", "e_gamma"] }
+                // Invariant & Boundary Segments (Strictly ordered for perfect Path2D looping)
+                "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" },
+                "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
+                "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" },
+                "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
+                "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" },
+                "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
+                
+                // Pillars and Canvas Edges
+                "p_w1": { "start": "pil_t", "end": "e1_p", "type": "vertical" },
+                "p_w2": { "start": "e1_p", "end": "e2_p", "type": "vertical" },
+                "p_w3": { "start": "e2_p", "end": "pil_b", "type": "vertical" },
+                "e_L": { "start": "zero_bot", "end": "tmA", "type": "edge" },
+                "e_R": { "start": "max_bot", "end": "tmB", "type": "edge" },
+                "e_top": { "start": "tmA", "end": "tmB", "type": "edge" },
+                "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
+                "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" },
+                "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
+                "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" },
+                "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
             },
             "regions": {
-                "R_Liquid": {
-                    "type": "single-phase", "phase_name": "L",
-                    "bounding_curves": [
-                        {id: "c_L_alpha", dir: -1}, {id: "c_L_pillar_left", dir: -1}, {id: "c_L_pillar_right", dir: 1}, {id: "c_L_gamma", dir: 1}
-                    ]
-                },
-                "R_Alpha": {
-                    "type": "single-phase", "phase_name": "α",
-                    "bounding_curves": [ {id: "c_S_alpha", dir: 1}, {id: "c_Solv_alpha", dir: 1} ]
-                },
-                "R_L_plus_Alpha": {
-                    "type": "two-phase", "phases": ["α", "L"],
-                    "bounding_curves": [ {id: "c_S_alpha", dir: 1}, {id: "inv_peri", dir: 1}, {id: "c_L_alpha", dir: -1} ],
-                    "tie_line_boundaries": { "left": ["c_S_alpha"], "right": ["c_L_alpha"] }
-                },
-                "R_Alpha_plus_Beta": {
-                    "type": "two-phase", "phases": ["α", "β"],
-                    "bounding_curves": [ {id: "c_Solv_alpha", dir: 1}, {id: "c_bot_alpha_beta", dir: 1}, {id: "c_Solv_beta_left", dir: -1}, {id: "inv_peri", dir: -1} ],
-                    "tie_line_boundaries": { "left": ["c_Solv_alpha"], "right": ["c_Solv_beta_left"] }
-                },
-                "R_L_plus_Pillar": {
-                    "type": "two-phase", "phases": ["L", "AB"],
-                    "bounding_curves": [ {id: "inv_peri", dir: 1}, {id: "c_wall_pillar", dir: 1}, {id: "c_L_pillar_left", dir: -1} ],
-                    "tie_line_boundaries": { "left": ["c_L_pillar_left", "inv_peri"], "right": ["c_wall_pillar"] }
-                },
-                "R_Pillar": { "type": "intermetallic-pillar", "phase_name": "AB", "stoichiometric_c": 50 }
+                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 50, "t": 1050 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_top", dir: -1} ] },
+                "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
+                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, // Simplified closing for beta
+                "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
+                
+                "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
+                "R_Lb": { "type": "two-phase", "phases": ["β", "L"], "label": { "text": "L + β", "c": 35, "t": 750 }, "bounding_curves": [ {id: "i_p_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "i_e1_bl", dir: 1}, {id: "L_b", dir: -1} ], "tie_line_boundaries": { "left": ["S_br"], "right": ["L_b"] } },
+                "R_Lp1":{ "type": "two-phase", "phases": ["L", "AB"], "label": { "text": "L + AB", "c": 47, "t": 750 }, "bounding_curves": [ {id: "L_p1", dir: 1}, {id: "i_e1_lp", dir: 1}, {id: "p_w1", dir: -1} ], "tie_line_boundaries": { "left": ["L_p1"], "right": ["p_w1"] } },
+                "R_Lp2":{ "type": "two-phase", "phases": ["AB", "L"], "label": { "text": "AB + L", "c": 62, "t": 750 }, "bounding_curves": [ {id: "L_p2", dir: 1}, {id: "i_e2_pl", dir: -1}, {id: "p_w1", dir: -1}, {id: "p_w2", dir: -1} ], "tie_line_boundaries": { "left": ["p_w1", "p_w2"], "right": ["L_p2"] } },
+                "R_Lg": { "type": "two-phase", "phases": ["L", "γ"], "label": { "text": "L + γ", "c": 87, "t": 800 }, "bounding_curves": [ {id: "L_g", dir: 1}, {id: "i_e2_lg", dir: 1}, {id: "S_g", dir: -1} ], "tie_line_boundaries": { "left": ["L_g"], "right": ["S_g"] } },
+                
+                "R_ab": { "type": "two-phase", "phases": ["α", "β"], "label": { "text": "α + β", "c": 12, "t": 400 }, "bounding_curves": [ {id: "sol_a", dir: 1}, {id: "bot_ab", dir: 1}, {id: "sol_bl", dir: -1}, {id: "i_p_ab", dir: -1} ], "tie_line_boundaries": { "left": ["sol_a"], "right": ["sol_bl"] } },
+                "R_bp": { "type": "two-phase", "phases": ["β", "AB"], "label": { "text": "β + AB", "c": 42, "t": 300 }, "bounding_curves": [ {id: "sol_br", dir: 1}, {id: "bot_bp", dir: 1}, {id: "p_w3", dir: -1}, {id: "p_w2", dir: -1}, {id: "i_e1_lp", dir: -1}, {id: "i_e1_bl", dir: -1} ], "tie_line_boundaries": { "left": ["sol_br"], "right": ["p_w2", "p_w3"] } },
+                "R_pg": { "type": "two-phase", "phases": ["AB", "γ"], "label": { "text": "AB + γ", "c": 72, "t": 200 }, "bounding_curves": [ {id: "p_w3", dir: 1}, {id: "bot_pg", dir: 1}, {id: "sol_g", dir: -1}, {id: "i_e2_lg", dir: -1}, {id: "i_e2_pl", dir: -1} ], "tie_line_boundaries": { "left": ["p_w3"], "right": ["sol_g"] } },
+                
+                "R_Pil": { "type": "intermetallic-pillar", "phase_name": "AB", "stoichiometric_c": 50 }
             }
         };
 
-        // Initialize Engine
-        PhaseEngine.loadSchema(schema_3Invariant);
-
         // ==========================================
-        // V20: RENDER & EVENT LOOP
+        // V21: RENDER ENGINE
         // ==========================================
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
@@ -282,30 +303,38 @@
             sb_ctx.lineTo(sb_canvas.width - PAD, PAD); sb_ctx.stroke();
 
             sb_ctx.fillStyle = '#888'; sb_ctx.font = '12px sans-serif'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'top';
-            for(let i=0; i<=100; i+=10) {
-                let x = mapX(i); sb_ctx.beginPath(); sb_ctx.moveTo(x, sb_canvas.height - PAD); sb_ctx.lineTo(x, sb_canvas.height - PAD + 5); sb_ctx.stroke(); sb_ctx.fillText(i, x, sb_canvas.height - PAD + 10);
-            }
+            for(let i=0; i<=100; i+=10) { let x = mapX(i); sb_ctx.beginPath(); sb_ctx.moveTo(x, sb_canvas.height - PAD); sb_ctx.lineTo(x, sb_canvas.height - PAD + 5); sb_ctx.stroke(); sb_ctx.fillText(i, x, sb_canvas.height - PAD + 10); }
             sb_ctx.textAlign = 'right'; sb_ctx.textBaseline = 'middle';
-            for(let i=0; i<=1200; i+=200) {
-                let y = mapY(i); sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke(); sb_ctx.fillText(i, PAD - 10, y);
-            }
+            for(let i=0; i<=1200; i+=200) { let y = mapY(i); sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke(); sb_ctx.fillText(i, PAD - 10, y); }
             sb_ctx.fillStyle = '#fff'; sb_ctx.font = '14px sans-serif'; sb_ctx.fillText('Temp (K)', PAD - 10, PAD - 20);
             sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
+        }
+
+        function drawLabels() {
+            sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+            for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
+                if (!region.label) continue;
+                if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
+                
+                let baseText = region.label.text;
+                sb_ctx.font = `bold 22px sans-serif`;
+                let x = mapX(region.label.c); let y = mapY(region.label.t);
+                
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 25, y - 15, 50, 30);
+                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.fillText(baseText, x, y);
+            }
         }
 
         function drawTieLineUI(curT, curC, mathState) {
             let vL = mathState.cLeft; let vR = mathState.cRight;
             
-            // Draw Tie Line
             sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
             sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
             
-            // Nodes
             sb_ctx.fillStyle = '#00ffff';
             sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
             sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
             
-            // Mouse
             sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
@@ -321,71 +350,94 @@
             }
         }
 
+        function drawSinglePhaseUI(curT, curC) {
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
+            sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
+
+            if (sb_isFrozen) {
+                let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(mapX(v0), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                // Draw text tags
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 20, sb_canvas.height - PAD + 5, 40, 20);
+                sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
+                sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; 
+                sb_ctx.fillText(v0, mapX(v0), sb_canvas.height - PAD + 15);
+                sb_ctx.fillText(t0, PAD - 22, mapY(curT));
+            }
+        }
+
         function sb_draw(activeRegionId = null, curC = null, curT = null) {
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            // Layer 1: Faint Background Glow (PIP Polygon)
-            if (activeRegionId && PhaseEngine.polygons[activeRegionId] && PhaseEngine.polygons[activeRegionId].length > 0) {
-                const poly = PhaseEngine.polygons[activeRegionId];
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(poly[0].c), mapY(poly[0].t));
-                for (let i = 1; i < poly.length; i++) sb_ctx.lineTo(mapX(poly[i].c), mapY(poly[i].t));
-                sb_ctx.closePath();
-                
+            // Layer 1: Perfect Path2D Fill
+            if (activeRegionId && PhaseEngine.paths[activeRegionId]) {
                 const type = PhaseEngine.schema.regions[activeRegionId].type;
-                sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.05)' : 'rgba(255, 0, 255, 0.08)';
-                sb_ctx.fill();
+                sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.08)' : 'rgba(255, 0, 255, 0.08)';
+                sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
             }
 
-            // Layer 2: JSON Boundaries
+            // Layer 2: Curves
             for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type === 'invariant' || curve.type === 'bottom_edge') continue; 
-                const nStart = PhaseEngine.schema.nodes[curve.start];
-                const nEnd = PhaseEngine.schema.nodes[curve.end];
+                if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
+                const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                 
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                let pts = 40; 
-                for(let i = 0; i <= pts; i++) {
-                    let t = nStart.t - (i/pts)*(nStart.t - nEnd.t);
+                for(let i = 0; i <= 40; i++) {
+                    let t = nStart.t - (i/40)*(nStart.t - nEnd.t);
                     let c = PhaseEngine.getC_onCurve(t, curveId);
                     if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                 }
 
                 if (curve.type === 'liquidus') sb_ctx.strokeStyle = '#ff00ff';      
                 else if (curve.type === 'solidus' || curve.type === 'solvus') sb_ctx.strokeStyle = '#00ffff'; 
-                else if (curve.type === 'stoich_wall') sb_ctx.strokeStyle = '#ff8800'; 
-                
+                else if (curve.type === 'vertical') sb_ctx.strokeStyle = '#ff8800'; 
                 sb_ctx.lineWidth = 3; sb_ctx.stroke();
             }
 
-            // Layer 3: Invariants
-            for (const [invId, inv] of Object.entries(PhaseEngine.schema.invariants)) {
-                let nodes = inv.nodes.map(nId => PhaseEngine.schema.nodes[nId]).sort((a, b) => a.c - b.c);
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nodes[0].c), mapY(inv.temp)); sb_ctx.lineTo(mapX(nodes[nodes.length-1].c), mapY(inv.temp));
+            // Layer 3: Horizontals (Invariants)
+            for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                if (curve.type !== 'horizontal') continue;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(PhaseEngine.schema.nodes[curve.start].c), mapY(PhaseEngine.schema.nodes[curve.start].t)); 
+                sb_ctx.lineTo(mapX(PhaseEngine.schema.nodes[curve.end].c), mapY(PhaseEngine.schema.nodes[curve.end].t));
                 sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
             }
 
-            // Layer 4: Tie Line overlay
+            drawLabels();
+
+            // Layer 4: Interactive Overlays
             if (sb_lastMathState && sb_lastMathState.isTwoPhase && curT !== null) {
                 drawTieLineUI(curT, curC, sb_lastMathState);
             } else if (curT !== null && curC !== null) {
-                sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
-                sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
+                drawSinglePhaseUI(curT, curC);
             }
         }
 
         // ==========================================
         // UI & EVENT LISTENERS
         // ==========================================
+        function setMode(mode) {
+            document.getElementById('mode-navigator').classList.toggle('active', mode === 'navigator');
+            document.getElementById('mode-architect').classList.toggle('active', mode === 'architect');
+            document.getElementById('architect-alert').style.display = mode === 'architect' ? 'block' : 'none';
+        }
+
+        function setLabels(mode) {
+            sb_labelMode = mode;
+            document.getElementById('lbl-easy').classList.toggle('active', mode === 'all');
+            document.getElementById('lbl-hard').classList.toggle('active', mode === 'single');
+            sb_draw();
+        }
+
         function updateTelemetry(region, mathState, curT, curC) {
             document.getElementById('sb-out-t').innerText = Math.round(curT); 
             document.getElementById('sb-out-c').innerText = curC.toFixed(1);
             
-            if (!region) {
-                document.getElementById('sb-out-region').innerText = "Out of Bounds";
-                return;
-            }
-
+            if (!region) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; return; }
             document.getElementById('sb-out-region').innerText = region.phase_name || region.phases.join(" + ");
             
             if (mathState && mathState.isTwoPhase) {
@@ -407,8 +459,7 @@
             sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
 
             let curC = invX(sb_mouseX); let curT = invY(sb_mouseY);
-            
-            let activeRegion = PhaseEngine.getRegionAtPoint(curC, curT);
+            let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, curC, curT);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, curT, curC) : null;
             
             updateTelemetry(activeRegion, sb_lastMathState, curT, curC);
@@ -432,28 +483,24 @@
                     <div class="math-line" style="color:var(--orange)">X_${sb_lastMathState.phases[1]} = ${sb_lastMathState.wRight.toFixed(2)}</div>
                 `;
             } else if (sb_isFrozen) {
-                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region</div>`;
+                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region.</div>`;
             }
             sb_draw(null, invX(sb_mouseX), invY(sb_mouseY));
         });
 
         // INIT
+        PhaseEngine.loadSchema(schema_3Invariant);
         function resizeAll() {
             if(sb_canvas.parentElement) {
                 sb_canvas.width = sb_canvas.parentElement.clientWidth; 
                 sb_canvas.height = sb_canvas.parentElement.clientHeight;
-                PhaseEngine.buildRegionPolygons();
+                PhaseEngine.buildRegionPaths(); // Rebuild hitboxes to match new scale
                 sb_draw(); 
             }
         }
         window.addEventListener('resize', resizeAll);
-        
-        // Wait for DOM to fully load before first draw
         document.addEventListener('DOMContentLoaded', resizeAll);
-        // Fallback for immediate execution if DOMContentLoaded already fired
-        if (document.readyState === "complete" || document.readyState === "interactive") {
-            setTimeout(resizeAll, 100);
-        }
+        if (document.readyState === "complete" || document.readyState === "interactive") setTimeout(resizeAll, 100);
     </script>
 </body>
 </html>
