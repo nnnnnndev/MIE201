@@ -192,7 +192,7 @@
         function invY(y, canvas) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
 
         // ==========================================
-        // V16 SANDBOX ENGINE LOGIC (Fully Restored & Debugged)
+        // V17 SANDBOX ENGINE LOGIC 
         // ==========================================
         const sb_canvas = document.getElementById('canvas-sandbox');
         const sb_ctx = sb_canvas.getContext('2d');
@@ -202,7 +202,8 @@
         let sb_isFrozen = false;
         let sb_lastMathState = null;
 
-        let sb_nodes = {
+        // NEW: Immutable initial state for perfect Navigator resets
+        const initial_sb_nodes = {
             tmA:    { c: 0,   t: 1100, drag: 'y' },
             tmB:    { c: 100, t: 900,  drag: 'y' },
             pAlpha: { c: 15, t: 800, drag: 'both' },
@@ -212,10 +213,13 @@
             eLiq:   { c: 75, t: 500, drag: 'x' }, 
             eGamma: { c: 90, t: 500, drag: 'x' },
             tA:     { c: 5,  t: 0, drag: 'x' },
-            tB1:    { c: 30, t: 0, drag: 'x' }, 
-            tB2:    { c: 40, t: 0, drag: 'x' }, 
+            tB1:    { c: 37, t: 0, drag: 'x' }, // Thermodynamically tightened
+            tB2:    { c: 43, t: 0, drag: 'x' }, // Thermodynamically tightened
             tG:     { c: 95, t: 0, drag: 'x' }
         };
+
+        // Current active state
+        let sb_nodes = JSON.parse(JSON.stringify(initial_sb_nodes));
 
         function sb_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
@@ -486,17 +490,15 @@
         function sb_updateMathPanel() {
             let panel = document.getElementById('sb-math-panel');
             let content = document.getElementById('sb-math-content');
-            
-            // Manage Dynamic Display
             let telemetryPanel = document.getElementById('sb-telemetry');
             
             if(!sb_isFrozen || !sb_lastMathState) { 
                 panel.style.display = 'none'; 
-                telemetryPanel.style.display = 'block'; // Show normal telemetry when not frozen
+                telemetryPanel.style.display = 'block'; 
                 return; 
             }
             panel.style.display = 'block'; 
-            telemetryPanel.style.display = 'none'; // Hide telemetry to make room for math
+            telemetryPanel.style.display = 'none'; 
             
             let m = sb_lastMathState;
             content.replaceChildren(); 
@@ -546,18 +548,21 @@
 
         function sb_snapTo(type) {
             sb_setMode('navigator'); 
-            // FIX: Snap exactly 1 degree into the proper two-phase region to guarantee mathematical validity
             if(type === 'peri') { 
                 sb_mouseX = mapX(35, sb_canvas); 
-                sb_mouseY = mapY(sb_nodes.pAlpha.t + 1, sb_canvas); // 801 K (L + alpha)
+                sb_mouseY = mapY(sb_nodes.pAlpha.t + 1, sb_canvas); 
             } else { 
                 sb_mouseX = mapX(75, sb_canvas); 
-                sb_mouseY = mapY(sb_nodes.eBeta.t - 1, sb_canvas); // 499 K (beta + gamma)
+                sb_mouseY = mapY(sb_nodes.eBeta.t - 1, sb_canvas); 
             }
             sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
         }
 
         function sb_setMode(newMode) {
+            // FIX: Restore pristine pedagogical state upon returning to navigator
+            if (newMode === 'navigator' && sb_mode === 'architect') {
+                sb_nodes = JSON.parse(JSON.stringify(initial_sb_nodes));
+            }
             sb_mode = newMode; sb_isFrozen = false; sb_updateMathPanel();
             document.getElementById('sb-btn-navigator').classList.toggle('active', sb_mode === 'navigator');
             document.getElementById('sb-btn-architect').classList.toggle('active', sb_mode === 'architect');
@@ -571,7 +576,6 @@
             sb_mouseX = e.clientX - rect.left; 
             sb_mouseY = e.clientY - rect.top;
 
-            // FIX: Restored boundary-safe Architect drag logic
             if (sb_mode === 'architect' && sb_activeNodeKey) {
                 let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
                 if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
@@ -579,18 +583,22 @@
                 let n = sb_nodes[sb_activeNodeKey];
                 if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
 
+                // FIX: Strict Thermodynamic Collision Constraints
                 if (sb_activeNodeKey === 'pAlpha') {
                     if (newT <= sb_nodes.eBeta.t + 50) newT = sb_nodes.eBeta.t + 50; 
+                    if (newC <= sb_nodes.tA.c) newC = sb_nodes.tA.c; // Push Terminal
                     n.c = newC; n.t = newT; sb_nodes.pBeta.t = newT; sb_nodes.pLiq.t = newT;
                 } else if (sb_activeNodeKey === 'pBeta') {
                     if (newC <= sb_nodes.pAlpha.c + 1) newC = sb_nodes.pAlpha.c + 1;
                     if (newC >= sb_nodes.pLiq.c - 1) newC = sb_nodes.pLiq.c - 1;
+                    if (newC >= sb_nodes.tB1.c) newC = sb_nodes.tB1.c; // Push Terminal
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'pLiq') {
                     if (newC <= sb_nodes.pBeta.c + 1) newC = sb_nodes.pBeta.c + 1;
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'eBeta') {
                     if (newT >= sb_nodes.pAlpha.t - 50) newT = sb_nodes.pAlpha.t - 50; 
+                    if (newC <= sb_nodes.tB2.c) newC = sb_nodes.tB2.c; // Push Terminal
                     n.c = newC; n.t = newT; sb_nodes.eLiq.t = newT; sb_nodes.eGamma.t = newT;
                 } else if (sb_activeNodeKey === 'eLiq') {
                     if (newC <= sb_nodes.eBeta.c + 1) newC = sb_nodes.eBeta.c + 1;
@@ -598,6 +606,21 @@
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'eGamma') {
                     if (newC <= sb_nodes.eLiq.c + 1) newC = sb_nodes.eLiq.c + 1;
+                    if (newC >= sb_nodes.tG.c) newC = sb_nodes.tG.c; // Push Terminal
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'tA') {
+                    if (newC >= sb_nodes.pAlpha.c) newC = sb_nodes.pAlpha.c;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'tB1') {
+                    if (newC <= sb_nodes.pBeta.c) newC = sb_nodes.pBeta.c;
+                    if (newC >= sb_nodes.tB2.c - 1) newC = sb_nodes.tB2.c - 1;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'tB2') {
+                    if (newC >= sb_nodes.eBeta.c) newC = sb_nodes.eBeta.c;
+                    if (newC <= sb_nodes.tB1.c + 1) newC = sb_nodes.tB1.c + 1;
+                    n.c = newC;
+                } else if (sb_activeNodeKey === 'tG') {
+                    if (newC <= sb_nodes.eGamma.c) newC = sb_nodes.eGamma.c;
                     n.c = newC;
                 } else {
                     n.c = newC; n.t = newT;
@@ -607,7 +630,6 @@
         });
 
         sb_canvas.addEventListener('mousedown', (e) => {
-            // FIX: e object correctly passed back to update coordinates on click
             let rect = sb_canvas.getBoundingClientRect(); 
             sb_mouseX = e.clientX - rect.left; 
             sb_mouseY = e.clientY - rect.top;
@@ -623,7 +645,7 @@
             for (let key in sb_nodes) {
                 let dx = sb_mouseX - mapX(sb_nodes[key].c, sb_canvas); 
                 let dy = sb_mouseY - mapY(sb_nodes[key].t, sb_canvas);
-                if (dx*dx + dy*dy < 200) { sb_activeNodeKey = key; break; } // Hitbox expanded
+                if (dx*dx + dy*dy < 200) { sb_activeNodeKey = key; break; } 
             }
         });
 
@@ -645,7 +667,6 @@
             termA: { c: 2, t: 0 }, termB: { c: 98, t: 0 }
         };
 
-        // Eutectic requires 8 boundaries (Isotherm is split into two)
         const as_solution = [
             { nodes: ['tmA', 'eut'], tool: 'liquidus' }, { nodes: ['tmB', 'eut'], tool: 'liquidus' },
             { nodes: ['tmA', 'solA'], tool: 'solidus' }, { nodes: ['tmB', 'solB'], tool: 'solidus' },
@@ -663,7 +684,6 @@
             });
         });
 
-        // FIX: Restored native Bezier curves for assessment drawing
         function as_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
             if (nodeTop.t === nodeBot.t) return nodeTop.c;
