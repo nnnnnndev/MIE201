@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Engine V9 (Generic A-B)</title>
+    <title>Chapter 9: Phase Engine V10 (Generic A-B)</title>
     <style>
         :root {
             --bg: #050505;
@@ -113,25 +113,25 @@
                 {
                     id: 'sys1', bounds: [0, 66.7], lblL: 'α', lblR: 'AB₂',
                     nodes: {
-                        tmL: {c: 0, t: 1000, fixed: false, dragAxis: 'y'}, // Unlocked Y
-                        tmR: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, // The AB2 Peak
+                        tmL: {c: 0, t: 1000, fixed: false, dragAxis: 'y'},
+                        tmR: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, 
                         eut: {c: 35, t: 600, fixed: false, dragAxis: 'both'},
                         solL: {c: 10, t: 600, fixed: false, dragAxis: 'x'},
                         solR: {c: 65, t: 600, fixed: false, dragAxis: 'x'},
-                        termL: {c: 2, t: 0, fixed: true},
-                        termR: {c: 66, t: 0, fixed: true}
+                        termL: {c: 2, t: 0, fixed: false, dragAxis: 'x'}, // Unlocked Room Temp Limit
+                        termR: {c: 66, t: 0, fixed: false, dragAxis: 'x'} // Unlocked Room Temp Limit
                     }
                 },
                 {
                     id: 'sys2', bounds: [66.7, 100], lblL: 'AB₂', lblR: 'β',
                     nodes: {
-                        tmL: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, // Linked to sys1.tmR
-                        tmR: {c: 100, t: 800, fixed: false, dragAxis: 'y'}, // Unlocked Y
+                        tmL: {c: 66.7, t: 1100, fixed: false, dragAxis: 'y'}, 
+                        tmR: {c: 100, t: 800, fixed: false, dragAxis: 'y'},
                         eut: {c: 85, t: 500, fixed: false, dragAxis: 'both'},
                         solL: {c: 68, t: 500, fixed: false, dragAxis: 'x'},
                         solR: {c: 95, t: 500, fixed: false, dragAxis: 'x'},
-                        termL: {c: 67.5, t: 0, fixed: true},
-                        termR: {c: 98, t: 0, fixed: true}
+                        termL: {c: 67.5, t: 0, fixed: false, dragAxis: 'x'}, // Unlocked Room Temp Limit
+                        termR: {c: 98, t: 0, fixed: false, dragAxis: 'x'}   // Unlocked Room Temp Limit
                     }
                 }
             ]
@@ -163,11 +163,15 @@
             ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
         }
 
-        function drawAxisLabel(text, x, y, color) {
+        function drawAxisLabel(text, x, y, color, align='center') {
             ctx.font = 'bold 12px sans-serif';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.textAlign = align; ctx.textBaseline = 'middle';
             let w = ctx.measureText(text).width + 10;
-            ctx.fillStyle = '#050505'; ctx.fillRect(x - w/2, y - 10, w, 20);
+            
+            ctx.fillStyle = '#050505'; 
+            if(align === 'center') ctx.fillRect(x - w/2, y - 10, w, 20);
+            else if (align === 'right') ctx.fillRect(x - w, y - 10, w, 20);
+            
             ctx.fillStyle = color; ctx.fillText(text, x, y);
         }
 
@@ -304,6 +308,7 @@
             }
 
             if (tieLeft !== null && tieRight !== null) {
+                // --- TWO PHASE LOGIC ---
                 let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
                 let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
                 
@@ -339,14 +344,24 @@
                 ctx.beginPath(); ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); ctx.fill();
             } else {
+                // --- SINGLE PHASE LOGIC ---
                 w1 = "1.00"; w2 = "0.00"; lbl1 = region; lbl2 = "None";
+                
                 if (isFrozen) {
                     let v0 = parseFloat(curC.toFixed(1));
+                    let t0 = Math.round(curT);
                     ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+                    
+                    // Vertical Composition Line
                     ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(mapX(v0), canvas.height - PAD); ctx.stroke();
+                    drawAxisLabel(`C0=${v0}`, mapX(v0), canvas.height - PAD + 20, '#ffffff', 'center');
+                    
+                    // Horizontal Temperature Line
+                    ctx.beginPath(); ctx.moveTo(mapX(v0), mapY(curT)); ctx.lineTo(PAD, mapY(curT)); ctx.stroke();
+                    drawAxisLabel(`${t0}`, PAD - 5, mapY(curT), '#ffffff', 'right');
+
                     ctx.setLineDash([]);
-                    drawAxisLabel(`C0=${v0}`, mapX(v0), canvas.height - PAD + 20, '#ffffff');
-                    lastMathState = { isSinglePhase: true, region: region, c0: v0 };
+                    lastMathState = { isSinglePhase: true, region: region, c0: v0, t0: t0 };
                 }
             }
 
@@ -380,8 +395,13 @@
             const addDiv = () => { let hr = document.createElement('hr'); hr.style.cssText = "border-color:#333; margin:10px 0;"; content.appendChild(hr); };
 
             if (m.isSinglePhase) {
-                addLine(["1. Identify Region:"], "color:#aaa;"); addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]);
-                addDiv(); addLine(["2. Apply Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X(", m.region, ") = ", {text: "1.00", color: "var(--cyan)"}]);
+                addLine(["1. Identify Region:"], "color:#aaa;"); 
+                addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); 
+                addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]);
+                addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
+                addDiv(); 
+                addLine(["2. Apply Lever Rule:"], "color:#aaa;"); 
+                addLine(["\u00A0\u00A0X(", m.region, ") = ", {text: "1.00", color: "var(--cyan)"}]);
             } else {
                 addLine(["1. Intersections:"], "color:#aaa;");
                 addLine(["\u00A0\u00A0", m.cLName, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C0 = ", {text: m.c0}]); addLine(["\u00A0\u00A0", m.cRName, " = ", {text: m.cR, color: "var(--orange)"}]);
@@ -414,12 +434,11 @@
                 let newC = invX(mouseX); let newT = invY(mouseY);
                 if(newT > engineDef.T_MAX-50) newT = engineDef.T_MAX-50; if(newT < 100) newT = 100;
 
-                // Restrict X-axis dragging to maintain system topology
+                // Restrict X/Y dragging constraints
                 if (activeNode.dragAxis === 'y') newC = activeNode.c; 
                 else if (activeNode.dragAxis === 'x') newT = activeNode.t;
 
                 if (activeNodeKey === 'tmR' && activeSys.id === 'sys1') {
-                    // Moving the peak updates both subsystems
                     activeSys.nodes.tmR.t = newT;
                     engineDef.subsystems[1].nodes.tmL.t = newT;
                 } else if (activeNodeKey === 'eut') {
@@ -427,9 +446,21 @@
                     activeSys.nodes.solL.t = newT; activeSys.nodes.solR.t = newT;
                 } else if (activeNodeKey === 'solL') {
                     if (newC >= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c - 0.5;
+                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
+                    if (newC <= activeSys.nodes.termL.c) newC = activeSys.nodes.termL.c + 0.1;
                     activeNode.c = newC;
                 } else if (activeNodeKey === 'solR') {
                     if (newC <= activeSys.nodes.eut.c) newC = activeSys.nodes.eut.c + 0.5;
+                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
+                    if (newC >= activeSys.nodes.termR.c) newC = activeSys.nodes.termR.c - 0.1;
+                    activeNode.c = newC;
+                } else if (activeNodeKey === 'termL') {
+                    if (newC >= activeSys.nodes.solL.c) newC = activeSys.nodes.solL.c - 0.1;
+                    if (newC <= activeSys.bounds[0]) newC = activeSys.bounds[0] + 0.1;
+                    activeNode.c = newC;
+                } else if (activeNodeKey === 'termR') {
+                    if (newC <= activeSys.nodes.solR.c) newC = activeSys.nodes.solR.c + 0.1;
+                    if (newC >= activeSys.bounds[1]) newC = activeSys.bounds[1] - 0.1;
                     activeNode.c = newC;
                 } else {
                     activeNode.c = newC; activeNode.t = newT;
