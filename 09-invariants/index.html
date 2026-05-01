@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Diagram Platform V22</title>
+    <title>Chapter 9: Phase Diagram Master Platform (V23)</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -12,6 +12,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--silver); height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
 
+        /* Top Navigation */
         #global-nav { height: 50px; background: #0a0a0a; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 100; }
         .brand { color: var(--cyan); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 1.1rem; }
         .nav-tabs { display: flex; gap: 10px; height: 100%; }
@@ -20,11 +21,13 @@
         .nav-tab.active { color: var(--magenta); border-bottom-color: var(--magenta); background: rgba(255,0,255,0.05); }
         .nav-tab.locked { opacity: 0.3; cursor: not-allowed; text-decoration: line-through; }
 
+        /* Main Layouts */
         .view-container { flex: 1; display: flex; overflow: hidden; }
         .sidebar { width: 380px; background: var(--panel); border-right: 2px solid #333; display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
         .stage { flex: 1; position: relative; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
         canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 
+        /* Shared UI Elements */
         .header { padding: 20px; border-bottom: 1px solid #333; text-align: center; }
         .header h2 { color: var(--cyan); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
         .control-group { padding: 20px; border-bottom: 1px solid #333; }
@@ -36,13 +39,14 @@
         .toggle-btn:not(.active) { color: #666; }
 
         .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
-        button.action-btn { background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; flex: 1; transition: 0.2s; margin-top:10px;}
+        button.action-btn { background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; flex: 1; transition: 0.2s; margin-top:10px; min-width: 45%; }
         button.action-btn:hover { background: var(--orange); color: #000; }
 
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
 
+        /* Toolbox */
         .toolbox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
         .tool-btn { background: #000; border: 1px solid #444; color: #888; padding: 12px; text-align: center; cursor: pointer; border-radius: 4px; font-weight: bold; text-transform: uppercase; transition: 0.2s; font-size: 0.8rem; }
         .tool-btn.active[data-tool="liquidus"] { background: rgba(255, 0, 255, 0.1); border-color: var(--magenta); color: var(--magenta); }
@@ -56,6 +60,7 @@
         .math-hl { color: #fff; font-weight: bold; }
         #as-feedback-box { font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.5; color: var(--silver); margin-top: 10px; }
 
+        /* Modal */
         #modal-overlay { position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; justify-content: center; align-items: center; }
         .modal-content { background: var(--panel); border: 2px solid var(--magenta); padding: 40px; border-radius: 8px; max-width: 600px; text-align: center; box-shadow: 0 0 30px rgba(255,0,255,0.2); }
         .modal-content h2 { color: var(--cyan); font-size: 1.8rem; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
@@ -85,16 +90,18 @@
 
     <div id="view-sandbox" class="view-container">
         <div class="sidebar">
-            <div class="header"><h2 id="sb-title">Loading...</h2></div>
+            <div class="header"><h2 id="sb-title">Loading DB...</h2></div>
             <div class="control-group">
                 <span class="label">Interaction Mode</span>
                 <div class="toggle-container">
                     <div class="toggle-btn active" id="sb-btn-navigator" onclick="sb_setMode('navigator')">Navigator</div>
                     <div class="toggle-btn" id="sb-btn-architect" onclick="sb_setMode('architect')">Architect</div>
                 </div>
+                
+                <span class="label" style="margin-top:20px;">Invariant Snap Presets</span>
                 <div class="btn-row" id="sb-preset-controls">
-                    <button class="action-btn" onclick="sb_snapToLocalInvariant()">Snap Local Reaction</button>
-                </div>
+                    </div>
+                
                 <p id="sb-mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
                     Hover over boundaries. <strong>Click</strong> to freeze tie-line.
                 </p>
@@ -143,59 +150,115 @@
 
     <script>
         // ==========================================
-        // PHASE 20/22: JSON PLATFORM BACKEND
+        // PHASE 23: THE JSON PLATFORM DATABASE
+        // The ultimate baseline generic architecture.
         // ==========================================
         const DiagramDB = [
             {
                 id: "diag_001",
-                name: "Eutectic, Intermetallic, Eutectoid",
+                name: "3-Invariant Platform Baseline",
                 T_MAX: 1300,
-                // The Flat Node Dictionary (Solves Shared Topology Issues)
-                nodes: {
-                    "m_A": { c: 0, t: 1100, drag: 'y' },
-                    "m_B": { c: 100, t: 950, drag: 'y' },
-                    "m_AB": { c: 50, t: 1200, drag: 'y', stoich: true }, // The Pillar
-                    "eut1": { c: 20, t: 700, drag: 'both' }, // Eutectic
-                    "sol_A": { c: 8, t: 700, drag: 'x' },
-                    "sol_AB_L": { c: 50, t: 700, drag: 'none', stoich: true },
-                    "term_A": { c: 2, t: 0, drag: 'x' },
-                    "term_AB_L": { c: 50, t: 0, drag: 'none', stoich: true },
-                    "eutoid1": { c: 80, t: 450, drag: 'both' }, // Eutectoid
-                    "sol_AB_R": { c: 50, t: 450, drag: 'none', stoich: true },
-                    "sol_B": { c: 92, t: 450, drag: 'x' },
-                    "term_AB_R": { c: 50, t: 0, drag: 'none', stoich: true },
-                    "term_B": { c: 98, t: 0, drag: 'x' }
-                },
-                // Modular Subsystems parsing the dictionary
-                subsystems: [
-                    {
-                        bounds: [0, 50], parent: 'L', lblL: 'α', lblR: 'AB',
-                        n: { tmL: 'm_A', tmR: 'm_AB', inv: 'eut1', solL: 'sol_A', solR: 'sol_AB_L', termL: 'term_A', termR: 'term_AB_L' }
-                    },
-                    {
-                        bounds: [50, 100], parent: 'γ', lblL: 'AB', lblR: 'β', // Gamma Solid State!
-                        n: { tmL: 'm_AB', tmR: 'm_B', inv: 'eutoid1', solL: 'sol_AB_R', solR: 'sol_B', termL: 'term_AB_R', termR: 'term_B' }
-                    }
+                
+                // 1. The Dynamic UI Generator
+                invariants: [
+                    { id: "INV01", name: "Peritectic", type: "peri", t_ref: "p_a", snap_node: "p_b", snap_offset: 1 },
+                    { id: "INV02", name: "Eutectic", type: "eut", t_ref: "e1_b", snap_node: "e1_l", snap_offset: -1 },
+                    { id: "INV03", name: "Intermetallic", type: "pillar", t_ref: "m_AB", snap_node: "m_AB", snap_offset: 0 }
                 ],
-                // Auto-Generated Assessment Solution
-                solution: [
-                    { start: 'm_A', end: 'eut1', tool: 'liquidus' },
-                    { start: 'm_AB', end: 'eut1', tool: 'liquidus' },
-                    { start: 'm_A', end: 'sol_A', tool: 'solidus' },
-                    { start: 'm_AB', end: 'sol_AB_L', tool: 'solidus' },
-                    { start: 'sol_A', end: 'term_A', tool: 'solvus' },
-                    { start: 'sol_AB_L', end: 'term_AB_L', tool: 'solvus' },
-                    { start: 'sol_A', end: 'eut1', tool: 'isotherm' },
-                    { start: 'eut1', end: 'sol_AB_L', tool: 'isotherm' },
+                
+                // 2. The Physical Node Map (Includes strict thermodynamic bounding constraints for Architect Mode)
+                nodes: {
+                    "m_A":   { c: 0,   t: 1100, drag: "y", boundT: ["p_a", 1300] },
+                    "m_AB":  { c: 50,  t: 1200, drag: "y", boundT: ["e1_ab", 1300], stoich: true },
+                    "m_B":   { c: 100, t: 950,  drag: "y", boundT: ["e2_g", 1300] },
+
+                    "p_a":   { c: 10,  t: 800,  drag: "both", boundC: [0, "p_b"], boundT: ["e1_b", "m_A"] },
+                    "p_b":   { c: 25,  t: 800,  drag: "x", boundC: ["p_a", "p_l"] },
+                    "p_l":   { c: 40,  t: 800,  drag: "x", boundC: ["p_b", "e1_l"] },
+
+                    "e1_b":  { c: 35,  t: 600,  drag: "both", boundC: ["p_b", "e1_l"], boundT: ["e2_l", "p_b"] },
+                    "e1_l":  { c: 45,  t: 600,  drag: "x", boundC: ["e1_b", 50] },
+                    "e1_ab": { c: 50,  t: 600,  drag: "none", stoich: true },
+
+                    "e2_ab": { c: 50,  t: 500,  drag: "none", stoich: true },
+                    "e2_l":  { c: 75,  t: 500,  drag: "both", boundC: [50, "e2_g"], boundT: [0, "e1_b"] },
+                    "e2_g":  { c: 90,  t: 500,  drag: "x", boundC: ["e2_l", 100] },
+
+                    "t_a":   { c: 5,   t: 0,    drag: "x", boundC: [0, "p_a"] },
+                    "t_b1":  { c: 20,  t: 0,    drag: "x", boundC: ["t_a", "p_b"] },
+                    "t_b2":  { c: 40,  t: 0,    drag: "x", boundC: ["e1_b", 50] },
+                    "t_abL": { c: 50,  t: 0,    drag: "none", stoich: true },
+                    "t_abR": { c: 50,  t: 0,    drag: "none", stoich: true },
+                    "t_g":   { c: 95,  t: 0,    drag: "x", boundC: ["e2_g", 100] }
+                },
+
+                // 3. The Graphic Curve Array (Used to automatically render the diagram boundaries)
+                curves: {
+                    "sol_A":    { s: "m_A", e: "p_a", conv: true, col: "#00ffff" },
+                    "liq_A":    { s: "m_A", e: "p_l", conv: false, col: "#ff00ff" },
+                    "solv_A":   { s: "p_a", e: "t_a", conv: true, col: "#00ffff" },
+
+                    "sol_B_L":  { s: "p_b", e: "e1_b", conv: true, col: "#00ffff" },
+                    "liq_B":    { s: "p_l", e: "e1_l", conv: false, col: "#ff00ff" },
+                    "liq_AB_L": { s: "m_AB", e: "e1_l", conv: false, col: "#ff00ff" },
+                    "sol_AB_L": { s: "m_AB", e: "e1_ab", conv: true, col: "#00ffff" },
+
+                    "solv_B_L": { s: "p_b", e: "t_b1", conv: true, col: "#00ffff" },
+                    "solv_B_R": { s: "e1_b", e: "t_b2", conv: true, col: "#00ffff" },
+
+                    "sol_AB_R": { s: "m_AB", e: "e2_ab", conv: true, col: "#00ffff" },
+                    "liq_AB_R": { s: "m_AB", e: "e2_l", conv: false, col: "#ff00ff" },
+                    "liq_G":    { s: "m_B", e: "e2_l", conv: false, col: "#ff00ff" },
+                    "sol_G":    { s: "m_B", e: "e2_g", conv: true, col: "#00ffff" },
+                    "solv_G":   { s: "e2_g", e: "t_g", conv: true, col: "#00ffff" },
+
+                    // Virtual boundary curves for robust mathematical raycasting
+                    "ax0":      { s: {c:0, t:1300}, e: {c:0, t:0}, isVirtual: true },
+                    "ax50":     { s: {c:50, t:1300}, e: {c:50, t:0}, isVirtual: true },
+                    "ax100":    { s: {c:100, t:1300}, e: {c:100, t:0}, isVirtual: true }
+                },
+
+                // 4. The Thermodynamic Region Raycaster Dictionary
+                regions: [
+                    // Two Phase Mixtures
+                    { id: "L+a",   name: "L + α",  t: [800, 1100], left: ["sol_A"], right: ["liq_A"], pL: "α", pR: "L" },
+                    { id: "L+b",   name: "L + β",  t: [600, 800],  left: ["sol_B_L"], right: ["liq_B"], pL: "β", pR: "L" },
+                    { id: "L+abL", name: "L + AB", t: [600, 1200], left: ["liq_AB_L"], right: ["sol_AB_L"], pL: "L", pR: "AB" },
+                    { id: "L+abR", name: "L + AB", t: [500, 1200], left: ["sol_AB_R"], right: ["liq_AB_R"], pL: "AB", pR: "L" },
+                    { id: "L+g",   name: "L + γ",  t: [500, 950],  left: ["liq_G"], right: ["sol_G"], pL: "L", pR: "γ" },
                     
-                    { start: 'm_AB', end: 'eutoid1', tool: 'solvus' }, // Gamma decomps via solvus
-                    { start: 'm_B', end: 'eutoid1', tool: 'solvus' },
-                    { start: 'm_AB', end: 'sol_AB_R', tool: 'solidus' },
-                    { start: 'm_B', end: 'sol_B', tool: 'solidus' },
-                    { start: 'sol_AB_R', end: 'term_AB_R', tool: 'solvus' },
-                    { start: 'sol_B', end: 'term_B', tool: 'solvus' },
-                    { start: 'sol_AB_R', end: 'eutoid1', tool: "isotherm" },
-                    { start: 'eutoid1', end: 'sol_B', tool: "isotherm" }
+                    { id: "a+b",   name: "α + β",  t: [0, 800],    left: ["solv_A"], right: ["solv_B_L"], pL: "α", pR: "β" },
+                    { id: "b+ab",  name: "β + AB", t: [0, 600],    left: ["solv_B_R"], right: ["ax50"], pL: "β", pR: "AB" },
+                    { id: "ab+g",  name: "AB + γ", t: [0, 500],    left: ["ax50"], right: ["solv_G"], pL: "AB", pR: "γ" },
+
+                    // Single Phases
+                    { id: "a", name: "α", t: [0, 1100], left: ["ax0"], right: ["sol_A", "solv_A"], pL: "α", pR: "None" },
+                    { id: "b", name: "β", t: [0, 800],  left: ["solv_B_L"], right: ["sol_B_L", "solv_B_R"], pL: "β", pR: "None" },
+                    { id: "g", name: "γ", t: [0, 950],  left: ["sol_G", "solv_G"], right: ["ax100"], pL: "γ", pR: "None" }
+                ],
+
+                // 5. The Assessment Auto-Grader Key
+                solution: [
+                    { s: "m_A", e: "p_a", tool: "solidus" },
+                    { s: "m_A", e: "p_l", tool: "liquidus" },
+                    { s: "p_a", e: "t_a", tool: "solvus" },
+                    { s: "p_a", e: "p_l", tool: "isotherm" },
+
+                    { s: "p_b", e: "e1_b", tool: "solidus" },
+                    { s: "p_l", e: "e1_l", tool: "liquidus" },
+                    { s: "m_AB", e: "e1_l", tool: "liquidus" },
+                    { s: "m_AB", e: "e1_ab", tool: "solidus" },
+                    { s: "e1_b", e: "e1_ab", tool: "isotherm" },
+
+                    { s: "p_b", e: "t_b1", tool: "solvus" },
+                    { s: "e1_b", e: "t_b2", tool: "solvus" },
+
+                    { s: "m_AB", e: "e2_ab", tool: "solidus" },
+                    { s: "m_AB", e: "e2_l", tool: "liquidus" },
+                    { s: "m_B", e: "e2_l", tool: "liquidus" },
+                    { s: "m_B", e: "e2_g", tool: "solidus" },
+                    { s: "e2_ab", e: "e2_g", tool: "isotherm" },
+                    { s: "e2_g", e: "t_g", tool: "solvus" }
                 ]
             }
         ];
@@ -203,7 +266,7 @@
         let activeJSON = JSON.parse(JSON.stringify(DiagramDB[0])); 
         const pristineJSON = JSON.stringify(DiagramDB[0]); 
 
-        // --- GLOBAL LOGIC ---
+        // --- GLOBAL APP LOGIC ---
         let currentView = 'sandbox'; let isAssessmentLocked = false; 
 
         function switchView(view) {
@@ -225,12 +288,7 @@
             resizeAll();
         }
 
-        function startAssessment() {
-            document.getElementById('modal-overlay').style.display = 'none';
-            isAssessmentLocked = true;
-            document.getElementById('tab-sandbox').classList.add('locked');
-            as_clearCanvas();
-        }
+        function startAssessment() { document.getElementById('modal-overlay').style.display = 'none'; isAssessmentLocked = true; document.getElementById('tab-sandbox').classList.add('locked'); as_clearCanvas(); }
         function unlockSandbox() { isAssessmentLocked = false; document.getElementById('tab-sandbox').classList.remove('locked'); }
 
         const PAD = 70; const C_MAX = 100;
@@ -239,43 +297,57 @@
         function invX(x, canvas) { return Math.max(0, Math.min(C_MAX, ((x - PAD) / (canvas.width - PAD * 2)) * C_MAX)); }
         function invY(y, canvas) { return Math.max(0, Math.min(activeJSON.T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * activeJSON.T_MAX)); }
 
-        // --- CORE MATH ---
-        function getC_onCurve(T, nodeTop, nodeBot, isConvex) {
-            if (T > Math.max(nodeTop.t, nodeBot.t) || T < Math.min(nodeTop.t, nodeBot.t)) return null;
-            if (nodeTop.t === nodeBot.t) return nodeTop.c; // Isotherm
-            if (nodeTop.c === nodeBot.c) return nodeTop.c; // Stoichiometric
-            let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; 
-            let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
-            return Math.max(0, Math.min(100, c));
+        // --- THE MATH & RAYCASTING ENGINE ---
+        function getC_onCurve(T, cDef) {
+            if (cDef.isVirtual) return cDef.s.c; // Handle rigid vertical boundary lines (e.g. 0%, 50%, 100%)
+            let ns = activeJSON.nodes[cDef.s]; let ne = activeJSON.nodes[cDef.e];
+            
+            let tMax = Math.max(ns.t, ne.t); let tMin = Math.min(ns.t, ne.t);
+            if (T > tMax || T < tMin) return null; // Raymiss
+            if (ns.t === ne.t) return ns.c; // Isotherm
+            if (ns.c === ne.c) return ns.c; // Stoich Lock
+            
+            let ratio = (ns.t - T) / (ns.t - ne.t);
+            let p = cDef.conv ? 1.4 : 0.7; 
+            return ns.c + (ne.c - ns.c) * Math.pow(Math.abs(ratio), p);
         }
 
-        // ==========================================
-        // SANDBOX ENGINE
-        // ==========================================
-        const sb_canvas = document.getElementById('canvas-sandbox'); const sb_ctx = sb_canvas.getContext('2d');
-        let sb_mode = 'navigator'; let sb_mouseX = 0, sb_mouseY = 0;
-        let sb_activeKey = null; let sb_isFrozen = false; let sb_lastMathState = null;
-
-        function sb_drawSubscriptLabel(baseText, subText, x, y, color, align='center', showBg=true, baseSize=14) {
-            let subSize = Math.round(baseSize * 0.75); sb_ctx.font = `bold ${baseSize}px sans-serif`;
-            let wBase = sb_ctx.measureText(baseText).width; sb_ctx.font = `bold ${subSize}px sans-serif`;
-            let wSub = subText ? sb_ctx.measureText(subText).width : 0; let wTotal = wBase + wSub;
+        function drawSubscriptLabel(ctx, baseText, subText, x, y, color, align='center', showBg=true, baseSize=14) {
+            let subSize = Math.round(baseSize * 0.75); ctx.font = `bold ${baseSize}px sans-serif`;
+            let wBase = ctx.measureText(baseText).width; ctx.font = `bold ${subSize}px sans-serif`;
+            let wSub = subText ? ctx.measureText(subText).width : 0; let wTotal = wBase + wSub;
 
             let startX = x;
             if (align === 'center') startX = x - wTotal/2; else if (align === 'right') startX = x - wTotal - 5; else if (align === 'left') startX = x + 5;
 
-            if (showBg) { sb_ctx.fillStyle = '#050505'; let bgH = baseSize + 10; sb_ctx.fillRect(startX - 5, y - bgH/2, wTotal + 10, bgH); }
+            if (showBg) { ctx.fillStyle = '#050505'; let bgH = baseSize + 10; ctx.fillRect(startX - 5, y - bgH/2, wTotal + 10, bgH); }
 
-            sb_ctx.fillStyle = color; sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
-            sb_ctx.font = `bold ${baseSize}px sans-serif`; sb_ctx.fillText(baseText, startX, y);
-            if (subText) { sb_ctx.font = `bold ${subSize}px sans-serif`; sb_ctx.fillText(subText, startX + wBase, y + baseSize*0.25); }
+            ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseText, startX, y);
+            if (subText) { ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subText, startX + wBase, y + baseSize*0.25); }
+        }
+
+        // ==========================================
+        // V23 SANDBOX (Fully Data-Driven)
+        // ==========================================
+        const sb_canvas = document.getElementById('canvas-sandbox'); const sb_ctx = sb_canvas.getContext('2d');
+        let sb_mode = 'navigator'; let sb_mouseX = 0, sb_mouseY = 0; let sb_activeKey = null; let sb_isFrozen = false; let sb_lastMathState = null;
+
+        function sb_initUI() {
+            document.getElementById('sb-title').innerText = activeJSON.name;
+            let btnRow = document.getElementById('sb-preset-controls'); btnRow.replaceChildren();
+            activeJSON.invariants.forEach(inv => {
+                if(inv.type === 'pillar') return;
+                let btn = document.createElement('button'); btn.className = 'action-btn'; btn.innerText = `Snap ${inv.name}`;
+                btn.onclick = () => sb_snapTo(inv.snap_node, inv.t_ref, inv.snap_offset);
+                btnRow.appendChild(btn);
+            });
         }
 
         function sb_draw() {
-            document.getElementById('sb-title').innerText = activeJSON.name;
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
 
+            // Axes
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
             sb_ctx.moveTo(PAD, PAD); sb_ctx.lineTo(PAD, sb_canvas.height - PAD);
             sb_ctx.lineTo(sb_canvas.width - PAD, sb_canvas.height - PAD); sb_ctx.lineTo(sb_canvas.width - PAD, PAD); sb_ctx.stroke();
@@ -286,45 +358,39 @@
             for(let i=0; i<=activeJSON.T_MAX; i+=200) { let y = mapY(i, sb_canvas); sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke(); sb_ctx.fillText(i, PAD - 10, y); }
             sb_ctx.fillStyle = '#fff'; sb_ctx.font = '14px sans-serif'; sb_ctx.fillText('Temp (K)', PAD - 10, PAD - 20); sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
 
-            // Generic JSON Curve Rendering
-            activeJSON.subsystems.forEach((sys, i) => {
-                let nL = activeJSON.nodes[sys.n.tmL]; let nR = activeJSON.nodes[sys.n.tmR];
-                let inv = activeJSON.nodes[sys.n.inv]; let solL = activeJSON.nodes[sys.n.solL]; let solR = activeJSON.nodes[sys.n.solR];
-                let termL = activeJSON.nodes[sys.n.termL]; let termR = activeJSON.nodes[sys.n.termR];
+            // Draw Dynamic Curves from JSON
+            for (let cKey in activeJSON.curves) {
+                let cDef = activeJSON.curves[cKey];
+                if (cDef.isVirtual) continue;
+                let ns = activeJSON.nodes[cDef.s]; let ne = activeJSON.nodes[cDef.e];
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(ns.c, sb_canvas), mapY(ns.t, sb_canvas));
+                for(let i=0; i<=30; i++) {
+                    let t = ns.t - (i/30)*(ns.t - ne.t);
+                    sb_ctx.lineTo(mapX(getC_onCurve(t, cDef), sb_canvas), mapY(t, sb_canvas));
+                }
+                sb_ctx.strokeStyle = cDef.col; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            }
+
+            // Draw Invariant Isotherms and Tags
+            activeJSON.invariants.forEach(inv => {
+                if(inv.type === 'pillar') {
+                    let n = activeJSON.nodes[inv.c1];
+                    drawSubscriptLabel(sb_ctx, inv.lbl, "", mapX(n.c, sb_canvas), mapY(n.t*0.5, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+                    return;
+                }
+                let n1 = activeJSON.nodes[inv.c1]; let n3 = activeJSON.nodes[inv.c3];
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(n1.c, sb_canvas), mapY(n1.t, sb_canvas)); sb_ctx.lineTo(mapX(n3.c, sb_canvas), mapY(n3.t, sb_canvas)); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
                 
-                let isLiq = sys.parent === 'L'; let pCol = isLiq ? '#ff00ff' : '#00ffff'; 
-                
-                // Boundaries
-                let drawC = (nt, nb, conv, col) => {
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nt.c, sb_canvas), mapY(nt.t, sb_canvas));
-                    for(let j=0; j<=30; j++){ let t = nt.t - (j/30)*(nt.t - nb.t); sb_ctx.lineTo(mapX(getC_onCurve(t, nt, nb, conv), sb_canvas), mapY(t, sb_canvas)); }
-                    sb_ctx.strokeStyle = col; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-                };
-                drawC(nL, inv, !isLiq, pCol); drawC(nR, inv, !isLiq, pCol); // Liquidus/UpperSolvus
-                drawC(nL, solL, true, '#00ffff'); drawC(nR, solR, true, '#00ffff'); // Solidus
-                drawC(solL, termL, true, '#00ffff'); drawC(solR, termR, true, '#00ffff'); // Lower Solvus
-                
-                // Isotherm
-                sb_ctx.beginPath(); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3;
-                sb_ctx.moveTo(mapX(solL.c, sb_canvas), mapY(solL.t, sb_canvas)); sb_ctx.lineTo(mapX(solR.c, sb_canvas), mapY(solR.t, sb_canvas)); sb_ctx.stroke();
-
-                // Dynamic Centroids
-                let t_L2 = solL.t + (nL.t - solL.t) * 0.35; let c_L2L = getC_onCurve(t_L2, nL, solL, true) ?? nL.c; let c_L2R = getC_onCurve(t_L2, nL, inv, !isLiq) ?? inv.c;
-                if(c_L2R > c_L2L) sb_drawSubscriptLabel(`${sys.parent} + ${sys.lblL}`, "", mapX((c_L2L+c_L2R)/2, sb_canvas), mapY(t_L2, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-                let t_R2 = solR.t + (nR.t - solR.t) * 0.35; let c_R2L = getC_onCurve(t_R2, nR, inv, !isLiq) ?? inv.c; let c_R2R = getC_onCurve(t_R2, nR, solR, true) ?? nR.c;
-                if(c_R2R > c_R2L) sb_drawSubscriptLabel(`${sys.parent} + ${sys.lblR}`, "", mapX((c_R2L+c_R2R)/2, sb_canvas), mapY(t_R2, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-                let t_B2 = inv.t * 0.5; let c_B2L = getC_onCurve(t_B2, solL, termL, true) ?? solL.c; let c_B2R = getC_onCurve(t_B2, solR, termR, true) ?? solR.c;
-                sb_drawSubscriptLabel(`${sys.lblL} + ${sys.lblR}`, "", mapX((c_B2L+c_B2R)/2, sb_canvas), mapY(t_B2, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
-
-                if (i === 0) sb_drawSubscriptLabel("L", "", mapX(50, sb_canvas), mapY(1220, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-                else if (sys.parent !== 'L') { let tP = inv.t + (Math.max(nL.t, nR.t) - inv.t)*0.5; sb_drawSubscriptLabel(sys.parent, "", mapX(inv.c, sb_canvas), mapY(tP, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28); }
-
-                if (i === 0) { let ta = solL.t*0.5; let ca = getC_onCurve(ta, solL, termL, true) ?? termL.c; sb_drawSubscriptLabel(sys.lblL, "", mapX(ca*0.5, sb_canvas), mapY(ta, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28); }
-                if (i === activeJSON.subsystems.length - 1) { let tb = solR.t*0.5; let cb = getC_onCurve(tb, solR, termR, true) ?? termR.c; sb_drawSubscriptLabel(sys.lblR, "", mapX(cb+(100-cb)*0.5, sb_canvas), mapY(tb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28); }
-                if (nR.stoich) sb_drawSubscriptLabel(sys.lblR, "", mapX(nR.c, sb_canvas), mapY(inv.t * 0.5, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+                // Centroid label for invariant reaction
+                drawSubscriptLabel(sb_ctx, inv.lbl, "", mapX((n1.c+n3.c)/2, sb_canvas), mapY(n1.t + 25, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 20);
             });
+
+            // Draw Region Centroids manually for clarity in V23
+            drawSubscriptLabel(sb_ctx, "L", "", mapX(50, sb_canvas), mapY(1150, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let n_a = activeJSON.nodes["p_a"]; let t_a = n_a.t*0.5; let c_a = getC_onCurve(t_a, activeJSON.curves["c_solvA"]) ?? activeJSON.nodes["t_a"].c; drawSubscriptLabel(sb_ctx, "α", "", mapX(c_a*0.5, sb_canvas), mapY(t_a, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let t_b = activeJSON.nodes["e1_b"].t + (activeJSON.nodes["p_b"].t - activeJSON.nodes["e1_b"].t)*0.5; let c_bL = getC_onCurve(t_b, activeJSON.curves["c_solvB_L"]) ?? activeJSON.nodes["p_b"].c; let c_bR = getC_onCurve(t_b, activeJSON.curves["c_solB_L"]) ?? activeJSON.nodes["e1_b"].c; drawSubscriptLabel(sb_ctx, "β", "", mapX((c_bL+c_bR)/2, sb_canvas), mapY(t_b, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+            let n_g = activeJSON.nodes["e2_g"]; let t_g = n_g.t*0.5; let c_g = getC_onCurve(t_g, activeJSON.curves["c_solvG"]) ?? activeJSON.nodes["t_g"].c; drawSubscriptLabel(sb_ctx, "γ", "", mapX(c_g+(100-c_g)*0.5, sb_canvas), mapY(t_g, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
+
 
             if (sb_mode === 'architect') {
                 for (let key in activeJSON.nodes) {
@@ -340,34 +406,36 @@
             let curC = invX(sb_mouseX, sb_canvas); let curT = invY(sb_mouseY, sb_canvas);
             if(curC < 0 || curC > 100 || curT < 0 || curT > activeJSON.T_MAX) return;
 
-            let sys = activeJSON.subsystems.find(s => curC >= s.bounds[0] && curC <= s.bounds[1]);
-            if(!sys) return;
+            let curRegion = null; let tieLeft = null; let tieRight = null;
 
-            let nds = activeJSON.nodes;
-            let tmL = nds[sys.n.tmL], tmR = nds[sys.n.tmR], inv = nds[sys.n.inv], solL = nds[sys.n.solL], solR = nds[sys.n.solR], termL = nds[sys.n.termL], termR = nds[sys.n.termR];
+            // Mathematical Raycaster Engine
+            for (let r of activeJSON.regions) {
+                if (curT >= r.t[0] && curT <= r.t[1]) {
+                    let boundsL = []; let boundsR = [];
+                    r.left.forEach(cKey => { let val = getC_onCurve(curT, activeJSON.curves[cKey]); if(val !== null) boundsL.push(val); });
+                    r.right.forEach(cKey => { let val = getC_onCurve(curT, activeJSON.curves[cKey]); if(val !== null) boundsR.push(val); });
 
-            let isLiq = sys.parent === 'L';
-            let region = "Single Phase", tieLeft = null, tieRight = null, pL = {b:"-",s:""}, pR = {b:"-",s:""}, vL = {b:"",s:""}, vR = {b:"",s:""};
+                    if (boundsL.length > 0 && boundsR.length > 0) {
+                        let cL = Math.max(...boundsL); // Max of left bounds limits region properly
+                        let cR = Math.min(...boundsR); // Min of right bounds
+                        
+                        if (curC >= cL && curC <= cR) {
+                            curRegion = r; tieLeft = cL; tieRight = cR; break;
+                        }
+                    }
+                }
+            }
 
-            if (curT > inv.t) { 
-                let c_SolL = getC_onCurve(curT, tmL, solL, true) ?? tmL.c; let c_SolR = getC_onCurve(curT, tmR, solR, true) ?? tmR.c;
-                let c_InvL = getC_onCurve(curT, tmL, inv, !isLiq) ?? tmL.c; let c_InvR = getC_onCurve(curT, tmR, inv, !isLiq) ?? tmR.c;
-
-                if (curC < c_SolL) region = sys.lblL;
-                else if (curC <= c_InvL) { region = `${sys.parent} + ${sys.lblL}`; tieLeft = c_SolL; tieRight = c_InvL; pL={b:sys.lblL,s:""}; pR={b:sys.parent,s:""}; vL={b:"C",s:sys.lblL}; vR={b:"C",s:sys.parent}; }
-                else if (curC < c_InvR) region = sys.parent;
-                else if (curC <= c_SolR) { region = `${sys.parent} + ${sys.lblR}`; tieLeft = c_InvR; tieRight = c_SolR; pL={b:sys.parent,s:""}; pR={b:sys.lblR,s:""}; vL={b:"C",s:sys.parent}; vR={b:"C",s:sys.lblR}; }
-                else region = sys.lblR;
-            } else { 
-                let c_SolvL = getC_onCurve(curT, solL, termL, true) ?? solL.c; let c_SolvR = getC_onCurve(curT, solR, termR, true) ?? solR.c;
-                if (curC < c_SolvL) region = sys.lblL;
-                else if (curC <= c_SolvR) { region = `${sys.lblL} + ${sys.lblR}`; tieLeft = c_SolvL; tieRight = c_SolvR; pL={b:sys.lblL,s:""}; pR={b:sys.lblR,s:""}; vL={b:"C",s:sys.lblL}; vR={b:"C",s:sys.lblR}; }
-                else region = sys.lblR;
+            if (!curRegion) {
+                // Liquid Fallback for high temps
+                if (curT > 800) { curRegion = {name: "L", pL: "L", pR: "None"}; tieLeft = curC; tieRight = curC; }
+                else return; 
             }
 
             let w1 = "-", w2 = "-";
+            let isSingle = curRegion.pR === "None";
 
-            if (tieLeft !== null && tieRight !== null) {
+            if (!isSingle && tieLeft !== null && tieRight !== null) {
                 let valL = parseFloat(tieLeft.toFixed(1)); let val0 = parseFloat(curC.toFixed(1)); let valR = parseFloat(tieRight.toFixed(1));
                 if (valL === valR) valR += 0.1; // Safegaurd stoich lines
                 let R_val = parseFloat((val0 - valL).toFixed(1)); let S_val = parseFloat((valR - val0).toFixed(1)); let Tot_val = parseFloat((valR - valL).toFixed(1));
@@ -381,34 +449,35 @@
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(val0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(valR, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(valR, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.setLineDash([]);
-                    sb_drawSubscriptLabel(sb_ctx, "R", "", mapX(valL + R_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#ff8800", "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, "S", "", mapX(val0 + S_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#00ffff", "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "R", "", mapX(valL + R_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#ff8800", "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "S", "", mapX(val0 + S_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#00ffff", "center", true, 13);
                     let axisY = sb_canvas.height - PAD + 20;
-                    sb_drawSubscriptLabel(sb_ctx, vL.b, vL.s + "=" + valL, mapX(valL, sb_canvas), axisY, '#00ffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), axisY, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, vR.b, vR.s + "=" + valR, mapX(valR, sb_canvas), axisY, '#ff8800', "center", true, 13);
-                    sb_lastMathState = { isSinglePhase: false, vL, vR, pL, pR, cL: valL, c0: val0, cR: valR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
+                    drawSubscriptLabel(sb_ctx, "C", curRegion.pL + "=" + valL, mapX(valL, sb_canvas), axisY, '#00ffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), axisY, '#ffffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, "C", curRegion.pR + "=" + valR, mapX(valR, sb_canvas), axisY, '#ff8800', "center", true, 13);
+                    
+                    sb_lastMathState = { isSinglePhase: false, cLName: "C", cLSub: curRegion.pL, cRName: "C", cRSub: curRegion.pR, phaseL: curRegion.pL, phaseR: curRegion.pR, cL: valL, c0: val0, cR: valR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
                 }
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(valL, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(valR, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
                 sb_ctx.fillStyle = '#00ffff'; sb_ctx.beginPath(); sb_ctx.arc(mapX(valL, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill(); sb_ctx.beginPath(); sb_ctx.arc(mapX(valR, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
             } else {
-                w1 = "1.00"; w2 = "0.00"; pL = {b:region, s:""}; pR = {b:"None", s:""};
+                w1 = "1.00"; w2 = "0.00";
                 if (sb_isFrozen) {
                     let val0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
                     sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(val0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(val0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(PAD, mapY(curT, sb_canvas)); sb_ctx.stroke();
                     sb_ctx.setLineDash([]);
-                    sb_drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), sb_canvas.height - PAD + 20, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(sb_ctx, t0.toString(), "", PAD - 5, mapY(curT, sb_canvas), '#ffffff', 'right', true, 13);
-                    sb_lastMathState = { isSinglePhase: true, region: region, c0: val0, t0: t0 };
+                    drawSubscriptLabel(sb_ctx, "C", "0=" + val0, mapX(val0, sb_canvas), sb_canvas.height - PAD + 20, '#ffffff', "center", true, 13);
+                    drawSubscriptLabel(sb_ctx, t0.toString(), "", PAD - 5, mapY(curT, sb_canvas), '#ffffff', 'right', true, 13);
+                    sb_lastMathState = { isSinglePhase: true, region: curRegion.name, c0: val0, t0: t0 };
                 }
             }
 
             sb_ctx.beginPath(); sb_ctx.arc(mapX(curC, sb_canvas), mapY(curT, sb_canvas), 6, 0, Math.PI*2); sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
-            document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1); document.getElementById('sb-out-region').innerText = region;
-            setDomPhase('sb-lbl-left', pL.b, pL.s); document.getElementById('sb-out-w1').innerText = w1;
-            setDomPhase('sb-lbl-right', pR.b, pR.s); document.getElementById('sb-out-w2').innerText = w2;
+            document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1); document.getElementById('sb-out-region').innerText = curRegion.name;
+            setDomPhase('sb-lbl-left', curRegion.pL, ""); document.getElementById('sb-out-w1').innerText = w1;
+            setDomPhase('sb-lbl-right', curRegion.pR, ""); document.getElementById('sb-out-w2').innerText = w2;
         }
 
         function sb_updateMathPanel() {
@@ -431,18 +500,17 @@
                 addLine(["1. Identify Region:"], "color:#aaa;"); addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub: "0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
                 addDiv(); addLine(["2. Apply Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.region, sub: m.region}, " = ", {text: "1.00", color: "var(--cyan)"}]);
             } else {
-                addLine(["1. Intersections:"], "color:#aaa;"); addLine(["\u00A0\u00A0", {text: m.vL.b, sub: m.vL.s, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0", {text: m.vR.b, sub: m.vR.s, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
+                addLine(["1. Intersections:"], "color:#aaa;"); addLine(["\u00A0\u00A0", {text: m.cLName, sub: m.cLSub, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); addLine(["\u00A0\u00A0", {text: m.cRName, sub: m.cRSub, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
                 addDiv(); addLine(["2. Segments:"], "color:#aaa;"); addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
-                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.pL.b, sub: m.pL.b}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X", {text: m.pR.b, sub: m.pR.b}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
+                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;"); addLine(["\u00A0\u00A0X", {text: m.phaseL, sub: m.phaseL}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); addLine(["\u00A0\u00A0X", {text: m.phaseR, sub: m.phaseR}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
             }
         }
 
-        // PERFECT SNAPPING ALGORITHM: Center of invariant, +/- 1 Degree
-        function sb_snapToLocalInvariant() {
+        // PERFECT SNAPPING: Algorithmic parsing based on JSON Invariants
+        function sb_snapTo(nodeKey, tRefKey, tOffset) {
             sb_setMode('navigator'); 
-            let curC = invX(sb_mouseX, sb_canvas);
-            let sys = activeJSON.subsystems.find(s => curC >= s.bounds[0] && curC <= s.bounds[1]);
-            if(sys) { sb_mouseX = mapX(activeJSON.nodes[sys.n.inv].c, sb_canvas); sb_mouseY = mapY(activeJSON.nodes[sys.n.inv].t - 1, sb_canvas); }
+            let n = activeJSON.nodes[nodeKey]; let tNode = activeJSON.nodes[tRefKey];
+            sb_mouseX = mapX(n.c, sb_canvas); sb_mouseY = mapY(tNode.t + tOffset, sb_canvas); 
             sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
         }
 
@@ -451,6 +519,11 @@
             sb_mode = newMode; sb_isFrozen = false; sb_updateMathPanel();
             document.getElementById('sb-btn-navigator').classList.toggle('active', sb_mode === 'navigator'); document.getElementById('sb-btn-architect').classList.toggle('active', sb_mode === 'architect');
             document.getElementById('sb-preset-controls').style.display = sb_mode === 'navigator' ? 'flex' : 'none'; sb_canvas.style.cursor = sb_mode === 'architect' ? 'grab' : 'crosshair'; sb_draw();
+        }
+
+        function getBoundVal(boundDef) {
+            if (typeof boundDef === 'number') return boundDef;
+            return activeJSON.nodes[boundDef].c !== undefined ? activeJSON.nodes[boundDef].c : activeJSON.nodes[boundDef].t;
         }
 
         sb_canvas.addEventListener('mousemove', (e) => {
@@ -463,8 +536,11 @@
                 
                 if (n.stoich) newC = n.c;
                 if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
-                if(newT > activeJSON.T_MAX-50) newT = activeJSON.T_MAX-50; if(newT < 100) newT = 100;
+                
+                if (n.boundC) { let minC = getBoundVal(n.boundC[0]); let maxC = getBoundVal(n.boundC[1]); if(newC <= minC) newC = minC; if(newC >= maxC) newC = maxC; }
+                if (n.boundT) { let minT = getBoundVal(n.boundT[0]); let maxT = getBoundVal(n.boundT[1]); if(newT <= minT) newT = minT; if(newT >= maxT) newT = maxT; }
 
+                if(newT > activeJSON.T_MAX-50) newT = activeJSON.T_MAX-50; if(newT < 100) newT = 100;
                 n.c = newC; n.t = newT;
             }
             sb_draw();
@@ -486,24 +562,20 @@
 
 
         // ==========================================
-        // V22 ASSESSMENT ENGINE (JSON DRIVEN)
+        // V23 ASSESSMENT ENGINE (Generic Curve Builder)
         // ==========================================
         const as_canvas = document.getElementById('canvas-assess'); const as_ctx = as_canvas.getContext('2d');
         let as_tool = 'liquidus'; let as_selKey = null; let as_edges = [];
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active')); e.target.classList.add('active');
-                as_tool = e.target.dataset.tool; as_selKey = null; as_draw();
-            });
+            btn.addEventListener('click', (e) => { document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); as_tool = e.target.dataset.tool; as_selKey = null; as_draw(); });
         });
 
-        // Assessment Bezier Curvature (Matches Sandbox thermodynamics)
         function as_drawSimpleCurve(n1, n2, tool) {
             let x1 = mapX(n1.c, as_canvas); let y1 = mapY(n1.t, as_canvas); let x2 = mapX(n2.c, as_canvas); let y2 = mapY(n2.t, as_canvas);
             as_ctx.beginPath(); as_ctx.moveTo(x1, y1);
             if (tool === 'isotherm') { as_ctx.lineTo(x2, y2); as_ctx.strokeStyle = '#ffff00'; } 
-            else if (n1.c === n2.c) { as_ctx.lineTo(x2, y2); as_ctx.strokeStyle = '#00ffff'; } // Fallback stoich wall
+            else if (n1.c === n2.c) { as_ctx.lineTo(x2, y2); as_ctx.strokeStyle = '#00ffff'; } // Vertical lock
             else {
                 let midX = (x1 + x2) / 2; let midY = (y1 + y2) / 2; let offset = Math.abs(x2 - x1) * 0.2;
                 if (tool === 'liquidus') midY += offset; else midY -= offset;
@@ -548,8 +620,7 @@
                 if (!as_selKey) as_selKey = clickedKey;
                 else if (as_selKey !== clickedKey) {
                     let isDup = as_edges.some(e => (e.start === as_selKey && e.end === clickedKey) || (e.start === clickedKey && e.end === as_selKey));
-                    if(!isDup) as_edges.push({ start: as_selKey, end: clickedKey, tool: as_tool });
-                    as_selKey = null; 
+                    if(!isDup) as_edges.push({ start: as_selKey, end: clickedKey, tool: as_tool }); as_selKey = null; 
                 }
             }
             as_draw();
@@ -563,7 +634,7 @@
             
             let sol = activeJSON.solution;
             sol.forEach(solEdge => {
-                let match = as_edges.find(e => (e.start === solEdge.start && e.end === solEdge.end) || (e.start === solEdge.end && e.end === solEdge.start));
+                let match = as_edges.find(e => (e.start === solEdge.s && e.end === solEdge.e) || (e.start === solEdge.e && e.end === solEdge.s));
                 if (match) { if (match.tool === solEdge.tool) correctCount++; else errors.push(`Incorrect curve type.`); } else errors.push(`Missing connection.`);
             });
 
@@ -575,10 +646,11 @@
 
         function as_clearCanvas() { as_edges = []; as_selKey = null; as_setFeedback("Awaiting submission...", "var(--silver)"); as_draw(); }
 
+        // --- INIT ---
         function resizeAll() {
             sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
             as_canvas.width = as_canvas.parentElement.clientWidth; as_canvas.height = as_canvas.parentElement.clientHeight;
-            sb_draw(); as_draw();
+            sb_initUI(); sb_draw(); as_draw();
         }
         window.addEventListener('resize', resizeAll); document.getElementById('view-assessment').style.display = 'none'; resizeAll();
     </script>
