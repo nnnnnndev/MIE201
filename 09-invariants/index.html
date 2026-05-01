@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Diagram Master Module V18</title>
+    <title>Chapter 9: Phase Diagram Master Module V19</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -194,7 +194,7 @@
         function invY(y, canvas) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
 
         // ==========================================
-        // V18 SANDBOX ENGINE LOGIC 
+        // V19 SANDBOX ENGINE LOGIC 
         // ==========================================
         const sb_canvas = document.getElementById('canvas-sandbox');
         const sb_ctx = sb_canvas.getContext('2d');
@@ -204,7 +204,7 @@
         let sb_isFrozen = false;
         let sb_lastMathState = null;
 
-        // Immutable initial state for perfect Navigator resets
+        // V19 UPDATE: Initial state widened to guarantee Peritectic cools to a single phase.
         const initial_sb_nodes = {
             tmA:    { c: 0,   t: 1100, drag: 'y' },
             tmB:    { c: 100, t: 900,  drag: 'y' },
@@ -215,8 +215,8 @@
             eLiq:   { c: 75, t: 500, drag: 'x' }, 
             eGamma: { c: 90, t: 500, drag: 'x' },
             tA:     { c: 5,  t: 0, drag: 'x' },
-            tB1:    { c: 37, t: 0, drag: 'x' }, 
-            tB2:    { c: 43, t: 0, drag: 'x' }, 
+            tB1:    { c: 30, t: 0, drag: 'x' }, // FLared Left (<= 35) to keep 35 pure Beta
+            tB2:    { c: 50, t: 0, drag: 'x' }, // Flared Right (>= 45) to keep 45 pure Beta
             tG:     { c: 95, t: 0, drag: 'x' }
         };
 
@@ -547,21 +547,19 @@
             }
         }
 
-        // FIX: Perfectly precise algorithmic snapping to exactly 1 degree above/below invariant shelves
         function sb_snapTo(type) {
             sb_setMode('navigator'); 
             if(type === 'peri') { 
-                sb_mouseX = mapX(sb_nodes.pBeta.c, sb_canvas); 
+                sb_mouseX = mapX(35, sb_canvas); 
                 sb_mouseY = mapY(sb_nodes.pAlpha.t + 1, sb_canvas); 
             } else { 
-                sb_mouseX = mapX(sb_nodes.eLiq.c, sb_canvas); 
+                sb_mouseX = mapX(75, sb_canvas); 
                 sb_mouseY = mapY(sb_nodes.eBeta.t - 1, sb_canvas); 
             }
             sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
         }
 
         function sb_setMode(newMode) {
-            // FIX: Restore pristine pedagogical state upon returning to navigator
             if (newMode === 'navigator' && sb_mode === 'architect') {
                 sb_nodes = JSON.parse(JSON.stringify(initial_sb_nodes));
             }
@@ -578,7 +576,6 @@
             sb_mouseX = e.clientX - rect.left; 
             sb_mouseY = e.clientY - rect.top;
 
-            // FIX: Restored boundary-safe Architect drag logic with strict collision prevention
             if (sb_mode === 'architect' && sb_activeNodeKey) {
                 let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
                 if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
@@ -586,6 +583,7 @@
                 let n = sb_nodes[sb_activeNodeKey];
                 if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
 
+                // V19: STRICT THERMODYNAMIC COLLISION PREVENTION (Guaranteed Single Phase Cooling)
                 if (sb_activeNodeKey === 'pAlpha') {
                     if (newT <= sb_nodes.eBeta.t + 50) newT = sb_nodes.eBeta.t + 50; 
                     if (newC <= sb_nodes.tA.c) newC = sb_nodes.tA.c; 
@@ -593,14 +591,14 @@
                 } else if (sb_activeNodeKey === 'pBeta') {
                     if (newC <= sb_nodes.pAlpha.c + 1) newC = sb_nodes.pAlpha.c + 1;
                     if (newC >= sb_nodes.pLiq.c - 1) newC = sb_nodes.pLiq.c - 1;
-                    if (newC >= sb_nodes.tB1.c) newC = sb_nodes.tB1.c; 
+                    if (newC <= sb_nodes.tB1.c) newC = sb_nodes.tB1.c; // Push Terminal Left
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'pLiq') {
                     if (newC <= sb_nodes.pBeta.c + 1) newC = sb_nodes.pBeta.c + 1;
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'eBeta') {
                     if (newT >= sb_nodes.pAlpha.t - 50) newT = sb_nodes.pAlpha.t - 50; 
-                    if (newC <= sb_nodes.tB2.c) newC = sb_nodes.tB2.c; 
+                    if (newC >= sb_nodes.tB2.c) newC = sb_nodes.tB2.c; // Push Terminal Right
                     n.c = newC; n.t = newT; sb_nodes.eLiq.t = newT; sb_nodes.eGamma.t = newT;
                 } else if (sb_activeNodeKey === 'eLiq') {
                     if (newC <= sb_nodes.eBeta.c + 1) newC = sb_nodes.eBeta.c + 1;
@@ -614,12 +612,12 @@
                     if (newC >= sb_nodes.pAlpha.c) newC = sb_nodes.pAlpha.c;
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'tB1') {
-                    if (newC <= sb_nodes.pBeta.c) newC = sb_nodes.pBeta.c;
-                    if (newC >= sb_nodes.tB2.c - 1) newC = sb_nodes.tB2.c - 1;
+                    if (newC >= sb_nodes.pBeta.c) newC = sb_nodes.pBeta.c; // MUST NOT PINCH PERITECTIC
+                    if (newC <= sb_nodes.tA.c + 5) newC = sb_nodes.tA.c + 5; 
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'tB2') {
-                    if (newC >= sb_nodes.eBeta.c) newC = sb_nodes.eBeta.c;
-                    if (newC <= sb_nodes.tB1.c + 1) newC = sb_nodes.tB1.c + 1;
+                    if (newC <= sb_nodes.eBeta.c) newC = sb_nodes.eBeta.c; // MUST NOT PINCH EUTECTIC
+                    if (newC >= sb_nodes.tG.c - 5) newC = sb_nodes.tG.c - 5; 
                     n.c = newC;
                 } else if (sb_activeNodeKey === 'tG') {
                     if (newC <= sb_nodes.eGamma.c) newC = sb_nodes.eGamma.c;
@@ -632,7 +630,6 @@
         });
 
         sb_canvas.addEventListener('mousedown', (e) => {
-            // FIX: Mouse coordinates accurately logged allowing freeze behavior
             let rect = sb_canvas.getBoundingClientRect(); 
             sb_mouseX = e.clientX - rect.left; 
             sb_mouseY = e.clientY - rect.top;
@@ -656,7 +653,7 @@
 
 
         // ==========================================
-        // V13 ASSESSMENT ENGINE LOGIC (Dumb Curves, 8 Edges)
+        // V13 ASSESSMENT ENGINE LOGIC 
         // ==========================================
         const as_canvas = document.getElementById('canvas-assess');
         const as_ctx = as_canvas.getContext('2d');
@@ -687,7 +684,6 @@
             });
         });
 
-        // FIX: Restored native Bezier curves for assessment drawing to provide accurate thermodynamic visual hints
         function as_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
             if (T > nodeTop.t || T < nodeBot.t) return null;
             if (nodeTop.t === nodeBot.t) return nodeTop.c;
