@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Phase Diagram Master Module V19</title>
+    <title>Chapter 9: Procedural Phase Engine V20</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -15,17 +15,12 @@
         /* Top Navigation */
         #global-nav { height: 50px; background: #0a0a0a; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 100; }
         .brand { color: var(--cyan); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 1.1rem; }
-        .nav-tabs { display: flex; gap: 10px; height: 100%; }
-        .nav-tab { background: transparent; border: none; color: #888; font-weight: bold; text-transform: uppercase; padding: 0 20px; cursor: pointer; transition: 0.3s; border-bottom: 3px solid transparent; }
-        .nav-tab:hover:not(.locked) { color: #fff; }
-        .nav-tab.active { color: var(--magenta); border-bottom-color: var(--magenta); background: rgba(255,0,255,0.05); }
-        .nav-tab.locked { opacity: 0.3; cursor: not-allowed; text-decoration: line-through; }
 
         /* Main Layouts */
         .view-container { flex: 1; display: flex; overflow: hidden; }
         .sidebar { width: 380px; background: var(--panel); border-right: 2px solid #333; display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
         .stage { flex: 1; position: relative; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
-        canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+        canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
 
         /* Shared UI Elements */
         .header { padding: 20px; border-bottom: 1px solid #333; text-align: center; }
@@ -33,82 +28,29 @@
         .control-group { padding: 20px; border-bottom: 1px solid #333; }
         .label { font-size: 0.85rem; color: var(--yellow); text-transform: uppercase; margin-bottom: 10px; display: block; font-weight: bold;}
         
-        .toggle-container { display: flex; background: #000; border: 1px solid #444; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
-        .toggle-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; transition: 0.3s; font-size: 0.9rem; font-weight: bold; text-transform: uppercase; }
-        .toggle-btn.active { background: rgba(0, 255, 255, 0.1); color: var(--cyan); border-bottom: 2px solid var(--cyan); }
-        .toggle-btn:not(.active) { color: #666; }
-
-        .btn-row { display: flex; gap: 10px; }
-        button.action-btn { background: #222; color: #fff; border: 1px solid var(--orange); padding: 8px 12px; cursor: pointer; text-transform: uppercase; font-size: 0.8rem; font-weight: bold; width: 100%; transition: 0.2s; margin-top:10px;}
-        button.action-btn:hover { background: var(--orange); color: #000; }
-
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
-
-        /* Toolbox */
-        .toolbox { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .tool-btn { background: #000; border: 1px solid #444; color: #888; padding: 12px; text-align: center; cursor: pointer; border-radius: 4px; font-weight: bold; text-transform: uppercase; transition: 0.2s; font-size: 0.8rem; }
-        .tool-btn.active[data-tool="liquidus"] { background: rgba(255, 0, 255, 0.1); border-color: var(--magenta); color: var(--magenta); }
-        .tool-btn.active[data-tool="solidus"] { background: rgba(0, 255, 255, 0.1); border-color: var(--cyan); color: var(--cyan); }
-        .tool-btn.active[data-tool="solvus"] { background: rgba(0, 255, 255, 0.1); border-color: var(--cyan); color: var(--cyan); }
-        .tool-btn.active[data-tool="isotherm"] { background: rgba(255, 255, 0, 0.1); border-color: var(--yellow); color: var(--yellow); }
-        .tool-btn.active[data-tool="delete"] { background: rgba(255, 0, 0, 0.1); border-color: var(--red); color: var(--red); }
         
         #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         .math-hl { color: #fff; font-weight: bold; }
-        #as-feedback-box { font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.5; color: var(--silver); margin-top: 10px; }
-
-        /* Modal */
-        #modal-overlay { position: fixed; top: 50px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 1000; display: none; justify-content: center; align-items: center; }
-        .modal-content { background: var(--panel); border: 2px solid var(--magenta); padding: 40px; border-radius: 8px; max-width: 600px; text-align: center; box-shadow: 0 0 30px rgba(255,0,255,0.2); }
-        .modal-content h2 { color: var(--cyan); font-size: 1.8rem; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-        .modal-content p { font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px; color: var(--silver); }
-        .inventory-list { background: #000; border: 1px dashed var(--yellow); padding: 20px; margin-bottom: 30px; font-family: 'Consolas', monospace; color: var(--yellow); font-size: 1.1rem; }
     </style>
 </head>
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform</div>
-        <div class="nav-tabs">
-            <button class="nav-tab active" id="tab-sandbox" onclick="switchView('sandbox')">1. Sandbox (Learn)</button>
-            <button class="nav-tab" id="tab-assess" onclick="switchView('assessment')">2. Assessment (Test)</button>
-        </div>
-    </div>
-
-    <div id="modal-overlay">
-        <div class="modal-content">
-            <h2>Quest: Eutectic Blueprint</h2>
-            <p>Construct a thermodynamically accurate Eutectic phase diagram by connecting the fixed nodes.</p>
-            <div class="inventory-list">
-                INVENTORY REQUIRED:<br>
-                2x Liquidus Curves<br>
-                2x Solidus Curves<br>
-                2x Solvus Curves<br>
-                2x Isotherm Segments
-            </div>
-            <button class="action-btn" style="font-size: 1.2rem; padding: 15px;" onclick="startAssessment()">Begin Assessment</button>
-            <p style="font-size: 0.8rem; color:#666; margin-top:15px;">Warning: Leaving this screen will lock the Sandbox until completion.</p>
-        </div>
+        <div class="brand">Phase Engine Platform (V20)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
         <div class="sidebar">
-            <div class="header"><h2>Peri + Eutectic Sandbox</h2></div>
+            <div class="header"><h2>Procedural Sandbox</h2></div>
             <div class="control-group">
                 <span class="label">Interaction Mode</span>
-                <div class="toggle-container">
-                    <div class="toggle-btn active" id="sb-btn-navigator" onclick="sb_setMode('navigator')">Navigator</div>
-                    <div class="toggle-btn" id="sb-btn-architect" onclick="sb_setMode('architect')">Architect</div>
-                </div>
-                <div class="btn-row" id="sb-preset-controls">
-                    <button class="action-btn" onclick="sb_snapTo('peri')">Snap Peritectic</button>
-                    <button class="action-btn" onclick="sb_snapTo('eut')">Snap Eutectic</button>
-                </div>
-                <p id="sb-mode-desc" style="margin-top: 15px; font-size: 0.85rem; color: #888; line-height: 1.4;">
-                    Hover over boundaries. <strong>Click</strong> to freeze tie-line.
+                <p style="font-size: 0.85rem; color: #888; line-height: 1.4;">
+                    Hover over the diagram. The Raycaster will mathematically identify the active region and procedural bounds.<br><br>
+                    <strong>Click</strong> to freeze tie-line calculation.
                 </p>
                 <div id="sb-math-panel">
                     <div class="label" style="color:var(--cyan)">Math Expansion (Lever Rule)</div>
@@ -121,204 +63,211 @@
                 <div class="stat"><span>Comp (at% B):</span> <span class="val" id="sb-out-c">--</span></div>
                 <hr style="border-color:#333; margin:15px 0;">
                 <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="sb-out-region">--</span></div>
-                <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>1</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
-                <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>2</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
+                <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>-</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
+                <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>-</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
             </div>
         </div>
         <div class="stage"><canvas id="canvas-sandbox"></canvas></div>
     </div>
 
-    <div id="view-assessment" class="view-container" style="display:none;">
-        <div class="sidebar">
-            <div class="header"><h2>Builder Assessment</h2></div>
-            <div class="control-group">
-                <span class="label">1. Select Curve Type</span>
-                <div class="toolbox" id="as-toolbox">
-                    <div class="tool-btn active" data-tool="liquidus">Liquidus</div>
-                    <div class="tool-btn" data-tool="solidus">Solidus</div>
-                    <div class="tool-btn" data-tool="solvus">Solvus</div>
-                    <div class="tool-btn" data-tool="isotherm">Isotherm</div>
-                    <div class="tool-btn" data-tool="delete" style="grid-column: span 2;">Erase Connection</div>
-                </div>
-                <span class="label" style="margin-top:20px;">2. Connect Nodes</span>
-                <p style="font-size: 0.85rem; color: #888; line-height: 1.4; margin-bottom: 20px;">Click a starting node, then an ending node to draw.</p>
-                <button class="action-btn" onclick="as_checkAnswers()">Submit Diagram</button>
-                <button class="action-btn" onclick="as_clearCanvas()" style="background:#111; border-color:#444; color:#888;">Clear All</button>
-            </div>
-            <div class="readout-panel">
-                <span class="label">System Feedback</span>
-                <div id="as-feedback-box">Awaiting submission...</div>
-            </div>
-        </div>
-        <div class="stage"><canvas id="canvas-assess"></canvas></div>
-    </div>
-
     <script>
-        // --- GLOBAL APP LOGIC ---
-        let currentView = 'sandbox';
-        let isAssessmentLocked = false; 
-
-        function switchView(view) {
-            if (view === 'sandbox' && isAssessmentLocked) return; 
-            currentView = view;
-            document.getElementById('view-sandbox').style.display = view === 'sandbox' ? 'flex' : 'none';
-            document.getElementById('view-assessment').style.display = view === 'assessment' ? 'flex' : 'none';
-            document.getElementById('tab-sandbox').classList.toggle('active', view === 'sandbox');
-            document.getElementById('tab-assess').classList.toggle('active', view === 'assessment');
-
-            if (view === 'assessment' && !isAssessmentLocked) {
-                document.getElementById('modal-overlay').style.display = 'flex';
-            }
-            resizeAll();
-        }
-
-        function startAssessment() {
-            document.getElementById('modal-overlay').style.display = 'none';
-            isAssessmentLocked = true;
-            document.getElementById('tab-sandbox').classList.add('locked');
-            as_clearCanvas();
-        }
-
-        function unlockSandbox() {
-            isAssessmentLocked = false;
-            document.getElementById('tab-sandbox').classList.remove('locked');
-        }
-
-        const PAD = 70;
-        const C_MAX = 100;
-        const T_MAX = 1200;
-
-        function mapX(c, canvas) { return PAD + (c / C_MAX) * (canvas.width - PAD * 2); }
-        function mapY(t, canvas) { return canvas.height - PAD - (t / T_MAX) * (canvas.height - PAD * 2); }
-        function invX(x, canvas) { return Math.max(0, Math.min(C_MAX, ((x - PAD) / (canvas.width - PAD * 2)) * C_MAX)); }
-        function invY(y, canvas) { return Math.max(0, Math.min(T_MAX, ((canvas.height - PAD - y) / (canvas.height - PAD * 2)) * T_MAX)); }
-
-        // ==========================================
-        // V19 SANDBOX ENGINE LOGIC 
-        // ==========================================
         const sb_canvas = document.getElementById('canvas-sandbox');
         const sb_ctx = sb_canvas.getContext('2d');
-        let sb_mode = 'navigator';
+        const PAD = 70;
         let sb_mouseX = 0, sb_mouseY = 0;
-        let sb_activeNodeKey = null;
         let sb_isFrozen = false;
         let sb_lastMathState = null;
 
-        // V19 UPDATE: Initial state widened to guarantee Peritectic cools to a single phase.
-        const initial_sb_nodes = {
-            tmA:    { c: 0,   t: 1100, drag: 'y' },
-            tmB:    { c: 100, t: 900,  drag: 'y' },
-            pAlpha: { c: 15, t: 800, drag: 'both' },
-            pBeta:  { c: 35, t: 800, drag: 'x' }, 
-            pLiq:   { c: 55, t: 800, drag: 'x' }, 
-            eBeta:  { c: 45, t: 500, drag: 'both' },
-            eLiq:   { c: 75, t: 500, drag: 'x' }, 
-            eGamma: { c: 90, t: 500, drag: 'x' },
-            tA:     { c: 5,  t: 0, drag: 'x' },
-            tB1:    { c: 30, t: 0, drag: 'x' }, // FLared Left (<= 35) to keep 35 pure Beta
-            tB2:    { c: 50, t: 0, drag: 'x' }, // Flared Right (>= 45) to keep 45 pure Beta
-            tG:     { c: 95, t: 0, drag: 'x' }
+        // Coordinate Mappers
+        function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
+        function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
+        function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
+        function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
+
+        // ==========================================
+        // V20: PROCEDURAL PHASE ENGINE
+        // ==========================================
+        const PhaseEngine = {
+            schema: null,
+            polygons: {},
+
+            loadSchema(jsonSchema) {
+                this.schema = jsonSchema;
+                this.buildRegionPolygons();
+            },
+
+            getC_onCurve(T, curveId) {
+                const curve = this.schema.curves[curveId];
+                const nStart = this.schema.nodes[curve.start];
+                const nEnd = this.schema.nodes[curve.end];
+
+                const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
+                const nBot = nStart.t < nEnd.t ? nStart : nEnd;
+
+                if (T > nTop.t || T < nBot.t) return null;
+                if (curve.type === "stoich_wall") return nTop.c; 
+
+                const ratio = (nTop.t - T) / (nTop.t - nBot.t);
+                const power = curve.convexity === true ? 1.4 : 0.7; 
+                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+            },
+
+            buildRegionPolygons() {
+                this.polygons = {};
+                for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                    if (region.type === 'intermetallic-pillar') continue; // Handled differently
+
+                    let points = [];
+                    region.bounding_curves.forEach(curveDef => {
+                        const curveId = curveDef.id;
+                        const direction = curveDef.dir; // 1 for top-to-bottom, -1 for bottom-to-top
+                        const curve = this.schema.curves[curveId];
+                        const nStart = this.schema.nodes[curve.start];
+                        const nEnd = this.schema.nodes[curve.end];
+                        
+                        const tMax = Math.max(nStart.t, nEnd.t);
+                        const tMin = Math.min(nStart.t, nEnd.t);
+                        
+                        if (direction === 1) {
+                            for (let t = tMax; t >= tMin; t -= 5) {
+                                let c = this.getC_onCurve(t, curveId);
+                                if (c !== null) points.push({ c, t });
+                            }
+                        } else {
+                            for (let t = tMin; t <= tMax; t += 5) {
+                                let c = this.getC_onCurve(t, curveId);
+                                if (c !== null) points.push({ c, t });
+                            }
+                        }
+                    });
+                    this.polygons[regionId] = points;
+                }
+            },
+
+            getRegionAtPoint(targetC, targetT) {
+                // 1. Check Stoichiometric Pillars First
+                for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                    if (region.type === 'intermetallic-pillar') {
+                        if (Math.abs(targetC - region.stoichiometric_c) < 0.5 && targetT < 950) { // simplified height check
+                            return { id: regionId, ...region };
+                        }
+                    }
+                }
+
+                // 2. Standard Raycasting
+                for (const [regionId, polygon] of Object.entries(this.polygons)) {
+                    let isInside = false;
+                    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                        const xi = polygon[i].c, yi = polygon[i].t;
+                        const xj = polygon[j].c, yj = polygon[j].t;
+                        
+                        const intersect = ((yi > targetT) !== (yj > targetT))
+                            && (targetC < (xj - xi) * (targetT - yi) / (yj - yi) + xi);
+                        if (intersect) isInside = !isInside;
+                    }
+                    if (isInside) return { id: regionId, ...this.schema.regions[regionId] };
+                }
+                return null;
+            },
+
+            calculateTieLine(region, T, C_mouse) {
+                if (region.type !== "two-phase") {
+                    return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
+                }
+
+                let cLeft = null, cRight = null;
+
+                for (const curveId of region.tie_line_boundaries.left) {
+                    let c = this.getC_onCurve(T, curveId);
+                    if (c !== null) { cLeft = c; break; }
+                }
+
+                for (const curveId of region.tie_line_boundaries.right) {
+                    let c = this.getC_onCurve(T, curveId);
+                    if (c !== null) { cRight = c; break; } 
+                }
+
+                if (cLeft !== null && cRight !== null) {
+                    const total = cRight - cLeft;
+                    const wLeft = (cRight - C_mouse) / total;
+                    const wRight = (C_mouse - cLeft) / total;
+                    
+                    return {
+                        isTwoPhase: true, phases: region.phases,
+                        cLeft: cLeft, cRight: cRight,
+                        wLeft: wLeft, wRight: wRight
+                    };
+                }
+                return null;
+            }
         };
 
-        // Current active state
-        let sb_nodes = JSON.parse(JSON.stringify(initial_sb_nodes));
-
-        function sb_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
-            if (T > nodeTop.t || T < nodeBot.t) return null;
-            if (nodeTop.t === nodeBot.t) return nodeTop.c;
-            let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; 
-            let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
-            return Math.max(0, Math.min(100, c));
-        }
-
-        function sb_drawCurve(nodeTop, nodeBot, isConvex, color) {
-            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nodeTop.c, sb_canvas), mapY(nodeTop.t, sb_canvas));
-            let pts = 30;
-            for(let i=0; i<=pts; i++){
-                let t = nodeTop.t - (i/pts)*(nodeTop.t - nodeBot.t);
-                let c = sb_getC_onCurve(t, nodeTop, nodeBot, isConvex);
-                sb_ctx.lineTo(mapX(c, sb_canvas), mapY(t, sb_canvas));
+        // ==========================================
+        // V20: THE JSON DATABASE
+        // ==========================================
+        const schema_3Invariant = {
+            "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
+            "nodes": {
+                "tmA": { "c": 0, "t": 1100 }, "p_alpha": { "c": 15, "t": 850 }, "p_beta": { "c": 25, "t": 850 }, "p_liq": { "c": 40, "t": 850 },
+                "pillar_top": { "c": 50, "t": 950 }, "pillar_bot": { "c": 50, "t": 0 },
+                "e_liq": { "c": 75, "t": 550 }, "e_gamma": { "c": 90, "t": 550 },
+                "t_A": { "c": 5, "t": 0 }, "t_B_left": { "c": 18, "t": 0 }, "t_G": { "c": 95, "t": 0 }
+            },
+            "curves": {
+                "c_L_alpha": { "start": "tmA", "end": "p_liq", "type": "liquidus", "convexity": false },
+                "c_S_alpha": { "start": "tmA", "end": "p_alpha", "type": "solidus", "convexity": true },
+                "c_Solv_alpha": { "start": "p_alpha", "end": "t_A", "type": "solvus", "convexity": true },
+                "c_L_pillar_left": { "start": "p_liq", "end": "pillar_top", "type": "liquidus", "convexity": false },
+                "c_L_pillar_right": { "start": "pillar_top", "end": "e_liq", "type": "liquidus", "convexity": false },
+                "c_wall_pillar": { "start": "pillar_top", "end": "pillar_bot", "type": "stoich_wall", "convexity": "linear" },
+                "c_L_gamma": { "start": "e_liq", "end": "tmA", "type": "liquidus", "convexity": false }, // Simplified target to top right for demo
+                "c_S_gamma": { "start": "e_gamma", "end": "tmA", "type": "solidus", "convexity": true },
+                "c_Solv_gamma": { "start": "e_gamma", "end": "t_G", "type": "solvus", "convexity": true },
+                "c_Solv_beta_left": { "start": "p_beta", "end": "t_B_left", "type": "solvus", "convexity": true },
+                "inv_peri": { "start": "p_alpha", "end": "p_liq", "type": "invariant", "convexity": "linear"},
+                "inv_eut": { "start": "pillar_bot", "end": "e_gamma", "type": "invariant", "convexity": "linear"}
+            },
+            "invariants": {
+                "inv_peritectic": { "type": "peritectic", "temp": 850, "nodes": ["p_alpha", "p_beta", "p_liq"] },
+                "inv_eutectic": { "type": "eutectic", "temp": 550, "nodes": ["pillar_bot", "e_liq", "e_gamma"] }
+            },
+            "regions": {
+                "R_Liquid": {
+                    "type": "single-phase", "phase_name": "L",
+                    "bounding_curves": [
+                        {id: "c_L_alpha", dir: -1}, {id: "c_L_pillar_left", dir: -1}, {id: "c_L_pillar_right", dir: 1}, {id: "c_L_gamma", dir: 1}
+                    ]
+                },
+                "R_Alpha": {
+                    "type": "single-phase", "phase_name": "α",
+                    "bounding_curves": [ {id: "c_S_alpha", dir: 1}, {id: "c_Solv_alpha", dir: 1} ]
+                },
+                "R_L_plus_Alpha": {
+                    "type": "two-phase", "phases": ["α", "L"],
+                    "bounding_curves": [ {id: "c_S_alpha", dir: 1}, {id: "inv_peri", dir: 1}, {id: "c_L_alpha", dir: -1} ],
+                    "tie_line_boundaries": { "left": ["c_S_alpha"], "right": ["c_L_alpha"] }
+                },
+                "R_Alpha_plus_Beta": {
+                    "type": "two-phase", "phases": ["α", "β"],
+                    "bounding_curves": [ {id: "c_Solv_alpha", dir: 1}, {id: "t_A", dir: 1}, {id: "t_B_left", dir: -1}, {id: "c_Solv_beta_left", dir: -1}, {id: "inv_peri", dir: -1} ],
+                    "tie_line_boundaries": { "left": ["c_Solv_alpha"], "right": ["c_Solv_beta_left"] }
+                },
+                "R_L_plus_Pillar": {
+                    "type": "two-phase", "phases": ["L", "AB"],
+                    "bounding_curves": [ {id: "inv_peri", dir: 1}, {id: "c_wall_pillar", dir: 1}, {id: "c_L_pillar_left", dir: -1} ],
+                    "tie_line_boundaries": { "left": ["c_L_pillar_left", "inv_peri"], "right": ["c_wall_pillar"] }
+                },
+                "R_Pillar": { "type": "intermetallic-pillar", "phase_name": "AB", "stoichiometric_c": 50 }
             }
-            sb_ctx.strokeStyle = color; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-        }
+        };
 
-        function sb_drawSubscriptLabel(baseText, subText, x, y, color, align='center', showBg=true, baseSize=14) {
-            let subSize = Math.round(baseSize * 0.75);
-            sb_ctx.font = `bold ${baseSize}px sans-serif`;
-            let wBase = sb_ctx.measureText(baseText).width;
-            sb_ctx.font = `bold ${subSize}px sans-serif`;
-            let wSub = subText ? sb_ctx.measureText(subText).width : 0;
-            let wTotal = wBase + wSub;
+        // Initialize Engine
+        PhaseEngine.loadSchema(schema_3Invariant);
 
-            let startX = x;
-            if (align === 'center') startX = x - wTotal/2;
-            else if (align === 'right') startX = x - wTotal - 5;
-            else if (align === 'left') startX = x + 5;
-
-            if (showBg) {
-                sb_ctx.fillStyle = '#050505'; 
-                let bgHeight = baseSize + 10;
-                sb_ctx.fillRect(startX - 5, y - bgHeight/2, wTotal + 10, bgHeight);
-            }
-
-            sb_ctx.fillStyle = color; sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
-            sb_ctx.font = `bold ${baseSize}px sans-serif`;
-            sb_ctx.fillText(baseText, startX, y);
-            
-            if (subText) {
-                sb_ctx.font = `bold ${subSize}px sans-serif`;
-                let yOffset = baseSize * 0.25; 
-                sb_ctx.fillText(subText, startX + wBase, y + yOffset);
-            }
-        }
-
-        function sb_drawDynamicCentroids() {
-            sb_drawSubscriptLabel("L", "", mapX(50, sb_canvas), mapY(sb_nodes.tmA.t + (T_MAX - sb_nodes.tmA.t)*0.5, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-            
-            let t_a = sb_nodes.pAlpha.t * 0.5;
-            let c_a = sb_getC_onCurve(t_a, sb_nodes.pAlpha, sb_nodes.tA, true) || sb_nodes.tA.c;
-            sb_drawSubscriptLabel("α", "", mapX(c_a * 0.5, sb_canvas), mapY(t_a, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-
-            let t_b = sb_nodes.eBeta.t + (sb_nodes.pBeta.t - sb_nodes.eBeta.t) * 0.5;
-            let cb_L1 = sb_getC_onCurve(t_b, sb_nodes.pBeta, sb_nodes.tB1, true) || sb_nodes.pBeta.c;
-            let cb_R1 = sb_getC_onCurve(t_b, sb_nodes.pBeta, sb_nodes.eBeta, true) || sb_nodes.eBeta.c;
-            sb_drawSubscriptLabel("β", "", mapX((cb_L1 + cb_R1)/2, sb_canvas), mapY(t_b, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-
-            let t_g = sb_nodes.eGamma.t * 0.5;
-            let c_g = sb_getC_onCurve(t_g, sb_nodes.eGamma, sb_nodes.tG, true) || sb_nodes.tG.c;
-            sb_drawSubscriptLabel("γ", "", mapX(c_g + (100 - c_g)*0.5, sb_canvas), mapY(t_g, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 28);
-
-            let t_la = sb_nodes.pAlpha.t + (sb_nodes.tmA.t - sb_nodes.pAlpha.t) * 0.5;
-            let cla_1 = sb_getC_onCurve(t_la, sb_nodes.tmA, sb_nodes.pAlpha, true);
-            let cla_2 = sb_getC_onCurve(t_la, sb_nodes.tmA, sb_nodes.pLiq, false);
-            if(cla_1 !== null && cla_2 !== null) sb_drawSubscriptLabel("L + α", "", mapX((cla_1+cla_2)/2, sb_canvas), mapY(t_la, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
-
-            let t_lb = sb_nodes.eBeta.t + (sb_nodes.pLiq.t - sb_nodes.eBeta.t) * 0.5;
-            let clb_1 = sb_getC_onCurve(t_lb, sb_nodes.pBeta, sb_nodes.eBeta, true);
-            let clb_2 = sb_getC_onCurve(t_lb, sb_nodes.pLiq, sb_nodes.eLiq, false);
-            if(clb_1 !== null && clb_2 !== null) sb_drawSubscriptLabel("L + β", "", mapX((clb_1+clb_2)/2, sb_canvas), mapY(t_lb, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
-
-            let t_lg = sb_nodes.eGamma.t + (sb_nodes.tmB.t - sb_nodes.eGamma.t) * 0.35;
-            let clg_1 = sb_getC_onCurve(t_lg, sb_nodes.eLiq, sb_nodes.tmB, false) ?? sb_nodes.tmB.c;
-            let clg_2 = sb_getC_onCurve(t_lg, sb_nodes.eGamma, sb_nodes.tmB, true) ?? sb_nodes.tmB.c;
-            if (clg_1 !== clg_2) sb_drawSubscriptLabel("L + γ", "", mapX((clg_1+clg_2)/2, sb_canvas), mapY(t_lg, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
-
-            let t_ab = sb_nodes.tA.t + (sb_nodes.pAlpha.t - sb_nodes.tA.t) * 0.7;
-            let cab_1 = sb_getC_onCurve(t_ab, sb_nodes.pAlpha, sb_nodes.tA, true);
-            let cab_2 = sb_getC_onCurve(t_ab, sb_nodes.pBeta, sb_nodes.tB1, true);
-            if(cab_1 !== null && cab_2 !== null) sb_drawSubscriptLabel("α + β", "", mapX((cab_1+cab_2)/2, sb_canvas), mapY(t_ab, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
-
-            let t_bg = sb_nodes.tB2.t + (sb_nodes.eBeta.t - sb_nodes.tB2.t) * 0.5;
-            let cbg_1 = sb_getC_onCurve(t_bg, sb_nodes.eBeta, sb_nodes.tB2, true);
-            let cbg_2 = sb_getC_onCurve(t_bg, sb_nodes.eGamma, sb_nodes.tG, true);
-            if(cbg_1 !== null && cbg_2 !== null) sb_drawSubscriptLabel("β + γ", "", mapX((cbg_1+cbg_2)/2, sb_canvas), mapY(t_bg, sb_canvas), "rgba(255,255,255,0.4)", "center", false, 22);
-        }
-
-        function sb_draw() {
-            sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
-
-            // Axes
+        // ==========================================
+        // V20: RENDER & EVENT LOOP
+        // ==========================================
+        function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
             sb_ctx.moveTo(PAD, PAD); sb_ctx.lineTo(PAD, sb_canvas.height - PAD);
             sb_ctx.lineTo(sb_canvas.width - PAD, sb_canvas.height - PAD);
@@ -326,474 +275,170 @@
 
             sb_ctx.fillStyle = '#888'; sb_ctx.font = '12px sans-serif'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'top';
             for(let i=0; i<=100; i+=10) {
-                let x = mapX(i, sb_canvas);
-                sb_ctx.beginPath(); sb_ctx.moveTo(x, sb_canvas.height - PAD); sb_ctx.lineTo(x, sb_canvas.height - PAD + 5); sb_ctx.stroke();
-                sb_ctx.fillText(i, x, sb_canvas.height - PAD + 10);
+                let x = mapX(i); sb_ctx.beginPath(); sb_ctx.moveTo(x, sb_canvas.height - PAD); sb_ctx.lineTo(x, sb_canvas.height - PAD + 5); sb_ctx.stroke(); sb_ctx.fillText(i, x, sb_canvas.height - PAD + 10);
             }
             sb_ctx.textAlign = 'right'; sb_ctx.textBaseline = 'middle';
-            for(let i=0; i<=T_MAX; i+=200) {
-                let y = mapY(i, sb_canvas);
-                sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke();
-                sb_ctx.fillText(i, PAD - 10, y);
+            for(let i=0; i<=1200; i+=200) {
+                let y = mapY(i); sb_ctx.beginPath(); sb_ctx.moveTo(PAD, y); sb_ctx.lineTo(PAD - 5, y); sb_ctx.stroke(); sb_ctx.fillText(i, PAD - 10, y);
             }
             sb_ctx.fillStyle = '#fff'; sb_ctx.font = '14px sans-serif'; sb_ctx.fillText('Temp (K)', PAD - 10, PAD - 20);
             sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
-
-            // Boundaries
-            sb_drawCurve(sb_nodes.tmA, sb_nodes.pAlpha, true, '#00ffff');
-            sb_drawCurve(sb_nodes.tmA, sb_nodes.pLiq, false, '#ff00ff');
-            sb_drawCurve(sb_nodes.pAlpha, sb_nodes.tA, true, '#00ffff');
-            sb_drawCurve(sb_nodes.pBeta, sb_nodes.tB1, true, '#00ffff');
-            sb_drawCurve(sb_nodes.pBeta, sb_nodes.eBeta, true, '#00ffff');
-            sb_drawCurve(sb_nodes.pLiq, sb_nodes.eLiq, false, '#ff00ff');
-            sb_drawCurve(sb_nodes.eBeta, sb_nodes.tB2, true, '#00ffff');
-            sb_drawCurve(sb_nodes.tmB, sb_nodes.eGamma, true, '#00ffff');
-            sb_drawCurve(sb_nodes.tmB, sb_nodes.eLiq, false, '#ff00ff');
-            sb_drawCurve(sb_nodes.eGamma, sb_nodes.tG, true, '#00ffff');
-
-            // Invariants
-            sb_ctx.beginPath(); sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3;
-            sb_ctx.moveTo(mapX(sb_nodes.pAlpha.c, sb_canvas), mapY(sb_nodes.pAlpha.t, sb_canvas)); 
-            sb_ctx.lineTo(mapX(sb_nodes.pLiq.c, sb_canvas), mapY(sb_nodes.pLiq.t, sb_canvas)); 
-            sb_ctx.moveTo(mapX(sb_nodes.eBeta.c, sb_canvas), mapY(sb_nodes.eBeta.t, sb_canvas)); 
-            sb_ctx.lineTo(mapX(sb_nodes.eGamma.c, sb_canvas), mapY(sb_nodes.eGamma.t, sb_canvas)); 
-            sb_ctx.stroke();
-
-            sb_drawDynamicCentroids();
-
-            if (sb_mode === 'architect') {
-                for (let key in sb_nodes) {
-                    let n = sb_nodes[key];
-                    sb_ctx.beginPath(); sb_ctx.arc(mapX(n.c, sb_canvas), mapY(n.t, sb_canvas), 7, 0, Math.PI*2);
-                    sb_ctx.fillStyle = '#ff8800'; sb_ctx.fill(); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
-                }
-            } else {
-                sb_handleNavigator();
-            }
         }
 
-        function setTelemetryPhase(id, base, sub) {
-            let el = document.getElementById(id);
-            if (base === 'None' || base === '-') {
-                el.innerHTML = `X<sub>-</sub>:`;
-            } else {
-                el.innerHTML = `X<sub>${base}</sub>:`;
-            }
-        }
-
-        function sb_handleNavigator() {
-            let curC = invX(sb_mouseX, sb_canvas); let curT = invY(sb_mouseY, sb_canvas);
-            if(curC < 0 || curC > 100 || curT < 0 || curT > T_MAX) return;
-
-            let c_aSol = sb_getC_onCurve(curT, sb_nodes.tmA, sb_nodes.pAlpha, true);
-            let c_aLiq = sb_getC_onCurve(curT, sb_nodes.tmA, sb_nodes.pLiq, false);
-            let c_aSolv = sb_getC_onCurve(curT, sb_nodes.pAlpha, sb_nodes.tA, true) ?? sb_nodes.tA.c;
+        function drawTieLineUI(curT, curC, mathState) {
+            let vL = mathState.cLeft; let vR = mathState.cRight;
             
-            let c_bSolvL = sb_getC_onCurve(curT, sb_nodes.pBeta, sb_nodes.tB1, true) ?? sb_nodes.tB1.c;
-            let c_bSolR = sb_getC_onCurve(curT, sb_nodes.pBeta, sb_nodes.eBeta, true);
-            let c_bLiq = sb_getC_onCurve(curT, sb_nodes.pLiq, sb_nodes.eLiq, false);
-            let c_bSolvR = sb_getC_onCurve(curT, sb_nodes.eBeta, sb_nodes.tB2, true) ?? sb_nodes.tB2.c;
-
-            let c_gSol = sb_getC_onCurve(curT, sb_nodes.tmB, sb_nodes.eGamma, true);
-            let c_gLiq = sb_getC_onCurve(curT, sb_nodes.tmB, sb_nodes.eLiq, false);
-            let c_gSolv = sb_getC_onCurve(curT, sb_nodes.eGamma, sb_nodes.tG, true) ?? sb_nodes.tG.c;
-
-            let region = "Single Phase", tieLeft = null, tieRight = null;
-            let phaseL = {b:"-", s:""}, phaseR = {b:"-", s:""};
-            let varL = {b:"", s:""}, varR = {b:"", s:""};
-
-            if (curT > sb_nodes.pAlpha.t) { 
-                if (c_aSol !== null && curC < c_aSol) region = "α";
-                else if (c_aLiq !== null && curC <= c_aLiq) { region = "L + α"; tieLeft = c_aSol; tieRight = c_aLiq; phaseL={b:"α", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"L"}; }
-                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
-                else if (c_gSol !== null && curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            } else if (curT > sb_nodes.eBeta.t) { 
-                if (c_aSolv !== null && curC < c_aSolv) region = "α";
-                else if (c_bSolvL !== null && curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (c_bSolR !== null && curC < c_bSolR) region = "β";
-                else if (c_bLiq !== null && curC <= c_bLiq) { region = "L + β"; tieLeft = c_bSolR; tieRight = c_bLiq; phaseL={b:"β", s:""}; phaseR={b:"L", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"L"}; }
-                else if (c_gLiq !== null && curC < c_gLiq) region = "L";
-                else if (c_gSol !== null && curC <= c_gSol) { region = "L + γ"; tieLeft = c_gLiq; tieRight = c_gSol; phaseL={b:"L", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"L"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            } else { 
-                if (c_aSolv !== null && curC < c_aSolv) region = "α";
-                else if (c_bSolvL !== null && curC <= c_bSolvL) { region = "α + β"; tieLeft = c_aSolv; tieRight = c_bSolvL; phaseL={b:"α", s:""}; phaseR={b:"β", s:""}; varL={b:"C", s:"α"}; varR={b:"C", s:"β"}; }
-                else if (c_bSolvR !== null && curC < c_bSolvR) region = "β";
-                else if (c_gSolv !== null && curC <= c_gSolv) { region = "β + γ"; tieLeft = c_bSolvR; tieRight = c_gSolv; phaseL={b:"β", s:""}; phaseR={b:"γ", s:""}; varL={b:"C", s:"β"}; varR={b:"C", s:"γ"}; }
-                else region = "γ";
-            }
-
-            let w1 = "-", w2 = "-";
-
-            // Two Phase
-            if (tieLeft !== null && tieRight !== null) {
-                let vL = parseFloat(tieLeft.toFixed(1)); let v0 = parseFloat(curC.toFixed(1)); let vR = parseFloat(tieRight.toFixed(1));
-                let R_val = parseFloat((v0 - vL).toFixed(1)); let S_val = parseFloat((vR - v0).toFixed(1)); let Tot_val = parseFloat((vR - vL).toFixed(1));
-                let w1_num = S_val / Tot_val; w1 = w1_num.toFixed(2); w2 = (1.00 - w1_num).toFixed(2); 
-
-                if (sb_isFrozen) {
-                    sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL, sb_canvas), mapY(curT, sb_canvas)-15, mapX(v0, sb_canvas)-mapX(vL, sb_canvas), 30);
-                    sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(v0, sb_canvas), mapY(curT, sb_canvas)-15, mapX(vR, sb_canvas)-mapX(v0, sb_canvas), 30);
-
-                    sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(vL, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(v0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(vR, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
-                    sb_ctx.setLineDash([]);
-
-                    sb_drawSubscriptLabel("R", "", mapX(vL + R_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#ff8800", "center", true, 13);
-                    sb_drawSubscriptLabel("S", "", mapX(v0 + S_val/2, sb_canvas), mapY(curT, sb_canvas) - 22, "#00ffff", "center", true, 13);
-
-                    let axisY = sb_canvas.height - PAD + 20;
-                    sb_drawSubscriptLabel(varL.b, varL.s + "=" + vL, mapX(vL, sb_canvas), axisY, '#00ffff', "center", true, 13);
-                    sb_drawSubscriptLabel("C", "0=" + v0, mapX(v0, sb_canvas), axisY, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(varR.b, varR.s + "=" + vR, mapX(vR, sb_canvas), axisY, '#ff8800', "center", true, 13);
-
-                    sb_lastMathState = { isSinglePhase: false, varL, varR, phaseL, phaseR, cL: vL, c0: v0, cR: vR, R: R_val, S: S_val, tot: Tot_val, w1, w2 };
-                }
-
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(vR, sb_canvas), mapY(curT, sb_canvas));
-                sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-                
-                sb_ctx.fillStyle = '#00ffff';
-                sb_ctx.beginPath(); sb_ctx.arc(mapX(vL, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
-                sb_ctx.beginPath(); sb_ctx.arc(mapX(vR, sb_canvas), mapY(curT, sb_canvas), 5, 0, Math.PI*2); sb_ctx.fill();
+            // Draw Tie Line
+            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
+            sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
             
-            // Single Phase
-            } else {
-                w1 = "1.00"; w2 = "0.00"; phaseL = {b:region, s:""}; phaseR = {b:"None", s:""};
-                if (sb_isFrozen) {
-                    let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
-                    sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(mapX(v0, sb_canvas), sb_canvas.height - PAD); sb_ctx.stroke();
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0, sb_canvas), mapY(curT, sb_canvas)); sb_ctx.lineTo(PAD, mapY(curT, sb_canvas)); sb_ctx.stroke();
-                    sb_ctx.setLineDash([]);
-                    
-                    sb_drawSubscriptLabel("C", "0=" + v0, mapX(v0, sb_canvas), sb_canvas.height - PAD + 20, '#ffffff', "center", true, 13);
-                    sb_drawSubscriptLabel(t0.toString(), "", PAD - 5, mapY(curT, sb_canvas), '#ffffff', 'right', true, 13);
-
-                    sb_lastMathState = { isSinglePhase: true, region: region, c0: v0, t0: t0 };
-                }
-            }
-
-            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC, sb_canvas), mapY(curT, sb_canvas), 6, 0, Math.PI*2);
+            // Nodes
+            sb_ctx.fillStyle = '#00ffff';
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
+            
+            // Mouse
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
-            document.getElementById('sb-out-t').innerText = Math.round(curT); document.getElementById('sb-out-c').innerText = curC.toFixed(1);
-            document.getElementById('sb-out-region').innerText = region;
-            
-            setTelemetryPhase('sb-lbl-left', phaseL.b, phaseL.s); document.getElementById('sb-out-w1').innerText = w1;
-            setTelemetryPhase('sb-lbl-right', phaseR.b, phaseR.s); document.getElementById('sb-out-w2').innerText = w2;
+            if (sb_isFrozen) {
+                // Dropdown lines
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                // Highlight spans
+                sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
+                sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
+            }
         }
 
-        // DOM-Safe Math Panel
-        function sb_updateMathPanel() {
-            let panel = document.getElementById('sb-math-panel');
-            let content = document.getElementById('sb-math-content');
-            let telemetryPanel = document.getElementById('sb-telemetry');
-            
-            if(!sb_isFrozen || !sb_lastMathState) { 
-                panel.style.display = 'none'; 
-                telemetryPanel.style.display = 'block'; 
-                return; 
+        function sb_draw(activeRegionId = null, curC = null, curT = null) {
+            sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
+            drawGridAndAxes();
+
+            // Layer 1: Faint Background Glow (PIP Polygon)
+            if (activeRegionId && PhaseEngine.polygons[activeRegionId]) {
+                const poly = PhaseEngine.polygons[activeRegionId];
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(poly[0].c), mapY(poly[0].t));
+                for (let i = 1; i < poly.length; i++) sb_ctx.lineTo(mapX(poly[i].c), mapY(poly[i].t));
+                sb_ctx.closePath();
+                
+                const type = PhaseEngine.schema.regions[activeRegionId].type;
+                sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.05)' : 'rgba(255, 0, 255, 0.08)';
+                sb_ctx.fill();
             }
-            panel.style.display = 'block'; 
-            telemetryPanel.style.display = 'none'; 
+
+            // Layer 2: JSON Boundaries
+            for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                if (curve.type === 'invariant') continue; 
+                const nStart = PhaseEngine.schema.nodes[curve.start];
+                const nEnd = PhaseEngine.schema.nodes[curve.end];
+                
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                let pts = 40; 
+                for(let i = 0; i <= pts; i++) {
+                    let t = nStart.t - (i/pts)*(nStart.t - nEnd.t);
+                    let c = PhaseEngine.getC_onCurve(t, curveId);
+                    if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                }
+
+                if (curve.type === 'liquidus') sb_ctx.strokeStyle = '#ff00ff';      
+                else if (curve.type === 'solidus' || curve.type === 'solvus') sb_ctx.strokeStyle = '#00ffff'; 
+                else if (curve.type === 'stoich_wall') sb_ctx.strokeStyle = '#ff8800'; 
+                
+                sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            }
+
+            // Layer 3: Invariants
+            for (const [invId, inv] of Object.entries(PhaseEngine.schema.invariants)) {
+                let nodes = inv.nodes.map(nId => PhaseEngine.schema.nodes[nId]).sort((a, b) => a.c - b.c);
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nodes[0].c), mapY(inv.temp)); sb_ctx.lineTo(mapX(nodes[nodes.length-1].c), mapY(inv.temp));
+                sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            }
+
+            // Layer 4: Tie Line overlay
+            if (sb_lastMathState && sb_lastMathState.isTwoPhase && curT !== null) {
+                drawTieLineUI(curT, curC, sb_lastMathState);
+            } else if (curT !== null && curC !== null) {
+                sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
+                sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
+            }
+        }
+
+        // ==========================================
+        // UI & EVENT LISTENERS
+        // ==========================================
+        function updateTelemetry(region, mathState, curT, curC) {
+            document.getElementById('sb-out-t').innerText = Math.round(curT); 
+            document.getElementById('sb-out-c').innerText = curC.toFixed(1);
             
-            let m = sb_lastMathState;
-            content.replaceChildren(); 
+            if (!region) {
+                document.getElementById('sb-out-region').innerText = "Out of Bounds";
+                return;
+            }
 
-            const addLine = (parts, css = "") => {
-                let div = document.createElement('div'); div.className = 'math-line'; if(css) div.style.cssText = css;
-                parts.forEach(p => {
-                    if(typeof p === 'string') div.appendChild(document.createTextNode(p));
-                    else if(p.sub) {
-                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
-                        span.textContent = p.text;
-                        let sub = document.createElement('sub'); sub.textContent = p.sub;
-                        span.appendChild(sub);
-                        div.appendChild(span);
-                    }
-                    else {
-                        let span = document.createElement('span'); span.className = 'math-hl'; if(p.color) span.style.color = p.color;
-                        span.textContent = p.text; div.appendChild(span);
-                    }
-                });
-                content.appendChild(div);
-            };
-            const addDiv = () => { let hr = document.createElement('hr'); hr.style.cssText = "border-color:#333; margin:10px 0;"; content.appendChild(hr); };
-
-            if (m.isSinglePhase) {
-                addLine(["1. Identify Region:"], "color:#aaa;"); 
-                addLine(["\u00A0\u00A0Region = ", {text: m.region, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0C", {text: "0", sub: "0"}, " = ", {text: m.c0}]);
-                addLine(["\u00A0\u00A0T = ", {text: m.t0, color: "#fff"}]);
-                addDiv(); 
-                addLine(["2. Apply Lever Rule:"], "color:#aaa;"); 
-                addLine(["\u00A0\u00A0X", {text: m.region, sub: m.region}, " = ", {text: "1.00", color: "var(--cyan)"}]);
+            document.getElementById('sb-out-region').innerText = region.phase_name || region.phases.join(" + ");
+            
+            if (mathState && mathState.isTwoPhase) {
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>${mathState.phases[0]}</sub>:`;
+                document.getElementById('sb-out-w1').innerText = mathState.wLeft.toFixed(2);
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>${mathState.phases[1]}</sub>:`;
+                document.getElementById('sb-out-w2').innerText = mathState.wRight.toFixed(2);
             } else {
-                addLine(["1. Intersections:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0", {text: m.varL.b, sub: m.varL.s, color: "var(--cyan)"}, " = ", {text: m.cL, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0C", {text: "0", sub:"0"}, " = ", {text: m.c0}]); 
-                addLine(["\u00A0\u00A0", {text: m.varR.b, sub: m.varR.s, color: "var(--orange)"}, " = ", {text: m.cR, color: "var(--orange)"}]);
-                addDiv(); addLine(["2. Segments:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0Total = ", m.cR, " - ", m.cL, " = ", {text: m.tot}]); 
-                addLine(["\u00A0\u00A0R = ", m.c0, " - ", m.cL, " = ", {text: m.R, color: "var(--orange)"}]); 
-                addLine(["\u00A0\u00A0S = ", m.cR, " - ", m.c0, " = ", {text: m.S, color: "var(--cyan)"}]);
-                addDiv(); addLine(["3. Lever Rule:"], "color:#aaa;");
-                addLine(["\u00A0\u00A0X", {text: m.phaseL.b, sub: m.phaseL.b}, " = S / Total = ", {text: m.w1, color: "var(--cyan)"}]); 
-                addLine(["\u00A0\u00A0X", {text: m.phaseR.b, sub: m.phaseR.b}, " = R / Total = ", {text: m.w2, color: "var(--orange)"}]);
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w1').innerText = "1.00";
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w2').innerText = "0.00";
             }
-        }
-
-        function sb_snapTo(type) {
-            sb_setMode('navigator'); 
-            if(type === 'peri') { 
-                sb_mouseX = mapX(35, sb_canvas); 
-                sb_mouseY = mapY(sb_nodes.pAlpha.t + 1, sb_canvas); 
-            } else { 
-                sb_mouseX = mapX(75, sb_canvas); 
-                sb_mouseY = mapY(sb_nodes.eBeta.t - 1, sb_canvas); 
-            }
-            sb_isFrozen = true; sb_draw(); sb_updateMathPanel();
-        }
-
-        function sb_setMode(newMode) {
-            if (newMode === 'navigator' && sb_mode === 'architect') {
-                sb_nodes = JSON.parse(JSON.stringify(initial_sb_nodes));
-            }
-            sb_mode = newMode; sb_isFrozen = false; sb_updateMathPanel();
-            document.getElementById('sb-btn-navigator').classList.toggle('active', sb_mode === 'navigator');
-            document.getElementById('sb-btn-architect').classList.toggle('active', sb_mode === 'architect');
-            document.getElementById('sb-preset-controls').style.display = sb_mode === 'navigator' ? 'flex' : 'none';
-            sb_canvas.style.cursor = sb_mode === 'architect' ? 'grab' : 'crosshair'; sb_draw();
         }
 
         sb_canvas.addEventListener('mousemove', (e) => {
-            if (sb_isFrozen && sb_mode === 'navigator') return;
+            if (sb_isFrozen) return;
             let rect = sb_canvas.getBoundingClientRect(); 
-            sb_mouseX = e.clientX - rect.left; 
-            sb_mouseY = e.clientY - rect.top;
+            sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
 
-            if (sb_mode === 'architect' && sb_activeNodeKey) {
-                let newC = invX(sb_mouseX, sb_canvas); let newT = invY(sb_mouseY, sb_canvas);
-                if(newT > T_MAX-50) newT = T_MAX-50; if(newT < 100) newT = 100;
-                
-                let n = sb_nodes[sb_activeNodeKey];
-                if (n.drag === 'y') newC = n.c; else if (n.drag === 'x') newT = n.t;
-
-                // V19: STRICT THERMODYNAMIC COLLISION PREVENTION (Guaranteed Single Phase Cooling)
-                if (sb_activeNodeKey === 'pAlpha') {
-                    if (newT <= sb_nodes.eBeta.t + 50) newT = sb_nodes.eBeta.t + 50; 
-                    if (newC <= sb_nodes.tA.c) newC = sb_nodes.tA.c; 
-                    n.c = newC; n.t = newT; sb_nodes.pBeta.t = newT; sb_nodes.pLiq.t = newT;
-                } else if (sb_activeNodeKey === 'pBeta') {
-                    if (newC <= sb_nodes.pAlpha.c + 1) newC = sb_nodes.pAlpha.c + 1;
-                    if (newC >= sb_nodes.pLiq.c - 1) newC = sb_nodes.pLiq.c - 1;
-                    if (newC <= sb_nodes.tB1.c) newC = sb_nodes.tB1.c; // Push Terminal Left
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'pLiq') {
-                    if (newC <= sb_nodes.pBeta.c + 1) newC = sb_nodes.pBeta.c + 1;
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'eBeta') {
-                    if (newT >= sb_nodes.pAlpha.t - 50) newT = sb_nodes.pAlpha.t - 50; 
-                    if (newC >= sb_nodes.tB2.c) newC = sb_nodes.tB2.c; // Push Terminal Right
-                    n.c = newC; n.t = newT; sb_nodes.eLiq.t = newT; sb_nodes.eGamma.t = newT;
-                } else if (sb_activeNodeKey === 'eLiq') {
-                    if (newC <= sb_nodes.eBeta.c + 1) newC = sb_nodes.eBeta.c + 1;
-                    if (newC >= sb_nodes.eGamma.c - 1) newC = sb_nodes.eGamma.c - 1;
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'eGamma') {
-                    if (newC <= sb_nodes.eLiq.c + 1) newC = sb_nodes.eLiq.c + 1;
-                    if (newC >= sb_nodes.tG.c) newC = sb_nodes.tG.c; 
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'tA') {
-                    if (newC >= sb_nodes.pAlpha.c) newC = sb_nodes.pAlpha.c;
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'tB1') {
-                    if (newC >= sb_nodes.pBeta.c) newC = sb_nodes.pBeta.c; // MUST NOT PINCH PERITECTIC
-                    if (newC <= sb_nodes.tA.c + 5) newC = sb_nodes.tA.c + 5; 
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'tB2') {
-                    if (newC <= sb_nodes.eBeta.c) newC = sb_nodes.eBeta.c; // MUST NOT PINCH EUTECTIC
-                    if (newC >= sb_nodes.tG.c - 5) newC = sb_nodes.tG.c - 5; 
-                    n.c = newC;
-                } else if (sb_activeNodeKey === 'tG') {
-                    if (newC <= sb_nodes.eGamma.c) newC = sb_nodes.eGamma.c;
-                    n.c = newC;
-                } else {
-                    n.c = newC; n.t = newT;
-                }
-            }
-            sb_draw();
-        });
-
-        sb_canvas.addEventListener('mousedown', (e) => {
-            let rect = sb_canvas.getBoundingClientRect(); 
-            sb_mouseX = e.clientX - rect.left; 
-            sb_mouseY = e.clientY - rect.top;
-
-            if (sb_mode === 'navigator') { 
-                sb_isFrozen = !sb_isFrozen; 
-                sb_updateMathPanel(); 
-                sb_draw(); 
-                return; 
-            }
+            let curC = invX(sb_mouseX); let curT = invY(sb_mouseY);
             
-            sb_canvas.style.cursor = 'grabbing';
-            for (let key in sb_nodes) {
-                let dx = sb_mouseX - mapX(sb_nodes[key].c, sb_canvas); 
-                let dy = sb_mouseY - mapY(sb_nodes[key].t, sb_canvas);
-                if (dx*dx + dy*dy < 200) { sb_activeNodeKey = key; break; } 
-            }
+            let activeRegion = PhaseEngine.getRegionAtPoint(curC, curT);
+            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, curT, curC) : null;
+            
+            updateTelemetry(activeRegion, sb_lastMathState, curT, curC);
+            sb_draw(activeRegion ? activeRegion.id : null, curC, curT);
         });
 
-        sb_canvas.addEventListener('mouseup', () => { sb_activeNodeKey = null; if (sb_mode === 'architect') sb_canvas.style.cursor = 'grab'; });
-
-
-        // ==========================================
-        // V13 ASSESSMENT ENGINE LOGIC 
-        // ==========================================
-        const as_canvas = document.getElementById('canvas-assess');
-        const as_ctx = as_canvas.getContext('2d');
-        let as_tool = 'liquidus';
-        let as_selNodeId = null;
-        let as_edges = [];
-
-        const as_nodes = {
-            tmA: { c: 0, t: 962 }, tmB: { c: 100, t: 1085 },
-            eut: { c: 30, t: 779 }, solA: { c: 10, t: 779 }, solB: { c: 90, t: 779 },
-            termA: { c: 2, t: 0 }, termB: { c: 98, t: 0 }
-        };
-
-        const as_solution = [
-            { nodes: ['tmA', 'eut'], tool: 'liquidus' }, { nodes: ['tmB', 'eut'], tool: 'liquidus' },
-            { nodes: ['tmA', 'solA'], tool: 'solidus' }, { nodes: ['tmB', 'solB'], tool: 'solidus' },
-            { nodes: ['solA', 'termA'], tool: 'solvus' }, { nodes: ['solB', 'termB'], tool: 'solvus' },
-            { nodes: ['solA', 'eut'], tool: 'isotherm' }, { nodes: ['eut', 'solB'], tool: 'isotherm' }
-        ];
-
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                as_tool = e.target.dataset.tool;
-                as_selNodeId = null; 
-                as_draw();
-            });
+        sb_canvas.addEventListener('mousedown', () => { 
+            sb_isFrozen = !sb_isFrozen;
+            document.getElementById('sb-math-panel').style.display = sb_isFrozen ? 'block' : 'none';
+            document.getElementById('sb-telemetry').style.display = sb_isFrozen ? 'none' : 'block';
+            
+            if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
+                document.getElementById('sb-math-content').innerHTML = `
+                    <div class="math-line">1. Intersections:</div>
+                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line">C_0 = ${invX(sb_mouseX).toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <hr style="border-color:#333; margin:10px 0;">
+                    <div class="math-line">2. Lever Rule:</div>
+                    <div class="math-line" style="color:var(--cyan)">X_${sb_lastMathState.phases[0]} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--orange)">X_${sb_lastMathState.phases[1]} = ${sb_lastMathState.wRight.toFixed(2)}</div>
+                `;
+            } else if (sb_isFrozen) {
+                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region</div>`;
+            }
+            sb_draw(null, invX(sb_mouseX), invY(sb_mouseY)); // Force redraw of math lines
         });
 
-        function as_getC_onCurve(T, nodeTop, nodeBot, isConvex) {
-            if (T > nodeTop.t || T < nodeBot.t) return null;
-            if (nodeTop.t === nodeBot.t) return nodeTop.c;
-            let ratio = (nodeTop.t - T) / (nodeTop.t - nodeBot.t);
-            let p = isConvex ? 1.4 : 0.7; 
-            let c = nodeTop.c + (nodeBot.c - nodeTop.c) * Math.pow(ratio, p);
-            return Math.max(0, Math.min(100, c));
-        }
-
-        function as_draw() {
-            as_ctx.clearRect(0, 0, as_canvas.width, as_canvas.height);
-
-            as_ctx.strokeStyle = '#333'; as_ctx.lineWidth = 1; as_ctx.beginPath();
-            as_ctx.moveTo(PAD, PAD); as_ctx.lineTo(PAD, as_canvas.height - PAD);
-            as_ctx.lineTo(as_canvas.width - PAD, as_canvas.height - PAD); as_ctx.stroke();
-
-            as_edges.forEach(edge => {
-                let n1 = as_nodes[edge.start]; let n2 = as_nodes[edge.end];
-                let nTop = n1.t >= n2.t ? n1 : n2; let nBot = n1.t < n2.t ? n1 : n2;
-                
-                as_ctx.beginPath(); as_ctx.moveTo(mapX(nTop.c, as_canvas), mapY(nTop.t, as_canvas));
-
-                if (edge.tool === 'isotherm') {
-                    as_ctx.lineTo(mapX(nBot.c, as_canvas), mapY(nBot.t, as_canvas));
-                    as_ctx.strokeStyle = '#ffff00';
-                } else {
-                    let pts = 30;
-                    let isConvex = edge.tool === 'liquidus' ? false : true;
-                    for(let i=0; i<=pts; i++){
-                        let t = nTop.t - (i/pts)*(nTop.t - nBot.t);
-                        let c = as_getC_onCurve(t, nTop, nBot, isConvex);
-                        as_ctx.lineTo(mapX(c, as_canvas), mapY(t, as_canvas));
-                    }
-                    as_ctx.strokeStyle = edge.tool === 'liquidus' ? '#ff00ff' : '#00ffff';
-                }
-                as_ctx.lineWidth = 3; as_ctx.stroke();
-            });
-
-            for (let id in as_nodes) {
-                let n = as_nodes[id];
-                as_ctx.beginPath(); as_ctx.arc(mapX(n.c, as_canvas), mapY(n.t, as_canvas), 8, 0, Math.PI*2);
-                if (id === as_selNodeId) { as_ctx.fillStyle = '#fff'; as_ctx.shadowColor = '#fff'; as_ctx.shadowBlur = 10; } 
-                else { as_ctx.fillStyle = '#ff8800'; as_ctx.shadowBlur = 0; }
-                as_ctx.fill(); as_ctx.strokeStyle = '#fff'; as_ctx.lineWidth = 2; as_ctx.stroke();
-                as_ctx.shadowBlur = 0; 
-            }
-        }
-
-        as_canvas.addEventListener('mousedown', (e) => {
-            let rect = as_canvas.getBoundingClientRect(); let mx = e.clientX - rect.left; let my = e.clientY - rect.top;
-            let clickedId = null;
-            for (let id in as_nodes) {
-                let dx = mx - mapX(as_nodes[id].c, as_canvas); let dy = my - mapY(as_nodes[id].t, as_canvas);
-                if (dx*dx + dy*dy < 144) { clickedId = id; break; }
-            }
-
-            if (!clickedId) { as_selNodeId = null; as_draw(); return; }
-
-            if (as_tool === 'delete') {
-                as_edges = as_edges.filter(edge => edge.start !== clickedId && edge.end !== clickedId);
-                as_selNodeId = null;
-            } else {
-                if (!as_selNodeId) as_selNodeId = clickedId;
-                else if (as_selNodeId !== clickedId) {
-                    as_edges = as_edges.filter(edge => !((edge.start === as_selNodeId && edge.end === clickedId) || (edge.start === clickedId && edge.end === as_selNodeId)));
-                    as_edges.push({ start: as_selNodeId, end: clickedId, tool: as_tool });
-                    as_selNodeId = null; 
-                }
-            }
-            as_draw();
-        });
-
-        function setFeedback(msgStr, colorHex) {
-            let fb = document.getElementById('as-feedback-box');
-            fb.replaceChildren();
-            let span = document.createElement('span');
-            span.style.color = colorHex; span.textContent = msgStr;
-            fb.appendChild(span);
-        }
-
-        function as_checkAnswers() {
-            if (as_edges.length === 0) { setFeedback("Please connect the nodes to build a diagram.", "var(--orange)"); return; }
-            let correctCount = 0; let errors = [];
-
-            as_solution.forEach(solEdge => {
-                let match = as_edges.find(e => (e.start === solEdge.nodes[0] && e.end === solEdge.nodes[1]) || (e.start === solEdge.nodes[1] && e.end === solEdge.nodes[0]));
-                if (match) { if (match.tool === solEdge.tool) correctCount++; else errors.push(`Incorrect curve type.`); } 
-                else errors.push(`Missing connection.`);
-            });
-
-            let extraEdges = as_edges.length - correctCount;
-
-            if (correctCount === as_solution.length && extraEdges === 0) {
-                setFeedback("✅ Thermodynamically sound! Sandbox unlocked.", "var(--green)");
-                unlockSandbox();
-            } else {
-                setFeedback(`❌ System Error. Correct Edges: ${correctCount}/${as_solution.length}. Superfluous: ${extraEdges}`, "var(--red)");
-            }
-        }
-
-        function as_clearCanvas() { as_edges = []; as_selNodeId = null; setFeedback("Awaiting submission...", "var(--silver)"); as_draw(); }
-
-        // --- INIT ---
+        // INIT
         function resizeAll() {
-            sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
-            as_canvas.width = as_canvas.parentElement.clientWidth; as_canvas.height = as_canvas.parentElement.clientHeight;
-            sb_draw(); as_draw();
+            sb_canvas.width = sb_canvas.parentElement.clientWidth; 
+            sb_canvas.height = sb_canvas.parentElement.clientHeight;
+            PhaseEngine.buildRegionPolygons(); // Rebuild hitboxes on resize
+            sb_draw(); 
         }
         window.addEventListener('resize', resizeAll);
-        document.getElementById('view-assessment').style.display = 'none';
         resizeAll();
     </script>
 </body>
