@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V23</title>
+    <title>Chapter 9: Procedural Phase Engine V24</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -47,7 +47,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V23: Topology Fix)</div>
+        <div class="brand">Phase Engine Platform (V24: Smooth Curves)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -69,9 +69,9 @@
 
                 <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
                 <div class="toggle-container" style="flex-direction: column;">
-                    <div class="toggle-btn" onclick="snapToPoint(20, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(40, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(65, 549.9)">Eutectic 2 (550 K)</div>
+                    <div class="toggle-btn" onclick="snapToPoint(40, 849.9)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
+                    <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
+                    <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
                 </div>
 
                 <div id="sb-math-panel">
@@ -107,9 +107,6 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // ==========================================
-        // UI HELPERS (Subscripts & Values)
-        // ==========================================
         function drawSubscriptAndValue(ctx, baseTxt, subTxt, value, x, y, baseSize, color, align='center') {
             ctx.textBaseline = 'middle';
             let subSize = Math.round(baseSize * 0.7);
@@ -119,18 +116,16 @@
             let startX = x;
             if (align === 'center') startX = x - (wBase + wSub)/2;
             
-            // Draw Subscript
             ctx.fillStyle = color; ctx.textAlign = 'left';
             ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseTxt, startX, y);
             ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subTxt, startX + wBase + 1, y + baseSize * 0.25);
             
-            // Draw Value underneath
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = `14px Consolas, monospace`;
             ctx.fillText(value.toFixed(1), x, y + 20);
         }
 
         // ==========================================
-        // V23: PROCEDURAL PHASE ENGINE (Strict Solvus Bounds)
+        // V24: PROCEDURAL PHASE ENGINE (High-Res)
         // ==========================================
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
@@ -140,7 +135,6 @@
                 this.buildRegionPaths();
             },
 
-            // Strictly Bounded Math (No random bulging)
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
@@ -153,13 +147,12 @@
                 if (T > nTop.t || T < nBot.t) return null;
                 if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
 
-                // Solvus Bounded Power Law: Anchored to the max C at the Invariant (nTop)
-                const ratio = (nTop.t - T) / (nTop.t - nBot.t); // 0 at top, 1 at bottom
+                const ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 let power = 1.0; 
                 
-                if (curve.type === "solvus") power = 0.4; // Strong curve, strictly contained
-                else if (curve.convexity === true) power = 1.4; // Solidus
-                else if (curve.convexity === false) power = 0.7; // Liquidus
+                if (curve.type === "solvus") power = 0.3; // Tightened taper to prevent bulging
+                else if (curve.convexity === true) power = 1.4; 
+                else if (curve.convexity === false) power = 0.7; 
                 
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
@@ -195,7 +188,8 @@
                             pts.push({c: nStart.c, t: nStart.t}); pts.push({c: nEnd.c, t: nEnd.t});
                         } else {
                             const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
-                            for (let t = tMax; t >= tMin; t -= 5) {
+                            // High-Res Hitbox Generation (Step size 2K)
+                            for (let t = tMax; t >= tMin; t -= 2) {
                                 let c = this.getC_onCurve(t, curveId);
                                 if (c !== null) pts.push({ c, t });
                             }
@@ -226,7 +220,7 @@
 
             getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 950) { 
+                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 1180) { 
                         return { id: regionId, ...region };
                     }
                 }
@@ -260,14 +254,14 @@
         };
 
         // ==========================================
-        // V23: THE JSON DATABASE (Bounded Topology)
+        // V24: THE JSON DATABASE (Congruent Peak Fixed)
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
                 "tmA": { "c": 0, "t": 1100 }, "p_a": { "c": 15, "t": 850 }, "p_b": { "c": 25, "t": 850 }, "p_l": { "c": 40, "t": 850 },
                 "e1_b": { "c": 32, "t": 600 }, "e1_l": { "c": 45, "t": 600 }, "e1_p": { "c": 50, "t": 600 },
-                "pil_t": { "c": 50, "t": 950 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
+                "pil_t": { "c": 50, "t": 1180 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
                 "tmB": { "c": 100, "t": 1050 }, "t_a": { "c": 2, "t": 0 }, "t_bl": { "c": 22, "t": 0 }, "t_br": { "c": 26, "t": 0 },
                 "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 97, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
             },
@@ -296,7 +290,7 @@
                 "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" }, "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
             },
             "regions": {
-                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 50, "t": 1050 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_top", dir: -1} ] },
+                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_top", dir: -1} ] },
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
                 "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
@@ -316,7 +310,7 @@
         };
 
         // ==========================================
-        // V23: RENDER ENGINE
+        // V24: RENDER ENGINE
         // ==========================================
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
@@ -342,7 +336,7 @@
                 let t = PhaseEngine.centroids[regionId].t;
                 let x = mapX(c); let y = mapY(t);
                 
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 25, y - 15, 50, 30);
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 30, y - 15, 60, 30);
                 sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
                 sb_ctx.font = `bold 22px sans-serif`;
                 sb_ctx.fillText(baseText, x, y);
@@ -363,18 +357,15 @@
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
             if (sb_isFrozen) {
-                // Dropdown Guidelines
                 sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
                 
-                // Color Spans
                 sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
                 sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
                 
-                // Typography Labels & Numerical Values 
                 let yAxis = sb_canvas.height - PAD + 20;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(curC)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
                 
@@ -382,7 +373,6 @@
                 drawSubscriptAndValue(sb_ctx, "C", "0", curC, mapX(curC), yAxis, 14, '#ff00ff');
                 drawSubscriptAndValue(sb_ctx, "C", mathState.phases[1], vR, mapX(vR), yAxis, 14, '#ff8800');
                 
-                // Isotherm Readout
                 let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
                 sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
@@ -423,8 +413,9 @@
                 const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                 
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                for(let i = 0; i <= 40; i++) {
-                    let t = nStart.t - (i/40)*(nStart.t - nEnd.t);
+                // High-Res Rendering (100 segments)
+                for(let i = 0; i <= 100; i++) {
+                    let t = nStart.t - (i/100)*(nStart.t - nEnd.t);
                     let c = PhaseEngine.getC_onCurve(t, curveId);
                     if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                 }
@@ -534,7 +525,7 @@
             document.getElementById('sb-math-panel').style.display = sb_isFrozen ? 'block' : 'none';
             document.getElementById('sb-telemetry').style.display = sb_isFrozen ? 'none' : 'block';
             updateMathPanel();
-            sb_draw(null); // Forces the dotted lines to render
+            sb_draw(null); 
         });
 
         // INIT
