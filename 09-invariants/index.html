@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V30</title>
+    <title>Chapter 9: Procedural Phase Engine V31</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -31,7 +31,6 @@
         .toggle-btn:not(.active) { color: #666; }
         .toggle-btn:not(.active):hover { color: #fff; background: rgba(255,255,255,0.05); }
 
-        /* Assessment UI Styles */
         .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
         .tool-btn { padding: 10px; text-align: center; background: #000; border: 1px solid #444; color: #888; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; border-radius: 4px; transition: 0.2s;}
         .tool-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
@@ -41,6 +40,9 @@
         .tool-btn.active[data-tool="horizontal"] { border-color: var(--yellow); color: var(--yellow); background: rgba(255, 255, 0, 0.1); }
         .tool-btn.active[data-tool="vertical"] { border-color: var(--orange); color: var(--orange); background: rgba(255, 136, 0, 0.1); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
+        
+        .tally-panel { background: #000; border: 1px dashed #444; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.85rem; font-family: 'Consolas', monospace; }
+        .tally-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
         
         .submit-btn { width: 100%; padding: 12px; background: var(--cyan); color: #000; font-weight: bold; font-size: 0.9rem; text-transform: uppercase; cursor: pointer; border: none; border-radius: 4px; transition: 0.2s; }
         .submit-btn:hover { background: #fff; }
@@ -58,7 +60,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V30: Restored Nav + Spline Assessment)</div>
+        <div class="brand">Phase Engine Platform (V31: Live Tally & Hover Fix)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -104,6 +106,15 @@
                     </div>
                     <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px; display: block; width: 100%;">Eraser</div>
                     
+                    <div id="tally-panel" class="tally-panel">
+                        <div class="label" style="color: #fff; margin-bottom: 5px;">Required Segments</div>
+                        <div class="tally-row" style="color: var(--magenta);"><span>Liquidus</span><span id="tal-liq">0 / 4</span></div>
+                        <div class="tally-row" style="color: var(--cyan);"><span>Solidus</span><span id="tal-sol">0 / 3</span></div>
+                        <div class="tally-row" style="color: var(--green);"><span>Solvus</span><span id="tal-slv">0 / 4</span></div>
+                        <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 6</span></div>
+                        <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 3</span></div>
+                    </div>
+
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
                     <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
                 </div>
@@ -205,13 +216,10 @@
                             else if (typeof node.bounds.t_max === 'string') maxT = this.schema.nodes[node.bounds.t_max].t;
                             else maxT = node.bounds.t_max;
                         }
-
                         newT = Math.max(minT + 5, Math.min(newT, maxT - 5)); 
                     }
                 }
-                
                 node.c = newC; node.t = newT;
-
                 if (this.schema.invariants) {
                     for (let key in this.schema.invariants) {
                         let inv = this.schema.invariants[key];
@@ -257,7 +265,6 @@
                     else if (curve.convexity === true) power = 1.4; 
                     else if (curve.convexity === false) power = 0.7; 
                 }
-                
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
             
@@ -276,7 +283,6 @@
                 this.paths = {}; this.centroids = {};
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
                     if (region.type === 'intermetallic-pillar') continue;
-
                     const path = new Path2D();
                     let firstPoint = true; let allPts = [];
 
@@ -310,7 +316,6 @@
                     });
                     
                     path.closePath(); this.paths[regionId] = path;
-
                     let calcCentroid = this.calculateCentroid(allPts);
                     sb_ctx.save(); sb_ctx.setTransform(1, 0, 0, 1, 0, 0); 
                     if (region.label && !sb_ctx.isPointInPath(path, mapX(calcCentroid.c), mapY(calcCentroid.t))) {
@@ -335,7 +340,6 @@
 
             calculateTieLine(region, T, C_mouse) {
                 if (region.type !== "two-phase") return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
-
                 let cLeft = null, cRight = null;
                 for (const curveId of region.tie_line_boundaries.left) {
                     let c = this.getC_onCurve(T, curveId); if (c !== null) { cLeft = c; break; }
@@ -343,7 +347,6 @@
                 for (const curveId of region.tie_line_boundaries.right) {
                     let c = this.getC_onCurve(T, curveId); if (c !== null) { cRight = c; break; } 
                 }
-
                 if (cLeft !== null && cRight !== null) {
                     const total = cRight - cLeft;
                     return {
@@ -438,13 +441,14 @@
             sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
         }
 
-        function getToolColor(type) {
-            if(type === 'liquidus') return 'var(--magenta)';
-            if(type === 'solidus') return 'var(--cyan)';
-            if(type === 'solvus') return 'var(--green)';
-            if(type === 'horizontal') return 'var(--yellow)';
-            if(type === 'vertical') return 'var(--orange)';
-            return '#fff';
+        // REFACTORED: Use Hex Strings explicitly for Canvas API rendering
+        function getToolHex(type) {
+            if(type === 'liquidus') return '#ff00ff'; // Magenta
+            if(type === 'solidus') return '#00ffff';  // Cyan
+            if(type === 'solvus') return '#00ffcc';   // Neon Green
+            if(type === 'horizontal') return '#ffff00'; // Yellow
+            if(type === 'vertical') return '#ff8800'; // Orange
+            return '#ffffff';
         }
 
         function drawTieLineUI(curT, curC, mathState) {
@@ -536,7 +540,6 @@
                 
                 drawLabels();
 
-                // RESTORED: V28 Nav overlays
                 if (interactionMode === 'navigator') {
                     if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
                         drawTieLineUI(currentT, currentC, sb_lastMathState);
@@ -553,7 +556,7 @@
                     sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
                 }
 
-                // Bezier Curve Logic for Assessment
+                // REFACTORED: Stable Bezier Curves
                 studentCurves.forEach(sc => {
                     const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
                     let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
@@ -563,24 +566,27 @@
                     if (sc.type === 'horizontal' || sc.type === 'vertical') {
                         sb_ctx.lineTo(x2, y2);
                     } else {
-                        // Create a loose bezier droop based on the tool
-                        let p1 = nStart.c <= nEnd.c ? {x: x1, y: y1} : {x: x2, y: y2};
-                        let p2 = nStart.c <= nEnd.c ? {x: x2, y: y2} : {x: x1, y: y1};
-                        let midX = (p1.x + p2.x) / 2; let midY = (p1.y + p2.y) / 2;
-                        let dx = p2.x - p1.x; let dy = p2.y - p1.y;
-                        let dist = Math.sqrt(dx*dx + dy*dy);
-                        let nx = -dy / dist; let ny = dx / dist; // Normal
-                        let offset = dist * 0.15; // 15% bow factor
+                        let midX = (x1 + x2) / 2; let midY = (y1 + y2) / 2;
+                        let dist = Math.hypot(x2 - x1, y2 - y1);
+                        let bow = dist * 0.12; // 12% bow factor, highly stable
                         
-                        let cpX = midX + nx * (sc.type === 'liquidus' ? offset : -offset);
-                        let cpY = midY + ny * (sc.type === 'liquidus' ? offset : -offset);
+                        let cpX = midX; let cpY = midY;
+                        
+                        // Y is inverted on canvas. +Y is down.
+                        if (sc.type === 'liquidus') { cpY += bow; } // Sags down
+                        else if (sc.type === 'solidus') { cpY -= bow; } // Bulges up
+                        else if (sc.type === 'solvus') { 
+                            let centerPoint = mapX(50);
+                            cpX += (midX < centerPoint) ? bow : -bow; // Bulges outward
+                        }
                         
                         sb_ctx.quadraticCurveTo(cpX, cpY, x2, y2);
                     }
                     
-                    if (sc.status === 'correct') sb_ctx.strokeStyle = 'var(--green)';
-                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = 'var(--red)';
-                    else sb_ctx.strokeStyle = getToolColor(sc.type);
+                    // REFACTORED: Use strictly hex colors for Canvas
+                    if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00'; // Pure Green
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ff3333'; // Pure Red
+                    else sb_ctx.strokeStyle = getToolHex(sc.type);
                     
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
                 });
@@ -588,14 +594,14 @@
                 if (selectedNodeA && activeTool && activeTool !== 'eraser') {
                     let startNode = PhaseEngine.schema.nodes[selectedNodeA];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
-                    sb_ctx.strokeStyle = getToolColor(activeTool);
+                    sb_ctx.strokeStyle = getToolHex(activeTool);
                     sb_ctx.lineWidth = 2; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
             }
 
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue; // Only filter out the absolute diagram bottom corners
+                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue; 
                     
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
@@ -619,6 +625,17 @@
                 sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
                 sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(region.label.text, x, y);
             }
+        }
+
+        function updateTally() {
+            let current = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
+            studentCurves.forEach(sc => current[sc.type]++);
+            
+            document.getElementById('tal-liq').innerText = `${current.liquidus} / 4`;
+            document.getElementById('tal-sol').innerText = `${current.solidus} / 3`;
+            document.getElementById('tal-slv').innerText = `${current.solvus} / 4`;
+            document.getElementById('tal-iso').innerText = `${current.horizontal} / 6`;
+            document.getElementById('tal-ver').innerText = `${current.vertical} / 3`;
         }
 
         // ==========================================
@@ -704,7 +721,11 @@
             document.getElementById('test-practice').classList.toggle('active', state === 'practice');
             document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
             document.getElementById('assessment-score').style.display = 'none';
-            studentCurves = []; selectedNodeA = null;
+            
+            // NEW: Toggle Tally Visibility
+            document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
+            
+            studentCurves = []; selectedNodeA = null; updateTally();
             if (state === 'quiz') { PhaseEngine.scrambleNodes(); } else { PhaseEngine.restoreOriginalNodes(); }
             sb_draw();
         }
@@ -745,7 +766,9 @@
                 alertBox.innerHTML = `<strong>Quiz Complete</strong><br>Score: ${score} / ${totalExpected}<br>Answers Locked.`;
                 setTool(null); 
             } else {
-                alertBox.innerHTML = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br>Green = Correct, Red = Incorrect.`;
+                let text = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br><span style="color:#00ff00">Green</span> = Correct, <span style="color:#ff3333">Red</span> = Incorrect.`;
+                if(studentCurves.length < totalExpected) text += `<br><br><span style="color:#fff">Missing ${totalExpected - studentCurves.length} segments. Check tally!</span>`;
+                alertBox.innerHTML = text;
             }
             sb_draw();
         }
@@ -785,7 +808,11 @@
             if (sb_isFrozen) return;
             currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
+            
+            // REFACTORED: Dynamic live update of math state during hover
+            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
             updateTelemetry(activeRegion, sb_lastMathState, currentT, currentC);
+            
             sb_draw(activeRegion ? activeRegion.id : null);
         });
 
@@ -803,7 +830,11 @@
                         let dist = distToSegment(sb_mouseX, sb_mouseY, mapX(nStart.c), mapY(nStart.t), mapX(nEnd.c), mapY(nEnd.t));
                         if (dist < minDist) { minDist = dist; closestIdx = idx; }
                     });
-                    if (closestIdx !== -1) { studentCurves.splice(closestIdx, 1); document.getElementById('assessment-score').style.display = 'none'; sb_draw(); }
+                    if (closestIdx !== -1) { 
+                        studentCurves.splice(closestIdx, 1); 
+                        document.getElementById('assessment-score').style.display = 'none'; 
+                        updateTally(); sb_draw(); 
+                    }
                     return;
                 }
 
@@ -814,6 +845,7 @@
                         if(!exists) {
                             studentCurves.push({ start: selectedNodeA, end: hoveredNode, type: activeTool, status: 'un-graded' });
                             document.getElementById('assessment-score').style.display = 'none'; 
+                            updateTally(); // Update tally on successful draw
                         }
                         selectedNodeA = null; sb_draw();
                     }
