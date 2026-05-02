@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V26</title>
+    <title>Chapter 9: Procedural Phase Engine V27</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -41,13 +41,13 @@
         #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         
-        .alert-box { padding: 10px; background: rgba(255, 0, 0, 0.1); border: 1px dashed var(--red); color: var(--red); font-size: 0.8rem; text-align: center; margin-top: 10px; display: none; }
+        .alert-box { padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px dashed var(--cyan); color: var(--cyan); font-size: 0.85rem; text-align: center; margin-top: 10px; display: none; line-height: 1.4;}
     </style>
 </head>
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V26: Sprint 1 Final)</div>
+        <div class="brand">Phase Engine Platform (V27: Architect Mode)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -59,7 +59,7 @@
                     <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Navigator</div>
                     <div class="toggle-btn" id="mode-architect" onclick="setMode('architect')">Architect</div>
                 </div>
-                <div id="architect-alert" class="alert-box">Architect dragging is locked while using JSON Procedural Schemas.</div>
+                <div id="architect-alert" class="alert-box"><strong>Architect Mode Active</strong><br><br>Drag nodes to dynamically alter the thermodynamic topology. Collision boundaries strictly enforce physical laws.</div>
 
                 <span class="label" style="margin-top: 20px;">Phase Labels</span>
                 <div class="toggle-container">
@@ -67,11 +67,13 @@
                     <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard (Single)</div>
                 </div>
 
-                <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
-                <div class="toggle-container" style="flex-direction: column;">
-                    <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
+                <div id="nav-bank">
+                    <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
+                    <div class="toggle-container" style="flex-direction: column;">
+                        <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
+                    </div>
                 </div>
 
                 <div id="sb-math-panel">
@@ -102,6 +104,11 @@
         let sb_labelMode = 'all';
         let currentC = null, currentT = null;
 
+        // V27 State Variables
+        let interactionMode = 'navigator';
+        let hoveredNode = null;
+        let draggedNode = null;
+
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
@@ -125,7 +132,7 @@
         }
 
         // ==========================================
-        // PROCEDURAL PHASE ENGINE 
+        // V27: PROCEDURAL PHASE ENGINE 
         // ==========================================
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
@@ -135,11 +142,45 @@
                 this.buildRegionPaths();
             },
 
+            // The Collision Constraints Engine
+            applyDrag(nodeId, newC, newT) {
+                let node = this.schema.nodes[nodeId];
+                
+                // 1. Clamp to bounds
+                if (node.bounds) {
+                    if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
+                    else {
+                        let minC = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
+                        let maxC = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
+                        newC = Math.max(minC + 1, Math.min(newC, maxC - 1)); // 1% gap logic
+                    }
+
+                    if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
+                    else {
+                        let minT = node.bounds.t_min !== undefined ? (typeof node.bounds.t_min === 'string' ? this.schema.nodes[node.bounds.t_min].t : node.bounds.t_min) : 0;
+                        let maxT = node.bounds.t_max !== undefined ? (typeof node.bounds.t_max === 'string' ? this.schema.nodes[node.bounds.t_max].t : node.bounds.t_max) : 1200;
+                        newT = Math.max(minT + 5, Math.min(newT, maxT - 5)); // 5K gap logic
+                    }
+                }
+                
+                node.c = newC;
+                node.t = newT;
+
+                // 2. Isotherm Invariant Linking
+                if (this.schema.invariants) {
+                    for (let key in this.schema.invariants) {
+                        let inv = this.schema.invariants[key];
+                        if (inv.nodes && inv.nodes.includes(nodeId)) {
+                            inv.nodes.forEach(nId => { this.schema.nodes[nId].t = newT; });
+                        }
+                    }
+                }
+            },
+
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
-                const nStart = this.schema.nodes[curve.start];
-                const nEnd = this.schema.nodes[curve.end];
+                const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
 
                 const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
@@ -148,7 +189,6 @@
                 if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
 
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t); 
-                
                 let power = curve.power !== undefined ? curve.power : 1.0; 
                 if (curve.power === undefined) {
                     if (curve.type === "solvus") power = 0.4; 
@@ -221,7 +261,8 @@
 
             getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 1180) { 
+                    // Quick bounding hit for intermetallic pillar
+                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < this.schema.nodes['pil_t'].t) { 
                         return { id: regionId, ...region };
                     }
                 }
@@ -255,18 +296,40 @@
         };
 
         // ==========================================
-        // THE JSON DATABASE 
+        // V27: JSON WITH THERMODYNAMIC BOUNDARIES
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
-                "tmA": { "c": 0, "t": 1100 }, "p_a": { "c": 15, "t": 850 }, "p_b": { "c": 25, "t": 850 }, "p_l": { "c": 40, "t": 850 },
-                "e1_b": { "c": 32, "t": 600 }, "e1_l": { "c": 45, "t": 600 }, "e1_p": { "c": 50, "t": 600 },
-                "pil_t": { "c": 50, "t": 1180 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
-                "tmB": { "c": 100, "t": 1050 }, 
-                "t_a": { "c": 5, "t": 0 }, 
-                "t_bl": { "c": 24.5, "t": 0 }, "t_br": { "c": 25.5, "t": 0 }, 
-                "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 95, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
+                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a"} },
+                "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
+                "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "p_l", "t_min": "e1_l", "t_max": "tmA"} },
+                "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
+                
+                "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "t_br", "c_max": "e1_l", "t_min": 100, "t_max": "p_a"} },
+                "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_a"} },
+                "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_a"} },
+                
+                "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": "e1_l", "t_max": 1200} },
+                
+                "e2_p": { "c": 50, "t": 550, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "pil_t"} },
+                "e2_l": { "c": 75, "t": 550, "bounds": {"c_min": "e2_p", "c_max": "e2_g", "t_min": 100, "t_max": "pil_t"} },
+                "e2_g": { "c": 90, "t": 550, "bounds": {"c_min": "e2_l", "c_max": "t_g", "t_min": 100, "t_max": "tmB"} },
+                
+                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g"} },
+                
+                "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
+                "t_bl": { "c": 24.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "t_br"} },
+                "t_br": { "c": 25.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "t_bl", "c_max": "e1_b"} },
+                "pil_b": { "c": 50, "t": 0, "bounds": {"lock_c": 50, "lock_t": 0} },
+                "t_g": { "c": 95, "t": 0, "bounds": {"lock_t": 0, "c_min": "e2_g", "c_max": 100} },
+                "zero_bot": { "c": 0, "t": 0, "bounds": {"lock_c": 0, "lock_t": 0} },
+                "max_bot": { "c": 100, "t": 0, "bounds": {"lock_c": 100, "lock_t": 0} }
+            },
+            "invariants": {
+                "inv_peri": { "nodes": ["p_a", "p_b", "p_l"] },
+                "inv_e1": { "nodes": ["e1_b", "e1_l", "e1_p"] },
+                "inv_e2": { "nodes": ["e2_p", "e2_l", "e2_g"] }
             },
             "curves": {
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
@@ -407,7 +470,7 @@
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            if (activeRegionId && PhaseEngine.paths[activeRegionId]) {
+            if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
                 const type = PhaseEngine.schema.regions[activeRegionId].type;
                 sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.08)' : 'rgba(255, 0, 255, 0.08)';
                 sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
@@ -438,10 +501,24 @@
 
             drawLabels();
 
-            if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
-                drawTieLineUI(currentT, currentC, sb_lastMathState);
-            } else if (currentT !== null && currentC !== null) {
-                drawSinglePhaseUI(currentT, currentC);
+            if (interactionMode === 'navigator') {
+                if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
+                    drawTieLineUI(currentT, currentC, sb_lastMathState);
+                } else if (currentT !== null && currentC !== null) {
+                    drawSinglePhaseUI(currentT, currentC);
+                }
+            } else if (interactionMode === 'architect') {
+                for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; // Unmovable nodes
+                    
+                    sb_ctx.beginPath();
+                    sb_ctx.arc(mapX(node.c), mapY(node.t), hoveredNode === nodeId ? 8 : 5, 0, Math.PI * 2);
+                    sb_ctx.fillStyle = hoveredNode === nodeId ? '#00ffff' : '#ff00ff';
+                    sb_ctx.fill();
+                    sb_ctx.strokeStyle = '#fff';
+                    sb_ctx.lineWidth = 1.5;
+                    sb_ctx.stroke();
+                }
             }
         }
 
@@ -449,9 +526,20 @@
         // UI & EVENT LISTENERS
         // ==========================================
         function setMode(mode) {
+            interactionMode = mode;
             document.getElementById('mode-navigator').classList.toggle('active', mode === 'navigator');
             document.getElementById('mode-architect').classList.toggle('active', mode === 'architect');
+            
+            document.getElementById('nav-bank').style.display = mode === 'navigator' ? 'block' : 'none';
             document.getElementById('architect-alert').style.display = mode === 'architect' ? 'block' : 'none';
+            
+            document.getElementById('sb-math-panel').style.display = 'none';
+            document.getElementById('sb-telemetry').style.display = 'block';
+
+            sb_isFrozen = false; currentC = null; currentT = null;
+            hoveredNode = null; draggedNode = null;
+            
+            sb_draw();
         }
 
         function setLabels(mode) {
@@ -462,8 +550,8 @@
         }
 
         function snapToPoint(c, t) {
-            sb_isFrozen = true;
-            currentC = c; currentT = t;
+            if (interactionMode !== 'navigator') setMode('navigator');
+            sb_isFrozen = true; currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
             
@@ -512,11 +600,41 @@
         }
 
         sb_canvas.addEventListener('mousemove', (e) => {
-            if (sb_isFrozen) return;
             let rect = sb_canvas.getBoundingClientRect(); 
             sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
+            let c = invX(sb_mouseX); let t = invY(sb_mouseY);
 
-            currentC = invX(sb_mouseX); currentT = invY(sb_mouseY);
+            if (interactionMode === 'architect') {
+                if (draggedNode) {
+                    PhaseEngine.applyDrag(draggedNode, c, t);
+                    PhaseEngine.buildRegionPaths();
+                    sb_draw();
+                    
+                    let node = PhaseEngine.schema.nodes[draggedNode];
+                    document.getElementById('sb-out-t').innerText = Math.round(node.t);
+                    document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
+                    document.getElementById('sb-out-region').innerText = "Editing Node: " + draggedNode;
+                    document.getElementById('sb-out-w1').innerText = "--";
+                    document.getElementById('sb-out-w2').innerText = "--";
+                } else {
+                    let found = null;
+                    for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
+                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                        if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) {
+                            found = nodeId; break;
+                        }
+                    }
+                    if (found !== hoveredNode) {
+                        hoveredNode = found;
+                        sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
+                        sb_draw();
+                    }
+                }
+                return;
+            }
+
+            if (sb_isFrozen) return;
+            currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
             
@@ -525,11 +643,23 @@
         });
 
         sb_canvas.addEventListener('mousedown', () => { 
+            if (interactionMode === 'architect') {
+                if (hoveredNode) { draggedNode = hoveredNode; sb_canvas.style.cursor = 'grabbing'; }
+                return;
+            }
+
             sb_isFrozen = !sb_isFrozen;
             document.getElementById('sb-math-panel').style.display = sb_isFrozen ? 'block' : 'none';
             document.getElementById('sb-telemetry').style.display = sb_isFrozen ? 'none' : 'block';
             updateMathPanel();
             sb_draw(null); 
+        });
+
+        sb_canvas.addEventListener('mouseup', () => {
+            if (interactionMode === 'architect') {
+                draggedNode = null;
+                sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
+            }
         });
 
         // INIT
