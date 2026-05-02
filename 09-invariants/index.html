@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V29</title>
+    <title>Chapter 9: Procedural Phase Engine V30</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -39,6 +39,7 @@
         .tool-btn.active[data-tool="solidus"] { border-color: var(--cyan); color: var(--cyan); background: rgba(0, 255, 255, 0.1); }
         .tool-btn.active[data-tool="solvus"] { border-color: var(--green); color: var(--green); background: rgba(0, 255, 204, 0.1); }
         .tool-btn.active[data-tool="horizontal"] { border-color: var(--yellow); color: var(--yellow); background: rgba(255, 255, 0, 0.1); }
+        .tool-btn.active[data-tool="vertical"] { border-color: var(--orange); color: var(--orange); background: rgba(255, 136, 0, 0.1); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
         
         .submit-btn { width: 100%; padding: 12px; background: var(--cyan); color: #000; font-weight: bold; font-size: 0.9rem; text-transform: uppercase; cursor: pointer; border: none; border-radius: 4px; transition: 0.2s; }
@@ -57,7 +58,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V29: Sprint 3 Assessment)</div>
+        <div class="brand">Phase Engine Platform (V30: Restored Nav + Spline Assessment)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -99,8 +100,9 @@
                         <div class="tool-btn" data-tool="solidus" onclick="setTool('solidus')">Solidus</div>
                         <div class="tool-btn" data-tool="solvus" onclick="setTool('solvus')">Solvus</div>
                         <div class="tool-btn" data-tool="horizontal" onclick="setTool('horizontal')">Isotherm</div>
+                        <div class="tool-btn" data-tool="vertical" onclick="setTool('vertical')" style="grid-column: span 2;">Intermetallic (Vert)</div>
                     </div>
-                    <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px;">Eraser</div>
+                    <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px; display: block; width: 100%;">Eraser</div>
                     
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
                     <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
@@ -141,26 +143,39 @@
         let hoveredNode = null;
         let draggedNode = null;
 
-        // Sprint 3: Assessment State Variables
-        let assessmentState = 'practice'; // 'practice' or 'quiz'
+        let assessmentState = 'practice';
         let activeTool = null;
         let selectedNodeA = null;
-        let studentCurves = []; // Array of {start: id, end: id, type: string, status: 'un-graded'}
+        let studentCurves = [];
 
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // Core schema and physics
+        function drawSubscriptAndValue(ctx, baseTxt, subTxt, value, x, y, baseSize, color, align='center') {
+            ctx.textBaseline = 'middle';
+            let subSize = Math.round(baseSize * 0.7);
+            ctx.font = `bold ${baseSize}px sans-serif`; let wBase = ctx.measureText(baseTxt).width;
+            ctx.font = `bold ${subSize}px sans-serif`; let wSub = ctx.measureText(subTxt).width;
+            
+            let startX = x;
+            if (align === 'center') startX = x - (wBase + wSub)/2;
+            
+            ctx.fillStyle = color; ctx.textAlign = 'left';
+            ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseTxt, startX, y);
+            ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subTxt, startX + wBase + 1, y + baseSize * 0.25);
+            
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = `14px Consolas, monospace`;
+            ctx.fillText(value.toFixed(1), x, y + 20);
+        }
+
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
-            
-            // We store the original coordinates so 'practice' mode can restore the exact shape
             originalNodes: {}, 
 
             loadSchema(jsonSchema) {
-                this.schema = JSON.parse(JSON.stringify(jsonSchema)); // Deep copy
+                this.schema = JSON.parse(JSON.stringify(jsonSchema));
                 this.originalNodes = JSON.parse(JSON.stringify(jsonSchema.nodes));
                 this.buildRegionPaths();
             },
@@ -195,8 +210,7 @@
                     }
                 }
                 
-                node.c = newC;
-                node.t = newT;
+                node.c = newC; node.t = newT;
 
                 if (this.schema.invariants) {
                     for (let key in this.schema.invariants) {
@@ -208,12 +222,10 @@
                 }
             },
 
-            // Helper to scramble the nodes for Quiz mode
             scrambleNodes() {
-                // Apply a random delta to every node several times to allow bounds to shift fluidly
                 for(let iter = 0; iter < 3; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                        if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
                         let randomC = node.c + (Math.random() * 40 - 20);
                         let randomT = node.t + (Math.random() * 300 - 150);
                         this.applyDrag(nodeId, randomC, randomT);
@@ -344,7 +356,6 @@
             }
         };
 
-        // Schema Data
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -352,19 +363,14 @@
                 "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
                 "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "p_l", "t_min": "e1_l", "t_max": "tmA"} },
                 "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
-                
                 "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "t_br", "c_max": "e1_l", "t_min": 100, "t_max": "p_a"} },
                 "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_a"} },
                 "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_a"} },
-                
                 "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": ["tmA", "tmB"], "t_max": 1200} },
-                
                 "e2_p": { "c": 50, "t": 550, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "pil_t"} },
                 "e2_l": { "c": 75, "t": 550, "bounds": {"c_min": "e2_p", "c_max": "e2_g", "t_min": 100, "t_max": "pil_t"} },
                 "e2_g": { "c": 90, "t": 550, "bounds": {"c_min": "e2_l", "c_max": "t_g", "t_min": 100, "t_max": "tmB"} },
-                
                 "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
-                
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
                 "t_bl": { "c": 24.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "t_br"} },
                 "t_br": { "c": 25.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "t_bl", "c_max": "e1_b"} },
@@ -391,7 +397,6 @@
                 "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "power": 1.5 },
                 "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "power": 1.8 },
-                
                 "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" }, "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
                 "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" }, "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
                 "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" }, "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
@@ -419,9 +424,6 @@
             }
         };
 
-        // ==========================================
-        // RENDER ENGINE
-        // ==========================================
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
             sb_ctx.moveTo(PAD, PAD); sb_ctx.lineTo(PAD, sb_canvas.height - PAD);
@@ -441,14 +443,69 @@
             if(type === 'solidus') return 'var(--cyan)';
             if(type === 'solvus') return 'var(--green)';
             if(type === 'horizontal') return 'var(--yellow)';
+            if(type === 'vertical') return 'var(--orange)';
             return '#fff';
+        }
+
+        function drawTieLineUI(curT, curC, mathState) {
+            let vL = mathState.cLeft; let vR = mathState.cRight;
+            
+            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
+            sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+            
+            sb_ctx.fillStyle = '#00ffff';
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
+            
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
+            sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
+
+            if (sb_isFrozen) {
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
+                sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
+                
+                let yAxis = sb_canvas.height - PAD + 20;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(curC)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
+                
+                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[0], vL, mapX(vL), yAxis, 14, '#00ffff');
+                drawSubscriptAndValue(sb_ctx, "C", "0", curC, mapX(curC), yAxis, 14, '#ff00ff');
+                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[1], vR, mapX(vR), yAxis, 14, '#ff8800');
+                
+                let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
+                sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
+                sb_ctx.fillText(`T = ${Math.round(curT)} K`, midX, mapY(curT) - 15);
+            }
+        }
+
+        function drawSinglePhaseUI(curT, curC) {
+            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
+            sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
+
+            if (sb_isFrozen) {
+                let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(mapX(v0), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 25, sb_canvas.height - PAD + 10, 50, 40); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
+                
+                drawSubscriptAndValue(sb_ctx, "C", "0", v0, mapX(v0), sb_canvas.height - PAD + 20, 14, '#ff00ff');
+                sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; sb_ctx.textAlign = 'right'; sb_ctx.fillText(t0, PAD - 10, mapY(curT));
+            }
         }
 
         function sb_draw(activeRegionId = null) {
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            // 1. Draw Physical Diagram (if not in assessment mode)
             if (interactionMode !== 'assessment') {
                 if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
                     const type = PhaseEngine.schema.regions[activeRegionId].type;
@@ -478,8 +535,16 @@
                 }
                 
                 drawLabels();
+
+                // RESTORED: V28 Nav overlays
+                if (interactionMode === 'navigator') {
+                    if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
+                        drawTieLineUI(currentT, currentC, sb_lastMathState);
+                    } else if (currentT !== null && currentC !== null) {
+                        drawSinglePhaseUI(currentT, currentC);
+                    }
+                }
             } else {
-                // Assessment Mode: Draw only background edges lightly so they have boundaries
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
@@ -488,10 +553,30 @@
                     sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
                 }
 
-                // Draw Student Curves
+                // Bezier Curve Logic for Assessment
                 studentCurves.forEach(sc => {
                     const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t)); sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
+                    let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
+                    
+                    sb_ctx.beginPath(); sb_ctx.moveTo(x1, y1);
+                    
+                    if (sc.type === 'horizontal' || sc.type === 'vertical') {
+                        sb_ctx.lineTo(x2, y2);
+                    } else {
+                        // Create a loose bezier droop based on the tool
+                        let p1 = nStart.c <= nEnd.c ? {x: x1, y: y1} : {x: x2, y: y2};
+                        let p2 = nStart.c <= nEnd.c ? {x: x2, y: y2} : {x: x1, y: y1};
+                        let midX = (p1.x + p2.x) / 2; let midY = (p1.y + p2.y) / 2;
+                        let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+                        let dist = Math.sqrt(dx*dx + dy*dy);
+                        let nx = -dy / dist; let ny = dx / dist; // Normal
+                        let offset = dist * 0.15; // 15% bow factor
+                        
+                        let cpX = midX + nx * (sc.type === 'liquidus' ? offset : -offset);
+                        let cpY = midY + ny * (sc.type === 'liquidus' ? offset : -offset);
+                        
+                        sb_ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+                    }
                     
                     if (sc.status === 'correct') sb_ctx.strokeStyle = 'var(--green)';
                     else if (sc.status === 'incorrect') sb_ctx.strokeStyle = 'var(--red)';
@@ -500,7 +585,6 @@
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
                 });
 
-                // Draw Rubber-Band line if drawing
                 if (selectedNodeA && activeTool && activeTool !== 'eraser') {
                     let startNode = PhaseEngine.schema.nodes[selectedNodeA];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
@@ -509,10 +593,9 @@
                 }
             }
 
-            // 2. Draw Nodes (Architect and Assessment Mode)
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; // Don't draw absolute corners
+                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue; // Only filter out the absolute diagram bottom corners
                     
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
@@ -555,11 +638,7 @@
             sb_isFrozen = false; currentC = null; currentT = null;
             hoveredNode = null; draggedNode = null; selectedNodeA = null;
             
-            if (mode !== 'assessment' && assessmentState === 'quiz') {
-                // Restore map if leaving quiz mode
-                PhaseEngine.restoreOriginalNodes();
-            }
-
+            if (mode !== 'assessment' && assessmentState === 'quiz') PhaseEngine.restoreOriginalNodes();
             sb_draw();
         }
 
@@ -570,29 +649,73 @@
             sb_draw();
         }
 
-        // SPRINT 3: ASSESSMENT FUNCTIONS
+        function snapToPoint(c, t) {
+            if (interactionMode !== 'navigator') setMode('navigator');
+            sb_isFrozen = true; currentC = c; currentT = t;
+            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
+            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
+            
+            updateTelemetry(activeRegion, sb_lastMathState, t, c);
+            document.getElementById('sb-math-panel').style.display = 'block';
+            document.getElementById('sb-telemetry').style.display = 'none';
+            updateMathPanel();
+            sb_draw(activeRegion ? activeRegion.id : null);
+        }
+
+        function updateTelemetry(region, mathState, curT, curC) {
+            document.getElementById('sb-out-t').innerText = Math.round(curT); 
+            document.getElementById('sb-out-c').innerText = curC.toFixed(1);
+            
+            if (!region) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; return; }
+            document.getElementById('sb-out-region').innerText = region.phase_name || region.phases.join(" + ");
+            
+            if (mathState && mathState.isTwoPhase) {
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>${mathState.phases[0]}</sub>:`;
+                document.getElementById('sb-out-w1').innerText = mathState.wLeft.toFixed(2);
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>${mathState.phases[1]}</sub>:`;
+                document.getElementById('sb-out-w2').innerText = mathState.wRight.toFixed(2);
+            } else {
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w1').innerText = "1.00";
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w2').innerText = "0.00";
+            }
+        }
+
+        function updateMathPanel() {
+            if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
+                document.getElementById('sb-math-content').innerHTML = `
+                    <div class="math-line">1. Intersections:</div>
+                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line">C_0 = ${currentC.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <hr style="border-color:#333; margin:10px 0;">
+                    <div class="math-line">2. Lever Rule:</div>
+                    <div class="math-line" style="color:var(--cyan)">X_${sb_lastMathState.phases[0]} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--orange)">X_${sb_lastMathState.phases[1]} = ${sb_lastMathState.wRight.toFixed(2)}</div>
+                `;
+            } else if (sb_isFrozen) {
+                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region.</div>`;
+            }
+        }
+
         function setAssessmentState(state) {
             assessmentState = state;
             document.getElementById('test-practice').classList.toggle('active', state === 'practice');
             document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
             document.getElementById('assessment-score').style.display = 'none';
-            studentCurves = [];
-            selectedNodeA = null;
-            
-            if (state === 'quiz') { PhaseEngine.scrambleNodes(); } 
-            else { PhaseEngine.restoreOriginalNodes(); }
+            studentCurves = []; selectedNodeA = null;
+            if (state === 'quiz') { PhaseEngine.scrambleNodes(); } else { PhaseEngine.restoreOriginalNodes(); }
             sb_draw();
         }
 
         function setTool(toolName) {
-            activeTool = toolName;
-            selectedNodeA = null; // Reset drawing line
+            activeTool = toolName; selectedNodeA = null;
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
             if(toolName) document.querySelector(`.tool-btn[data-tool="${toolName}"]`).classList.add('active');
             sb_draw();
         }
 
-        // Distance from point to line segment for the Eraser
         function distToSegment(px, py, x1, y1, x2, y2) {
             let l2 = (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2);
             if (l2 == 0) return Math.hypot(px - x1, py - y1);
@@ -602,15 +725,12 @@
 
         function gradeAssessment() {
             let score = 0;
-            // Total expected curves minus edges and the artificial pillar bound
-            let totalExpected = Object.keys(PhaseEngine.schema.curves).filter(k => 
-                PhaseEngine.schema.curves[k].type !== 'edge' && PhaseEngine.schema.curves[k].type !== 'vertical'
-            ).length;
+            let totalExpected = Object.keys(PhaseEngine.schema.curves).filter(k => PhaseEngine.schema.curves[k].type !== 'edge').length;
             
             studentCurves.forEach(sc => {
                 let isCorrect = false;
                 for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type === 'edge' || curve.type === 'vertical') continue;
+                    if (curve.type === 'edge') continue;
                     let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
                     if (nodesMatch && sc.type === curve.type) { isCorrect = true; break; }
                 }
@@ -623,7 +743,7 @@
             
             if (assessmentState === 'quiz') {
                 alertBox.innerHTML = `<strong>Quiz Complete</strong><br>Score: ${score} / ${totalExpected}<br>Answers Locked.`;
-                setTool(null); // Lock tools
+                setTool(null); 
             } else {
                 alertBox.innerHTML = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br>Green = Correct, Red = Incorrect.`;
             }
@@ -643,7 +763,7 @@
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                        if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
                         if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                     }
                     if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; sb_draw(); }
@@ -654,19 +774,18 @@
             if (interactionMode === 'assessment') {
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
                     if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                 }
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
-                if (selectedNodeA) sb_draw(); // Redraw for rubber-band
+                if (selectedNodeA) sb_draw(); 
                 return;
             }
 
             if (sb_isFrozen) return;
             currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
-            document.getElementById('sb-out-t').innerText = Math.round(currentT); document.getElementById('sb-out-c').innerText = currentC.toFixed(1);
-            if (activeRegion) document.getElementById('sb-out-region').innerText = activeRegion.phase_name || activeRegion.phases.join(" + ");
+            updateTelemetry(activeRegion, sb_lastMathState, currentT, currentC);
             sb_draw(activeRegion ? activeRegion.id : null);
         });
 
@@ -678,8 +797,7 @@
 
             if (interactionMode === 'assessment') {
                 if (activeTool === 'eraser') {
-                    // Find closest drawn line
-                    let closestIdx = -1; let minDist = 15; // 15px grab radius
+                    let closestIdx = -1; let minDist = 15; 
                     studentCurves.forEach((sc, idx) => {
                         let nStart = PhaseEngine.schema.nodes[sc.start]; let nEnd = PhaseEngine.schema.nodes[sc.end];
                         let dist = distToSegment(sb_mouseX, sb_mouseY, mapX(nStart.c), mapY(nStart.t), mapX(nEnd.c), mapY(nEnd.t));
@@ -692,29 +810,28 @@
                 if (activeTool && hoveredNode) {
                     if (!selectedNodeA) { selectedNodeA = hoveredNode; } 
                     else if (selectedNodeA !== hoveredNode) {
-                        // Check if line exists
                         let exists = studentCurves.some(sc => (sc.start === selectedNodeA && sc.end === hoveredNode) || (sc.start === hoveredNode && sc.end === selectedNodeA));
                         if(!exists) {
                             studentCurves.push({ start: selectedNodeA, end: hoveredNode, type: activeTool, status: 'un-graded' });
-                            document.getElementById('assessment-score').style.display = 'none'; // Clear grade visual
+                            document.getElementById('assessment-score').style.display = 'none'; 
                         }
-                        selectedNodeA = null; // Reset
-                        sb_draw();
+                        selectedNodeA = null; sb_draw();
                     }
-                } else {
-                    selectedNodeA = null; sb_draw();
-                }
+                } else { selectedNodeA = null; sb_draw(); }
                 return;
             }
 
             sb_isFrozen = !sb_isFrozen;
+            document.getElementById('sb-math-panel').style.display = sb_isFrozen ? 'block' : 'none';
+            document.getElementById('sb-telemetry').style.display = sb_isFrozen ? 'none' : 'block';
+            updateMathPanel();
+            sb_draw(null); 
         });
 
         sb_canvas.addEventListener('mouseup', () => {
             if (interactionMode === 'architect') { draggedNode = null; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; }
         });
 
-        // INIT
         PhaseEngine.loadSchema(schema_3Invariant);
         function resizeAll() {
             if(sb_canvas.parentElement) {
