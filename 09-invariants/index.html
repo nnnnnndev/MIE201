@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V27</title>
+    <title>Chapter 9: Procedural Phase Engine V28</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -12,17 +12,14 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--silver); height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
 
-        /* Top Navigation */
         #global-nav { height: 50px; background: #0a0a0a; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 100; }
         .brand { color: var(--cyan); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 1.1rem; }
 
-        /* Main Layouts */
         .view-container { flex: 1; display: flex; overflow: hidden; }
         .sidebar { width: 380px; background: var(--panel); border-right: 2px solid #333; display: flex; flex-direction: column; z-index: 10; overflow-y: auto; }
         .stage { flex: 1; position: relative; background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
         canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
 
-        /* Shared UI Elements */
         .header { padding: 20px; border-bottom: 1px solid #333; text-align: center; }
         .header h2 { color: var(--cyan); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
         .control-group { padding: 20px; border-bottom: 1px solid #333; }
@@ -47,7 +44,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V27: Architect Mode)</div>
+        <div class="brand">Phase Engine Platform (V28: Sprint 1 & 2 Final)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -104,7 +101,6 @@
         let sb_labelMode = 'all';
         let currentC = null, currentT = null;
 
-        // V27 State Variables
         let interactionMode = 'navigator';
         let hoveredNode = null;
         let draggedNode = null;
@@ -132,7 +128,7 @@
         }
 
         // ==========================================
-        // V27: PROCEDURAL PHASE ENGINE 
+        // V28: PROCEDURAL PHASE ENGINE 
         // ==========================================
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
@@ -142,31 +138,41 @@
                 this.buildRegionPaths();
             },
 
-            // The Collision Constraints Engine
             applyDrag(nodeId, newC, newT) {
                 let node = this.schema.nodes[nodeId];
                 
-                // 1. Clamp to bounds
                 if (node.bounds) {
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
                         let minC = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
                         let maxC = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
-                        newC = Math.max(minC + 1, Math.min(newC, maxC - 1)); // 1% gap logic
+                        newC = Math.max(minC + 1, Math.min(newC, maxC - 1)); 
                     }
 
                     if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
                     else {
-                        let minT = node.bounds.t_min !== undefined ? (typeof node.bounds.t_min === 'string' ? this.schema.nodes[node.bounds.t_min].t : node.bounds.t_min) : 0;
-                        let maxT = node.bounds.t_max !== undefined ? (typeof node.bounds.t_max === 'string' ? this.schema.nodes[node.bounds.t_max].t : node.bounds.t_max) : 1200;
-                        newT = Math.max(minT + 5, Math.min(newT, maxT - 5)); // 5K gap logic
+                        // V28 Upgrade: Array support for dynamic max/min parsing
+                        let minT = 0;
+                        if (node.bounds.t_min !== undefined) {
+                            if (Array.isArray(node.bounds.t_min)) minT = Math.max(...node.bounds.t_min.map(id => this.schema.nodes[id].t));
+                            else if (typeof node.bounds.t_min === 'string') minT = this.schema.nodes[node.bounds.t_min].t;
+                            else minT = node.bounds.t_min;
+                        }
+                        
+                        let maxT = 1200;
+                        if (node.bounds.t_max !== undefined) {
+                            if (Array.isArray(node.bounds.t_max)) maxT = Math.min(...node.bounds.t_max.map(id => this.schema.nodes[id].t));
+                            else if (typeof node.bounds.t_max === 'string') maxT = this.schema.nodes[node.bounds.t_max].t;
+                            else maxT = node.bounds.t_max;
+                        }
+
+                        newT = Math.max(minT + 5, Math.min(newT, maxT - 5)); 
                     }
                 }
                 
                 node.c = newC;
                 node.t = newT;
 
-                // 2. Isotherm Invariant Linking
                 if (this.schema.invariants) {
                     for (let key in this.schema.invariants) {
                         let inv = this.schema.invariants[key];
@@ -261,7 +267,6 @@
 
             getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    // Quick bounding hit for intermetallic pillar
                     if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < this.schema.nodes['pil_t'].t) { 
                         return { id: regionId, ...region };
                     }
@@ -296,12 +301,12 @@
         };
 
         // ==========================================
-        // V27: JSON WITH THERMODYNAMIC BOUNDARIES
+        // V28: JSON WITH DYNAMIC THERMODYNAMIC ARRAYS
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
-                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a"} },
+                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a", "t_max": 1200} },
                 "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
                 "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "p_l", "t_min": "e1_l", "t_max": "tmA"} },
                 "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
@@ -310,13 +315,14 @@
                 "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_a"} },
                 "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_a"} },
                 
-                "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": "e1_l", "t_max": 1200} },
+                // V28 Upgrade: Array bounds force the peak to ALWAYS be hotter than both unary melting points!
+                "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": ["tmA", "tmB"], "t_max": 1200} },
                 
                 "e2_p": { "c": 50, "t": 550, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "pil_t"} },
                 "e2_l": { "c": 75, "t": 550, "bounds": {"c_min": "e2_p", "c_max": "e2_g", "t_min": 100, "t_max": "pil_t"} },
                 "e2_g": { "c": 90, "t": 550, "bounds": {"c_min": "e2_l", "c_max": "t_g", "t_min": 100, "t_max": "tmB"} },
                 
-                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g"} },
+                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
                 
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
                 "t_bl": { "c": 24.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "t_br"} },
@@ -509,7 +515,7 @@
                 }
             } else if (interactionMode === 'architect') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; // Unmovable nodes
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; 
                     
                     sb_ctx.beginPath();
                     sb_ctx.arc(mapX(node.c), mapY(node.t), hoveredNode === nodeId ? 8 : 5, 0, Math.PI * 2);
