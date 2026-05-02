@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V28</title>
+    <title>Chapter 9: Procedural Phase Engine V29</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -31,6 +31,19 @@
         .toggle-btn:not(.active) { color: #666; }
         .toggle-btn:not(.active):hover { color: #fff; background: rgba(255,255,255,0.05); }
 
+        /* Assessment UI Styles */
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
+        .tool-btn { padding: 10px; text-align: center; background: #000; border: 1px solid #444; color: #888; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; border-radius: 4px; transition: 0.2s;}
+        .tool-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .tool-btn.active[data-tool="liquidus"] { border-color: var(--magenta); color: var(--magenta); background: rgba(255, 0, 255, 0.1); }
+        .tool-btn.active[data-tool="solidus"] { border-color: var(--cyan); color: var(--cyan); background: rgba(0, 255, 255, 0.1); }
+        .tool-btn.active[data-tool="solvus"] { border-color: var(--green); color: var(--green); background: rgba(0, 255, 204, 0.1); }
+        .tool-btn.active[data-tool="horizontal"] { border-color: var(--yellow); color: var(--yellow); background: rgba(255, 255, 0, 0.1); }
+        .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
+        
+        .submit-btn { width: 100%; padding: 12px; background: var(--cyan); color: #000; font-weight: bold; font-size: 0.9rem; text-transform: uppercase; cursor: pointer; border: none; border-radius: 4px; transition: 0.2s; }
+        .submit-btn:hover { background: #fff; }
+
         .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
@@ -44,27 +57,27 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V28: Sprint 1 & 2 Final)</div>
+        <div class="brand">Phase Engine Platform (V29: Sprint 3 Assessment)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
         <div class="sidebar">
-            <div class="header"><h2>Procedural Sandbox</h2></div>
+            <div class="header"><h2>Sandbox Controls</h2></div>
             <div class="control-group">
                 <span class="label">Interaction Mode</span>
                 <div class="toggle-container">
-                    <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Navigator</div>
-                    <div class="toggle-btn" id="mode-architect" onclick="setMode('architect')">Architect</div>
+                    <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Nav</div>
+                    <div class="toggle-btn" id="mode-architect" onclick="setMode('architect')">Arch</div>
+                    <div class="toggle-btn" id="mode-assessment" onclick="setMode('assessment')">Test</div>
                 </div>
-                <div id="architect-alert" class="alert-box"><strong>Architect Mode Active</strong><br><br>Drag nodes to dynamically alter the thermodynamic topology. Collision boundaries strictly enforce physical laws.</div>
-
-                <span class="label" style="margin-top: 20px;">Phase Labels</span>
-                <div class="toggle-container">
-                    <div class="toggle-btn active" id="lbl-easy" onclick="setLabels('all')">Easy (All)</div>
-                    <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard (Single)</div>
-                </div>
+                <div id="architect-alert" class="alert-box"><strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.</div>
 
                 <div id="nav-bank">
+                    <span class="label" style="margin-top: 20px;">Phase Labels</span>
+                    <div class="toggle-container">
+                        <div class="toggle-btn active" id="lbl-easy" onclick="setLabels('all')">Easy</div>
+                        <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard</div>
+                    </div>
                     <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
                     <div class="toggle-container" style="flex-direction: column;">
                         <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
@@ -73,19 +86,42 @@
                     </div>
                 </div>
 
+                <div id="assessment-bank" style="display: none;">
+                    <span class="label" style="margin-top: 20px;">Assessment Type</span>
+                    <div class="toggle-container">
+                        <div class="toggle-btn active" id="test-practice" onclick="setAssessmentState('practice')">Practice</div>
+                        <div class="toggle-btn" id="test-quiz" onclick="setAssessmentState('quiz')">Quiz</div>
+                    </div>
+                    
+                    <span class="label" style="margin-top: 10px;">Toolbelt</span>
+                    <div class="tool-grid">
+                        <div class="tool-btn" data-tool="liquidus" onclick="setTool('liquidus')">Liquidus</div>
+                        <div class="tool-btn" data-tool="solidus" onclick="setTool('solidus')">Solidus</div>
+                        <div class="tool-btn" data-tool="solvus" onclick="setTool('solvus')">Solvus</div>
+                        <div class="tool-btn" data-tool="horizontal" onclick="setTool('horizontal')">Isotherm</div>
+                    </div>
+                    <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px;">Eraser</div>
+                    
+                    <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
+                    <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
+                </div>
+
                 <div id="sb-math-panel">
                     <div class="label" style="color:var(--cyan)">Math Expansion (Lever Rule)</div>
                     <div id="sb-math-content"></div>
                 </div>
             </div>
+            
             <div class="readout-panel" id="sb-telemetry">
                 <span class="label">Telemetry</span>
                 <div class="stat"><span>Temp (K):</span> <span class="val" id="sb-out-t">--</span></div>
                 <div class="stat"><span>Comp (at% B):</span> <span class="val" id="sb-out-c">--</span></div>
-                <hr style="border-color:#333; margin:15px 0;">
-                <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="sb-out-region">--</span></div>
-                <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>-</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
-                <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>-</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
+                <div id="nav-telemetry">
+                    <hr style="border-color:#333; margin:15px 0;">
+                    <div class="stat" style="color: var(--yellow);"><span>Region:</span> <span class="val" id="sb-out-region">--</span></div>
+                    <div class="stat" style="color: var(--cyan);"><span id="sb-lbl-left">X<sub>-</sub>:</span> <span class="val" id="sb-out-w1">--</span></div>
+                    <div class="stat" style="color: var(--orange);"><span id="sb-lbl-right">X<sub>-</sub>:</span> <span class="val" id="sb-out-w2">--</span></div>
+                </div>
             </div>
         </div>
         <div class="stage"><canvas id="canvas-sandbox"></canvas></div>
@@ -105,42 +141,32 @@
         let hoveredNode = null;
         let draggedNode = null;
 
+        // Sprint 3: Assessment State Variables
+        let assessmentState = 'practice'; // 'practice' or 'quiz'
+        let activeTool = null;
+        let selectedNodeA = null;
+        let studentCurves = []; // Array of {start: id, end: id, type: string, status: 'un-graded'}
+
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        function drawSubscriptAndValue(ctx, baseTxt, subTxt, value, x, y, baseSize, color, align='center') {
-            ctx.textBaseline = 'middle';
-            let subSize = Math.round(baseSize * 0.7);
-            ctx.font = `bold ${baseSize}px sans-serif`; let wBase = ctx.measureText(baseTxt).width;
-            ctx.font = `bold ${subSize}px sans-serif`; let wSub = ctx.measureText(subTxt).width;
-            
-            let startX = x;
-            if (align === 'center') startX = x - (wBase + wSub)/2;
-            
-            ctx.fillStyle = color; ctx.textAlign = 'left';
-            ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseTxt, startX, y);
-            ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subTxt, startX + wBase + 1, y + baseSize * 0.25);
-            
-            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = `14px Consolas, monospace`;
-            ctx.fillText(value.toFixed(1), x, y + 20);
-        }
-
-        // ==========================================
-        // V28: PROCEDURAL PHASE ENGINE 
-        // ==========================================
+        // Core schema and physics
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
+            
+            // We store the original coordinates so 'practice' mode can restore the exact shape
+            originalNodes: {}, 
 
             loadSchema(jsonSchema) {
-                this.schema = jsonSchema;
+                this.schema = JSON.parse(JSON.stringify(jsonSchema)); // Deep copy
+                this.originalNodes = JSON.parse(JSON.stringify(jsonSchema.nodes));
                 this.buildRegionPaths();
             },
 
             applyDrag(nodeId, newC, newT) {
                 let node = this.schema.nodes[nodeId];
-                
                 if (node.bounds) {
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
@@ -151,7 +177,6 @@
 
                     if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
                     else {
-                        // V28 Upgrade: Array support for dynamic max/min parsing
                         let minT = 0;
                         if (node.bounds.t_min !== undefined) {
                             if (Array.isArray(node.bounds.t_min)) minT = Math.max(...node.bounds.t_min.map(id => this.schema.nodes[id].t));
@@ -183,6 +208,25 @@
                 }
             },
 
+            // Helper to scramble the nodes for Quiz mode
+            scrambleNodes() {
+                // Apply a random delta to every node several times to allow bounds to shift fluidly
+                for(let iter = 0; iter < 3; iter++) {
+                    for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
+                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                        let randomC = node.c + (Math.random() * 40 - 20);
+                        let randomT = node.t + (Math.random() * 300 - 150);
+                        this.applyDrag(nodeId, randomC, randomT);
+                    }
+                }
+                this.buildRegionPaths();
+            },
+
+            restoreOriginalNodes() {
+                this.schema.nodes = JSON.parse(JSON.stringify(this.originalNodes));
+                this.buildRegionPaths();
+            },
+
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
@@ -204,7 +248,7 @@
                 
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
-
+            
             calculateCentroid(pts) {
                 let twicearea = 0, x = 0, y = 0, nPts = pts.length, p1, p2, f;
                 for (let i = 0, j = nPts - 1; i < nPts; j = i++) {
@@ -300,9 +344,7 @@
             }
         };
 
-        // ==========================================
-        // V28: JSON WITH DYNAMIC THERMODYNAMIC ARRAYS
-        // ==========================================
+        // Schema Data
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -315,7 +357,6 @@
                 "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_a"} },
                 "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_a"} },
                 
-                // V28 Upgrade: Array bounds force the peak to ALWAYS be hotter than both unary melting points!
                 "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": ["tmA", "tmB"], "t_max": 1200} },
                 
                 "e2_p": { "c": 50, "t": 550, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "pil_t"} },
@@ -340,12 +381,10 @@
             "curves": {
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
-                
                 "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "power": 1.5 }, 
                 "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 4.5 },
                 "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.5 },
                 "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 4.5 },
-                
                 "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
@@ -368,17 +407,14 @@
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
                 "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
-                
                 "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
                 "R_Lb": { "type": "two-phase", "phases": ["β", "L"], "label": { "text": "L + β", "c": 35, "t": 750 }, "bounding_curves": [ {id: "i_p_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "i_e1_bl", dir: 1}, {id: "L_b", dir: -1} ], "tie_line_boundaries": { "left": ["S_br"], "right": ["L_b"] } },
                 "R_Lp1":{ "type": "two-phase", "phases": ["L", "AB"], "label": { "text": "L + AB", "c": 47, "t": 750 }, "bounding_curves": [ {id: "L_p1", dir: 1}, {id: "i_e1_lp", dir: 1}, {id: "p_w1", dir: -1} ], "tie_line_boundaries": { "left": ["L_p1"], "right": ["p_w1"] } },
                 "R_Lp2":{ "type": "two-phase", "phases": ["AB", "L"], "label": { "text": "AB + L", "c": 62, "t": 750 }, "bounding_curves": [ {id: "L_p2", dir: 1}, {id: "i_e2_pl", dir: -1}, {id: "p_w1", dir: -1}, {id: "p_w2", dir: -1} ], "tie_line_boundaries": { "left": ["p_w1", "p_w2"], "right": ["L_p2"] } },
                 "R_Lg": { "type": "two-phase", "phases": ["L", "γ"], "label": { "text": "L + γ", "c": 87, "t": 800 }, "bounding_curves": [ {id: "L_g", dir: 1}, {id: "i_e2_lg", dir: 1}, {id: "S_g", dir: -1} ], "tie_line_boundaries": { "left": ["L_g"], "right": ["S_g"] } },
-                
                 "R_ab": { "type": "two-phase", "phases": ["α", "β"], "label": { "text": "α + β", "c": 12, "t": 400 }, "bounding_curves": [ {id: "sol_a", dir: 1}, {id: "bot_ab", dir: 1}, {id: "sol_bl", dir: -1}, {id: "i_p_ab", dir: -1} ], "tie_line_boundaries": { "left": ["sol_a"], "right": ["sol_bl"] } },
                 "R_bp": { "type": "two-phase", "phases": ["β", "AB"], "label": { "text": "β + AB", "c": 42, "t": 300 }, "bounding_curves": [ {id: "sol_br", dir: 1}, {id: "bot_bp", dir: 1}, {id: "p_w3", dir: -1}, {id: "p_w2", dir: -1}, {id: "i_e1_lp", dir: -1}, {id: "i_e1_bl", dir: -1} ], "tie_line_boundaries": { "left": ["sol_br"], "right": ["p_w2", "p_w3"] } },
                 "R_pg": { "type": "two-phase", "phases": ["AB", "γ"], "label": { "text": "AB + γ", "c": 72, "t": 200 }, "bounding_curves": [ {id: "p_w3", dir: 1}, {id: "bot_pg", dir: 1}, {id: "sol_g", dir: -1}, {id: "i_e2_lg", dir: -1}, {id: "i_e2_pl", dir: -1} ], "tie_line_boundaries": { "left": ["p_w3"], "right": ["sol_g"] } },
-                
                 "R_Pil": { "type": "intermetallic-pillar", "phase_name": "AB", "stoichiometric_c": 50 }
             }
         };
@@ -400,151 +436,130 @@
             sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
         }
 
-        function drawLabels() {
-            for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
-                if (!region.label) continue;
-                if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
-                
-                let baseText = region.label.text;
-                let c = PhaseEngine.centroids[regionId].c;
-                let t = PhaseEngine.centroids[regionId].t;
-                let x = mapX(c); let y = mapY(t);
-                
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 30, y - 15, 60, 30);
-                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
-                sb_ctx.font = `bold 22px sans-serif`;
-                sb_ctx.fillText(baseText, x, y);
-            }
-        }
-
-        function drawTieLineUI(curT, curC, mathState) {
-            let vL = mathState.cLeft; let vR = mathState.cRight;
-            
-            sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
-            sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-            
-            sb_ctx.fillStyle = '#00ffff';
-            sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
-            sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
-            
-            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
-            sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
-
-            if (sb_isFrozen) {
-                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
-                sb_ctx.setLineDash([]);
-                
-                sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
-                sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
-                
-                let yAxis = sb_canvas.height - PAD + 20;
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(curC)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
-                
-                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[0], vL, mapX(vL), yAxis, 14, '#00ffff');
-                drawSubscriptAndValue(sb_ctx, "C", "0", curC, mapX(curC), yAxis, 14, '#ff00ff');
-                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[1], vR, mapX(vR), yAxis, 14, '#ff8800');
-                
-                let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
-                sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
-                sb_ctx.fillText(`T = ${Math.round(curT)} K`, midX, mapY(curT) - 15);
-            }
-        }
-
-        function drawSinglePhaseUI(curT, curC) {
-            sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
-            sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
-
-            if (sb_isFrozen) {
-                let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
-                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(mapX(v0), sb_canvas.height - PAD); sb_ctx.stroke();
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
-                sb_ctx.setLineDash([]);
-                
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 25, sb_canvas.height - PAD + 10, 50, 40); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
-                
-                drawSubscriptAndValue(sb_ctx, "C", "0", v0, mapX(v0), sb_canvas.height - PAD + 20, 14, '#ff00ff');
-                sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; sb_ctx.textAlign = 'right'; sb_ctx.fillText(t0, PAD - 10, mapY(curT));
-            }
+        function getToolColor(type) {
+            if(type === 'liquidus') return 'var(--magenta)';
+            if(type === 'solidus') return 'var(--cyan)';
+            if(type === 'solvus') return 'var(--green)';
+            if(type === 'horizontal') return 'var(--yellow)';
+            return '#fff';
         }
 
         function sb_draw(activeRegionId = null) {
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
-                const type = PhaseEngine.schema.regions[activeRegionId].type;
-                sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.08)' : 'rgba(255, 0, 255, 0.08)';
-                sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
-            }
+            // 1. Draw Physical Diagram (if not in assessment mode)
+            if (interactionMode !== 'assessment') {
+                if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
+                    const type = PhaseEngine.schema.regions[activeRegionId].type;
+                    sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.08)' : 'rgba(255, 0, 255, 0.08)';
+                    sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
+                }
 
-            for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
-                const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
+                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    for(let i = 0; i <= 150; i++) {
+                        let t = nStart.t - (i/150)*(nStart.t - nEnd.t);
+                        let c = PhaseEngine.getC_onCurve(t, curveId);
+                        if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                    }
+                    if (curve.type === 'liquidus') sb_ctx.strokeStyle = '#ff00ff';      
+                    else if (curve.type === 'solidus' || curve.type === 'solvus' || curve.type === 'vertical') sb_ctx.strokeStyle = '#00ffff'; 
+                    sb_ctx.lineWidth = 3; sb_ctx.stroke();
+                }
+
+                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type !== 'horizontal') continue;
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(PhaseEngine.schema.nodes[curve.start].c), mapY(PhaseEngine.schema.nodes[curve.start].t)); 
+                    sb_ctx.lineTo(mapX(PhaseEngine.schema.nodes[curve.end].c), mapY(PhaseEngine.schema.nodes[curve.end].t));
+                    sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
+                }
                 
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                for(let i = 0; i <= 150; i++) {
-                    let t = nStart.t - (i/150)*(nStart.t - nEnd.t);
-                    let c = PhaseEngine.getC_onCurve(t, curveId);
-                    if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                drawLabels();
+            } else {
+                // Assessment Mode: Draw only background edges lightly so they have boundaries
+                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
+                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
+                    sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
                 }
 
-                if (curve.type === 'liquidus') sb_ctx.strokeStyle = '#ff00ff';      
-                else if (curve.type === 'solidus' || curve.type === 'solvus' || curve.type === 'vertical') sb_ctx.strokeStyle = '#00ffff'; 
-                sb_ctx.lineWidth = 3; sb_ctx.stroke();
-            }
+                // Draw Student Curves
+                studentCurves.forEach(sc => {
+                    const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t)); sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
+                    
+                    if (sc.status === 'correct') sb_ctx.strokeStyle = 'var(--green)';
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = 'var(--red)';
+                    else sb_ctx.strokeStyle = getToolColor(sc.type);
+                    
+                    sb_ctx.lineWidth = 4; sb_ctx.stroke();
+                });
 
-            for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type !== 'horizontal') continue;
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(PhaseEngine.schema.nodes[curve.start].c), mapY(PhaseEngine.schema.nodes[curve.start].t)); 
-                sb_ctx.lineTo(mapX(PhaseEngine.schema.nodes[curve.end].c), mapY(PhaseEngine.schema.nodes[curve.end].t));
-                sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-            }
-
-            drawLabels();
-
-            if (interactionMode === 'navigator') {
-                if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
-                    drawTieLineUI(currentT, currentC, sb_lastMathState);
-                } else if (currentT !== null && currentC !== null) {
-                    drawSinglePhaseUI(currentT, currentC);
+                // Draw Rubber-Band line if drawing
+                if (selectedNodeA && activeTool && activeTool !== 'eraser') {
+                    let startNode = PhaseEngine.schema.nodes[selectedNodeA];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
+                    sb_ctx.strokeStyle = getToolColor(activeTool);
+                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
-            } else if (interactionMode === 'architect') {
+            }
+
+            // 2. Draw Nodes (Architect and Assessment Mode)
+            if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; 
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; // Don't draw absolute corners
                     
                     sb_ctx.beginPath();
-                    sb_ctx.arc(mapX(node.c), mapY(node.t), hoveredNode === nodeId ? 8 : 5, 0, Math.PI * 2);
-                    sb_ctx.fillStyle = hoveredNode === nodeId ? '#00ffff' : '#ff00ff';
+                    let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
+                    sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
+                    sb_ctx.fillStyle = isHoveredOrSelected ? '#00ffff' : '#ff00ff';
                     sb_ctx.fill();
-                    sb_ctx.strokeStyle = '#fff';
-                    sb_ctx.lineWidth = 1.5;
-                    sb_ctx.stroke();
+                    sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1.5; sb_ctx.stroke();
                 }
             }
         }
 
+        function drawLabels() {
+            for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
+                if (!region.label) continue;
+                if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
+                
+                let c = PhaseEngine.centroids[regionId].c; let t = PhaseEngine.centroids[regionId].t;
+                let x = mapX(c); let y = mapY(t);
+                
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 30, y - 15, 60, 30);
+                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+                sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(region.label.text, x, y);
+            }
+        }
+
         // ==========================================
-        // UI & EVENT LISTENERS
+        // UI & EVENT MANAGERS
         // ==========================================
         function setMode(mode) {
             interactionMode = mode;
-            document.getElementById('mode-navigator').classList.toggle('active', mode === 'navigator');
-            document.getElementById('mode-architect').classList.toggle('active', mode === 'architect');
+            document.querySelectorAll('#mode-navigator, #mode-architect, #mode-assessment').forEach(el => el.classList.remove('active'));
+            document.getElementById('mode-' + mode).classList.add('active');
             
             document.getElementById('nav-bank').style.display = mode === 'navigator' ? 'block' : 'none';
+            document.getElementById('nav-telemetry').style.display = mode === 'navigator' ? 'block' : 'none';
             document.getElementById('architect-alert').style.display = mode === 'architect' ? 'block' : 'none';
-            
+            document.getElementById('assessment-bank').style.display = mode === 'assessment' ? 'block' : 'none';
             document.getElementById('sb-math-panel').style.display = 'none';
-            document.getElementById('sb-telemetry').style.display = 'block';
 
             sb_isFrozen = false; currentC = null; currentT = null;
-            hoveredNode = null; draggedNode = null;
+            hoveredNode = null; draggedNode = null; selectedNodeA = null;
             
+            if (mode !== 'assessment' && assessmentState === 'quiz') {
+                // Restore map if leaving quiz mode
+                PhaseEngine.restoreOriginalNodes();
+            }
+
             sb_draw();
         }
 
@@ -555,54 +570,64 @@
             sb_draw();
         }
 
-        function snapToPoint(c, t) {
-            if (interactionMode !== 'navigator') setMode('navigator');
-            sb_isFrozen = true; currentC = c; currentT = t;
-            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
-            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
+        // SPRINT 3: ASSESSMENT FUNCTIONS
+        function setAssessmentState(state) {
+            assessmentState = state;
+            document.getElementById('test-practice').classList.toggle('active', state === 'practice');
+            document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
+            document.getElementById('assessment-score').style.display = 'none';
+            studentCurves = [];
+            selectedNodeA = null;
             
-            updateTelemetry(activeRegion, sb_lastMathState, t, c);
-            document.getElementById('sb-math-panel').style.display = 'block';
-            document.getElementById('sb-telemetry').style.display = 'none';
-            updateMathPanel();
-            sb_draw(activeRegion ? activeRegion.id : null);
+            if (state === 'quiz') { PhaseEngine.scrambleNodes(); } 
+            else { PhaseEngine.restoreOriginalNodes(); }
+            sb_draw();
         }
 
-        function updateTelemetry(region, mathState, curT, curC) {
-            document.getElementById('sb-out-t').innerText = Math.round(curT); 
-            document.getElementById('sb-out-c').innerText = curC.toFixed(1);
+        function setTool(toolName) {
+            activeTool = toolName;
+            selectedNodeA = null; // Reset drawing line
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if(toolName) document.querySelector(`.tool-btn[data-tool="${toolName}"]`).classList.add('active');
+            sb_draw();
+        }
+
+        // Distance from point to line segment for the Eraser
+        function distToSegment(px, py, x1, y1, x2, y2) {
+            let l2 = (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2);
+            if (l2 == 0) return Math.hypot(px - x1, py - y1);
+            let t = Math.max(0, Math.min(1, ((px - x1)*(x2 - x1) + (py - y1)*(y2 - y1)) / l2));
+            return Math.hypot(px - (x1 + t*(x2 - x1)), py - (y1 + t*(y2 - y1)));
+        }
+
+        function gradeAssessment() {
+            let score = 0;
+            // Total expected curves minus edges and the artificial pillar bound
+            let totalExpected = Object.keys(PhaseEngine.schema.curves).filter(k => 
+                PhaseEngine.schema.curves[k].type !== 'edge' && PhaseEngine.schema.curves[k].type !== 'vertical'
+            ).length;
             
-            if (!region) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; return; }
-            document.getElementById('sb-out-region').innerText = region.phase_name || region.phases.join(" + ");
+            studentCurves.forEach(sc => {
+                let isCorrect = false;
+                for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'edge' || curve.type === 'vertical') continue;
+                    let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
+                    if (nodesMatch && sc.type === curve.type) { isCorrect = true; break; }
+                }
+                sc.status = isCorrect ? 'correct' : 'incorrect';
+                if (isCorrect) score++;
+            });
+
+            let alertBox = document.getElementById('assessment-score');
+            alertBox.style.display = 'block';
             
-            if (mathState && mathState.isTwoPhase) {
-                document.getElementById('sb-lbl-left').innerHTML = `X<sub>${mathState.phases[0]}</sub>:`;
-                document.getElementById('sb-out-w1').innerText = mathState.wLeft.toFixed(2);
-                document.getElementById('sb-lbl-right').innerHTML = `X<sub>${mathState.phases[1]}</sub>:`;
-                document.getElementById('sb-out-w2').innerText = mathState.wRight.toFixed(2);
+            if (assessmentState === 'quiz') {
+                alertBox.innerHTML = `<strong>Quiz Complete</strong><br>Score: ${score} / ${totalExpected}<br>Answers Locked.`;
+                setTool(null); // Lock tools
             } else {
-                document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
-                document.getElementById('sb-out-w1').innerText = "1.00";
-                document.getElementById('sb-lbl-right').innerHTML = `X<sub>-</sub>:`;
-                document.getElementById('sb-out-w2').innerText = "0.00";
+                alertBox.innerHTML = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br>Green = Correct, Red = Incorrect.`;
             }
-        }
-
-        function updateMathPanel() {
-            if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
-                document.getElementById('sb-math-content').innerHTML = `
-                    <div class="math-line">1. Intersections:</div>
-                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
-                    <div class="math-line">C_0 = ${currentC.toFixed(1)}</div>
-                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
-                    <hr style="border-color:#333; margin:10px 0;">
-                    <div class="math-line">2. Lever Rule:</div>
-                    <div class="math-line" style="color:var(--cyan)">X_${sb_lastMathState.phases[0]} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
-                    <div class="math-line" style="color:var(--orange)">X_${sb_lastMathState.phases[1]} = ${sb_lastMathState.wRight.toFixed(2)}</div>
-                `;
-            } else if (sb_isFrozen) {
-                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:var(--cyan)">Single Phase Region.</div>`;
-            }
+            sb_draw();
         }
 
         sb_canvas.addEventListener('mousemove', (e) => {
@@ -612,39 +637,36 @@
 
             if (interactionMode === 'architect') {
                 if (draggedNode) {
-                    PhaseEngine.applyDrag(draggedNode, c, t);
-                    PhaseEngine.buildRegionPaths();
-                    sb_draw();
-                    
+                    PhaseEngine.applyDrag(draggedNode, c, t); PhaseEngine.buildRegionPaths(); sb_draw();
                     let node = PhaseEngine.schema.nodes[draggedNode];
-                    document.getElementById('sb-out-t').innerText = Math.round(node.t);
-                    document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
-                    document.getElementById('sb-out-region').innerText = "Editing Node: " + draggedNode;
-                    document.getElementById('sb-out-w1').innerText = "--";
-                    document.getElementById('sb-out-w2').innerText = "--";
+                    document.getElementById('sb-out-t').innerText = Math.round(node.t); document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                         if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
-                        if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) {
-                            found = nodeId; break;
-                        }
+                        if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                     }
-                    if (found !== hoveredNode) {
-                        hoveredNode = found;
-                        sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
-                        sb_draw();
-                    }
+                    if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; sb_draw(); }
                 }
+                return;
+            }
+
+            if (interactionMode === 'assessment') {
+                let found = null;
+                for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
+                    if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
+                }
+                if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
+                if (selectedNodeA) sb_draw(); // Redraw for rubber-band
                 return;
             }
 
             if (sb_isFrozen) return;
             currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
-            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
-            
-            updateTelemetry(activeRegion, sb_lastMathState, currentT, currentC);
+            document.getElementById('sb-out-t').innerText = Math.round(currentT); document.getElementById('sb-out-c').innerText = currentC.toFixed(1);
+            if (activeRegion) document.getElementById('sb-out-region').innerText = activeRegion.phase_name || activeRegion.phases.join(" + ");
             sb_draw(activeRegion ? activeRegion.id : null);
         });
 
@@ -654,18 +676,42 @@
                 return;
             }
 
+            if (interactionMode === 'assessment') {
+                if (activeTool === 'eraser') {
+                    // Find closest drawn line
+                    let closestIdx = -1; let minDist = 15; // 15px grab radius
+                    studentCurves.forEach((sc, idx) => {
+                        let nStart = PhaseEngine.schema.nodes[sc.start]; let nEnd = PhaseEngine.schema.nodes[sc.end];
+                        let dist = distToSegment(sb_mouseX, sb_mouseY, mapX(nStart.c), mapY(nStart.t), mapX(nEnd.c), mapY(nEnd.t));
+                        if (dist < minDist) { minDist = dist; closestIdx = idx; }
+                    });
+                    if (closestIdx !== -1) { studentCurves.splice(closestIdx, 1); document.getElementById('assessment-score').style.display = 'none'; sb_draw(); }
+                    return;
+                }
+
+                if (activeTool && hoveredNode) {
+                    if (!selectedNodeA) { selectedNodeA = hoveredNode; } 
+                    else if (selectedNodeA !== hoveredNode) {
+                        // Check if line exists
+                        let exists = studentCurves.some(sc => (sc.start === selectedNodeA && sc.end === hoveredNode) || (sc.start === hoveredNode && sc.end === selectedNodeA));
+                        if(!exists) {
+                            studentCurves.push({ start: selectedNodeA, end: hoveredNode, type: activeTool, status: 'un-graded' });
+                            document.getElementById('assessment-score').style.display = 'none'; // Clear grade visual
+                        }
+                        selectedNodeA = null; // Reset
+                        sb_draw();
+                    }
+                } else {
+                    selectedNodeA = null; sb_draw();
+                }
+                return;
+            }
+
             sb_isFrozen = !sb_isFrozen;
-            document.getElementById('sb-math-panel').style.display = sb_isFrozen ? 'block' : 'none';
-            document.getElementById('sb-telemetry').style.display = sb_isFrozen ? 'none' : 'block';
-            updateMathPanel();
-            sb_draw(null); 
         });
 
         sb_canvas.addEventListener('mouseup', () => {
-            if (interactionMode === 'architect') {
-                draggedNode = null;
-                sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
-            }
+            if (interactionMode === 'architect') { draggedNode = null; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; }
         });
 
         // INIT
