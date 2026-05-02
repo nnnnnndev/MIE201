@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V31</title>
+    <title>Chapter 9: Procedural Phase Engine V32</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -60,7 +60,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V31: Live Tally & Hover Fix)</div>
+        <div class="brand">Phase Engine Platform (V32: Smart Curves & Strict Spacing)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -108,11 +108,11 @@
                     
                     <div id="tally-panel" class="tally-panel">
                         <div class="label" style="color: #fff; margin-bottom: 5px;">Required Segments</div>
-                        <div class="tally-row" style="color: var(--magenta);"><span>Liquidus</span><span id="tal-liq">0 / 4</span></div>
-                        <div class="tally-row" style="color: var(--cyan);"><span>Solidus</span><span id="tal-sol">0 / 3</span></div>
-                        <div class="tally-row" style="color: var(--green);"><span>Solvus</span><span id="tal-slv">0 / 4</span></div>
-                        <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 6</span></div>
-                        <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 3</span></div>
+                        <div class="tally-row" style="color: var(--magenta);"><span>Liquidus</span><span id="tal-liq">0 / 0</span></div>
+                        <div class="tally-row" style="color: var(--cyan);"><span>Solidus</span><span id="tal-sol">0 / 0</span></div>
+                        <div class="tally-row" style="color: var(--green);"><span>Solvus</span><span id="tal-slv">0 / 0</span></div>
+                        <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 0</span></div>
+                        <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 0</span></div>
                     </div>
 
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
@@ -169,14 +169,11 @@
             let subSize = Math.round(baseSize * 0.7);
             ctx.font = `bold ${baseSize}px sans-serif`; let wBase = ctx.measureText(baseTxt).width;
             ctx.font = `bold ${subSize}px sans-serif`; let wSub = ctx.measureText(subTxt).width;
-            
-            let startX = x;
-            if (align === 'center') startX = x - (wBase + wSub)/2;
+            let startX = x; if (align === 'center') startX = x - (wBase + wSub)/2;
             
             ctx.fillStyle = color; ctx.textAlign = 'left';
             ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseTxt, startX, y);
             ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subTxt, startX + wBase + 1, y + baseSize * 0.25);
-            
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = `14px Consolas, monospace`;
             ctx.fillText(value.toFixed(1), x, y + 20);
         }
@@ -189,16 +186,21 @@
                 this.schema = JSON.parse(JSON.stringify(jsonSchema));
                 this.originalNodes = JSON.parse(JSON.stringify(jsonSchema.nodes));
                 this.buildRegionPaths();
+                updateTally(); // Init Tally
             },
 
             applyDrag(nodeId, newC, newT) {
                 let node = this.schema.nodes[nodeId];
                 if (node.bounds) {
+                    // FIX #3: Added larger strict buffers to prevent node overlapping
+                    let cBuffer = 4;
+                    let tBuffer = 20;
+
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
                         let minC = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
                         let maxC = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
-                        newC = Math.max(minC + 1, Math.min(newC, maxC - 1)); 
+                        newC = Math.max(minC + cBuffer, Math.min(newC, maxC - cBuffer)); 
                     }
 
                     if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
@@ -216,7 +218,7 @@
                             else if (typeof node.bounds.t_max === 'string') maxT = this.schema.nodes[node.bounds.t_max].t;
                             else maxT = node.bounds.t_max;
                         }
-                        newT = Math.max(minT + 5, Math.min(newT, maxT - 5)); 
+                        newT = Math.max(minT + tBuffer, Math.min(newT, maxT - tBuffer)); 
                     }
                 }
                 node.c = newC; node.t = newT;
@@ -231,12 +233,14 @@
             },
 
             scrambleNodes() {
-                for(let iter = 0; iter < 3; iter++) {
+                this.restoreOriginalNodes();
+                // FIX #3: Aggressively throw nodes randomly, letting applyDrag's strict buffers handle the spacing
+                for(let iter = 0; iter < 4; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
-                        let randomC = node.c + (Math.random() * 40 - 20);
-                        let randomT = node.t + (Math.random() * 300 - 150);
-                        this.applyDrag(nodeId, randomC, randomT);
+                        if (nodeId === 'zero_bot' || nodeId === 'max_bot' || node.bounds.lock_c !== undefined) continue;
+                        let wildC = node.c + (Math.random() * 100 - 50);
+                        let wildT = node.t + (Math.random() * 600 - 300);
+                        this.applyDrag(nodeId, wildC, wildT);
                     }
                 }
                 this.buildRegionPaths();
@@ -441,7 +445,6 @@
             sb_ctx.textAlign = 'center'; sb_ctx.fillText('Composition (at% B)', sb_canvas.width/2, sb_canvas.height - 20);
         }
 
-        // REFACTORED: Use Hex Strings explicitly for Canvas API rendering
         function getToolHex(type) {
             if(type === 'liquidus') return '#ff00ff'; // Magenta
             if(type === 'solidus') return '#00ffff';  // Cyan
@@ -453,14 +456,11 @@
 
         function drawTieLineUI(curT, curC, mathState) {
             let vL = mathState.cLeft; let vR = mathState.cRight;
-            
             sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
             sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
-            
             sb_ctx.fillStyle = '#00ffff';
             sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
             sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 5, 0, Math.PI*2); sb_ctx.fill();
-            
             sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
@@ -470,17 +470,13 @@
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
-                
                 sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
                 sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
-                
                 let yAxis = sb_canvas.height - PAD + 20;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(curC)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
-                
                 drawSubscriptAndValue(sb_ctx, "C", mathState.phases[0], vL, mapX(vL), yAxis, 14, '#00ffff');
                 drawSubscriptAndValue(sb_ctx, "C", "0", curC, mapX(curC), yAxis, 14, '#ff00ff');
                 drawSubscriptAndValue(sb_ctx, "C", mathState.phases[1], vR, mapX(vR), yAxis, 14, '#ff8800');
-                
                 let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
                 sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
@@ -498,9 +494,7 @@
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(mapX(v0), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
-                
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 25, sb_canvas.height - PAD + 10, 50, 40); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
-                
                 drawSubscriptAndValue(sb_ctx, "C", "0", v0, mapX(v0), sb_canvas.height - PAD + 20, 14, '#ff00ff');
                 sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; sb_ctx.textAlign = 'right'; sb_ctx.fillText(t0, PAD - 10, mapY(curT));
             }
@@ -548,44 +542,60 @@
                     }
                 }
             } else {
+                // Assessment Mode Drawing
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
+                    if (curveId === 'e_top') continue; // FIX #2: Hide the top bounding cord
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
                     sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
                 }
 
-                // REFACTORED: Stable Bezier Curves
                 studentCurves.forEach(sc => {
-                    const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
-                    let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
-                    
-                    sb_ctx.beginPath(); sb_ctx.moveTo(x1, y1);
-                    
-                    if (sc.type === 'horizontal' || sc.type === 'vertical') {
-                        sb_ctx.lineTo(x2, y2);
-                    } else {
-                        let midX = (x1 + x2) / 2; let midY = (y1 + y2) / 2;
-                        let dist = Math.hypot(x2 - x1, y2 - y1);
-                        let bow = dist * 0.12; // 12% bow factor, highly stable
-                        
-                        let cpX = midX; let cpY = midY;
-                        
-                        // Y is inverted on canvas. +Y is down.
-                        if (sc.type === 'liquidus') { cpY += bow; } // Sags down
-                        else if (sc.type === 'solidus') { cpY -= bow; } // Bulges up
-                        else if (sc.type === 'solvus') { 
-                            let centerPoint = mapX(50);
-                            cpX += (midX < centerPoint) ? bow : -bow; // Bulges outward
+                    // FIX #4: "Snap to Math" for correct curves
+                    let matchedCurveId = null;
+                    for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                        if (curve.type === 'edge') continue;
+                        let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
+                        if (nodesMatch && sc.type === curve.type) { matchedCurveId = key; break; }
+                    }
+
+                    if (matchedCurveId && sc.type !== 'horizontal' && sc.type !== 'vertical') {
+                        // User got it right! Draw the perfect thermodynamic curve
+                        const curve = PhaseEngine.schema.curves[matchedCurveId];
+                        const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                        sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                        for(let i = 0; i <= 50; i++) {
+                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let c = PhaseEngine.getC_onCurve(t, matchedCurveId);
+                            if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
+                    } else {
+                        // Unmatched or generic curve behavior
+                        const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
+                        let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
+                        sb_ctx.beginPath(); sb_ctx.moveTo(x1, y1);
                         
-                        sb_ctx.quadraticCurveTo(cpX, cpY, x2, y2);
+                        if (sc.type === 'horizontal' || sc.type === 'vertical') {
+                            sb_ctx.lineTo(x2, y2);
+                        } else {
+                            let pTop = y1 < y2 ? {x: x1, y: y1} : {x: x2, y: y2};
+                            let pBot = y1 < y2 ? {x: x2, y: y2} : {x: x1, y: y1};
+                            let midX = (pTop.x + pBot.x) / 2; let midY = (pTop.y + pBot.y) / 2;
+                            let bow = Math.hypot(x2 - x1, y2 - y1) * 0.15;
+                            let cpX = midX, cpY = midY;
+                            
+                            if (sc.type === 'liquidus') cpY += bow;
+                            else if (sc.type === 'solidus') cpY -= bow;
+                            else if (sc.type === 'solvus') { cpX += (pTop.x < pBot.x) ? -bow : bow; }
+                            
+                            sb_ctx.quadraticCurveTo(cpX, cpY, pBot.x, pBot.y);
+                        }
                     }
                     
-                    // REFACTORED: Use strictly hex colors for Canvas
-                    if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00'; // Pure Green
-                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ff3333'; // Pure Red
+                    if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ff3333';
                     else sb_ctx.strokeStyle = getToolHex(sc.type);
                     
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
@@ -602,7 +612,6 @@
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                     if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue; 
-                    
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
                     sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
@@ -617,30 +626,31 @@
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
                 if (!region.label) continue;
                 if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
-                
                 let c = PhaseEngine.centroids[regionId].c; let t = PhaseEngine.centroids[regionId].t;
                 let x = mapX(c); let y = mapY(t);
-                
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 30, y - 15, 60, 30);
                 sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
                 sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(region.label.text, x, y);
             }
         }
 
+        // FIX #1: Dynamic Tally Parsing
         function updateTally() {
             let current = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
             studentCurves.forEach(sc => current[sc.type]++);
             
-            document.getElementById('tal-liq').innerText = `${current.liquidus} / 4`;
-            document.getElementById('tal-sol').innerText = `${current.solidus} / 3`;
-            document.getElementById('tal-slv').innerText = `${current.solvus} / 4`;
-            document.getElementById('tal-iso').innerText = `${current.horizontal} / 6`;
-            document.getElementById('tal-ver').innerText = `${current.vertical} / 3`;
+            let expected = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
+            for(const [k, c] of Object.entries(PhaseEngine.schema.curves)) {
+                if(expected[c.type] !== undefined && c.type !== 'edge') expected[c.type]++;
+            }
+            
+            document.getElementById('tal-liq').innerText = `${current.liquidus} / ${expected.liquidus}`;
+            document.getElementById('tal-sol').innerText = `${current.solidus} / ${expected.solidus}`;
+            document.getElementById('tal-slv').innerText = `${current.solvus} / ${expected.solvus}`;
+            document.getElementById('tal-iso').innerText = `${current.horizontal} / ${expected.horizontal}`;
+            document.getElementById('tal-ver').innerText = `${current.vertical} / ${expected.vertical}`;
         }
 
-        // ==========================================
-        // UI & EVENT MANAGERS
-        // ==========================================
         function setMode(mode) {
             interactionMode = mode;
             document.querySelectorAll('#mode-navigator, #mode-architect, #mode-assessment').forEach(el => el.classList.remove('active'));
@@ -671,7 +681,6 @@
             sb_isFrozen = true; currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
-            
             updateTelemetry(activeRegion, sb_lastMathState, t, c);
             document.getElementById('sb-math-panel').style.display = 'block';
             document.getElementById('sb-telemetry').style.display = 'none';
@@ -682,7 +691,6 @@
         function updateTelemetry(region, mathState, curT, curC) {
             document.getElementById('sb-out-t').innerText = Math.round(curT); 
             document.getElementById('sb-out-c').innerText = curC.toFixed(1);
-            
             if (!region) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; return; }
             document.getElementById('sb-out-region').innerText = region.phase_name || region.phases.join(" + ");
             
@@ -721,8 +729,6 @@
             document.getElementById('test-practice').classList.toggle('active', state === 'practice');
             document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
             document.getElementById('assessment-score').style.display = 'none';
-            
-            // NEW: Toggle Tally Visibility
             document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
             
             studentCurves = []; selectedNodeA = null; updateTally();
@@ -808,11 +814,8 @@
             if (sb_isFrozen) return;
             currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
-            
-            // REFACTORED: Dynamic live update of math state during hover
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
             updateTelemetry(activeRegion, sb_lastMathState, currentT, currentC);
-            
             sb_draw(activeRegion ? activeRegion.id : null);
         });
 
@@ -845,7 +848,7 @@
                         if(!exists) {
                             studentCurves.push({ start: selectedNodeA, end: hoveredNode, type: activeTool, status: 'un-graded' });
                             document.getElementById('assessment-score').style.display = 'none'; 
-                            updateTally(); // Update tally on successful draw
+                            updateTally(); 
                         }
                         selectedNodeA = null; sb_draw();
                     }
