@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V21</title>
+    <title>Chapter 9: Procedural Phase Engine V22</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -47,7 +47,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V21)</div>
+        <div class="brand">Phase Engine Platform (V22: Polish)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -100,17 +100,36 @@
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
         // ==========================================
-        // V21: PROCEDURAL PHASE ENGINE (Path2D API)
+        // UI HELPERS (Subscripts)
+        // ==========================================
+        function drawSubscript(ctx, baseTxt, subTxt, x, y, baseSize, color, align='center') {
+            ctx.fillStyle = color; ctx.textBaseline = 'middle';
+            let subSize = Math.round(baseSize * 0.7);
+            ctx.font = `bold ${baseSize}px sans-serif`; let wBase = ctx.measureText(baseTxt).width;
+            ctx.font = `bold ${subSize}px sans-serif`; let wSub = ctx.measureText(subTxt).width;
+            
+            let startX = x;
+            if (align === 'center') startX = x - (wBase + wSub)/2;
+            
+            ctx.textAlign = 'left';
+            ctx.font = `bold ${baseSize}px sans-serif`; ctx.fillText(baseTxt, startX, y);
+            ctx.font = `bold ${subSize}px sans-serif`; ctx.fillText(subTxt, startX + wBase + 1, y + baseSize * 0.25);
+        }
+
+        // ==========================================
+        // V22: PROCEDURAL PHASE ENGINE (Polish Update)
         // ==========================================
         const PhaseEngine = {
             schema: null,
-            paths: {}, // Stores HTML5 Path2D objects for flawless filling and hit detection
+            paths: {}, 
+            centroids: {},
 
             loadSchema(jsonSchema) {
                 this.schema = jsonSchema;
                 this.buildRegionPaths();
             },
 
+            // 1. Solvus "Bulge & Taper" Parabolic Math Added
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
@@ -121,57 +140,69 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                if (curve.type === "vertical" || curve.type === "edge") return nTop.c; 
-                if (nTop.t === nBot.t) return nTop.c; 
+                if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
 
+                // Parabolic Solvus Logic
+                if (curve.type === "solvus" && curve.peak) {
+                    let ratio = (T - nBot.t) / (nTop.t - nBot.t);
+                    let C_base = nBot.c + ratio * (nTop.c - nBot.c);
+                    let base_at_peak = nBot.c + ((curve.peak.t - nBot.t)/(nTop.t - nBot.t)) * (nTop.c - nBot.c);
+                    let A = (curve.peak.c - base_at_peak) / ((curve.peak.t - nTop.t) * (curve.peak.t - nBot.t));
+                    return C_base + A * (T - nTop.t) * (T - nBot.t);
+                }
+
+                // Standard Power-Law curves
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t);
                 const power = curve.convexity === true ? 1.4 : 0.7; 
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
 
+            // 2. Geometric Centroid Algorithm
+            calculateCentroid(pts) {
+                let twicearea = 0, x = 0, y = 0, nPts = pts.length, p1, p2, f;
+                for (let i = 0, j = nPts - 1; i < nPts; j = i++) {
+                    p1 = pts[i]; p2 = pts[j];
+                    f = p1.c * p2.t - p2.c * p1.t;
+                    twicearea += f;
+                    x += (p1.c + p2.c) * f; y += (p1.t + p2.t) * f;
+                }
+                f = twicearea * 3;
+                if (f === 0) return {c: pts[0].c, t: pts[0].t};
+                return { c: Math.abs(x / f), t: Math.abs(y / f) }; // Abs handles CW vs CCW drawing
+            },
+
             buildRegionPaths() {
-                this.paths = {};
+                this.paths = {}; this.centroids = {};
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
                     if (region.type === 'intermetallic-pillar') continue;
 
                     const path = new Path2D();
-                    let firstPoint = true;
+                    let firstPoint = true; let allPts = [];
 
                     region.bounding_curves.forEach(curveDef => {
-                        const curveId = curveDef.id;
-                        const direction = curveDef.dir; 
+                        const curveId = curveDef.id; const direction = curveDef.dir; 
                         const curve = this.schema.curves[curveId];
                         if (!curve) return; 
 
-                        const nStart = this.schema.nodes[curve.start];
-                        const nEnd = this.schema.nodes[curve.end];
-                        
+                        const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
                         let pts = [];
                         
-                        // If it's a straight line, just use endpoints
                         if (curve.type === 'horizontal' || curve.type === 'vertical' || curve.type === 'edge') {
-                            pts.push({c: nStart.c, t: nStart.t});
-                            pts.push({c: nEnd.c, t: nEnd.t});
+                            pts.push({c: nStart.c, t: nStart.t}); pts.push({c: nEnd.c, t: nEnd.t});
                         } else {
-                            // If it's a curve, sample it
-                            const tMax = Math.max(nStart.t, nEnd.t);
-                            const tMin = Math.min(nStart.t, nEnd.t);
-                            
+                            const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                             for (let t = tMax; t >= tMin; t -= 5) {
                                 let c = this.getC_onCurve(t, curveId);
                                 if (c !== null) pts.push({ c, t });
                             }
                             let cMin = this.getC_onCurve(tMin, curveId);
                             if(cMin !== null) pts.push({c: cMin, t: tMin});
-                            
-                            // Align array flow with start->end node definition
                             if (nStart.t < nEnd.t) pts.reverse(); 
                         }
 
-                        // Apply JSON directional flow
                         if (direction === -1) pts.reverse();
-
                         pts.forEach(p => {
+                            allPts.push(p);
                             if (firstPoint) { path.moveTo(mapX(p.c), mapY(p.t)); firstPoint = false; } 
                             else { path.lineTo(mapX(p.c), mapY(p.t)); }
                         });
@@ -179,19 +210,24 @@
                     
                     path.closePath();
                     this.paths[regionId] = path;
+
+                    // 3. Dynamic Centroid with Concavity Fallback
+                    let calcCentroid = this.calculateCentroid(allPts);
+                    sb_ctx.save(); sb_ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for hit test
+                    if (region.label && !sb_ctx.isPointInPath(path, mapX(calcCentroid.c), mapY(calcCentroid.t))) {
+                        calcCentroid = { c: region.label.c, t: region.label.t }; // Snap to fallback if centroid is physically outside phase
+                    }
+                    sb_ctx.restore();
+                    this.centroids[regionId] = calcCentroid;
                 }
             },
 
             getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
-                // 1. Check Pillars explicitly
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar') {
-                        if (Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 950) { 
-                            return { id: regionId, ...region };
-                        }
+                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < 950) { 
+                        return { id: regionId, ...region };
                     }
                 }
-                // 2. Use Native Canvas Hit Detection for Polygons
                 for (const [regionId, path] of Object.entries(this.paths)) {
                     if (sb_ctx.isPointInPath(path, mouseX, mouseY)) {
                         return { id: regionId, ...this.schema.regions[regionId] };
@@ -205,12 +241,10 @@
 
                 let cLeft = null, cRight = null;
                 for (const curveId of region.tie_line_boundaries.left) {
-                    let c = this.getC_onCurve(T, curveId);
-                    if (c !== null) { cLeft = c; break; }
+                    let c = this.getC_onCurve(T, curveId); if (c !== null) { cLeft = c; break; }
                 }
                 for (const curveId of region.tie_line_boundaries.right) {
-                    let c = this.getC_onCurve(T, curveId);
-                    if (c !== null) { cRight = c; break; } 
+                    let c = this.getC_onCurve(T, curveId); if (c !== null) { cRight = c; break; } 
                 }
 
                 if (cLeft !== null && cRight !== null) {
@@ -226,7 +260,7 @@
         };
 
         // ==========================================
-        // V21: THE JSON DATABASE (Flawless Topology)
+        // V22: THE JSON DATABASE (Bulge & Taper Updates)
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
@@ -234,49 +268,39 @@
                 "tmA": { "c": 0, "t": 1100 }, "p_a": { "c": 15, "t": 850 }, "p_b": { "c": 25, "t": 850 }, "p_l": { "c": 40, "t": 850 },
                 "e1_b": { "c": 32, "t": 600 }, "e1_l": { "c": 45, "t": 600 }, "e1_p": { "c": 50, "t": 600 },
                 "pil_t": { "c": 50, "t": 950 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
-                "tmB": { "c": 100, "t": 1050 }, "t_a": { "c": 5, "t": 0 }, "t_bl": { "c": 20, "t": 0 }, "t_br": { "c": 38, "t": 0 },
-                "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 95, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
+                "tmB": { "c": 100, "t": 1050 }, "t_a": { "c": 2, "t": 0 }, "t_bl": { "c": 22, "t": 0 }, "t_br": { "c": 26, "t": 0 },
+                "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 97, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
             },
             "curves": {
-                // Liquidus / Solidus / Solvus
+                // Liquidus / Solidus / Solvus (Parabolic Bulge Injected)
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
-                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "convexity": true },
-                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "convexity": true },
+                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "peak": {"c": 8, "t": 400} },
+                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "peak": {"c": 20, "t": 500} },
                 "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "convexity": true },
-                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "convexity": true },
+                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "peak": {"c": 35, "t": 350} },
                 "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "convexity": true },
-                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "convexity": true },
+                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "peak": {"c": 86, "t": 300} },
                 
-                // Invariant & Boundary Segments (Strictly ordered for perfect Path2D looping)
-                "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" },
-                "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
-                "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" },
-                "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
-                "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" },
-                "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
-                
-                // Pillars and Canvas Edges
-                "p_w1": { "start": "pil_t", "end": "e1_p", "type": "vertical" },
-                "p_w2": { "start": "e1_p", "end": "e2_p", "type": "vertical" },
+                // Invariants & Edges
+                "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" }, "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
+                "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" }, "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
+                "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" }, "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
+                "p_w1": { "start": "pil_t", "end": "e1_p", "type": "vertical" }, "p_w2": { "start": "e1_p", "end": "e2_p", "type": "vertical" },
                 "p_w3": { "start": "e2_p", "end": "pil_b", "type": "vertical" },
-                "e_L": { "start": "zero_bot", "end": "tmA", "type": "edge" },
-                "e_R": { "start": "max_bot", "end": "tmB", "type": "edge" },
-                "e_top": { "start": "tmA", "end": "tmB", "type": "edge" },
-                "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
-                "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" },
-                "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
-                "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" },
-                "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
+                "e_L": { "start": "zero_bot", "end": "tmA", "type": "edge" }, "e_R": { "start": "max_bot", "end": "tmB", "type": "edge" },
+                "e_top": { "start": "tmA", "end": "tmB", "type": "edge" }, "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
+                "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" }, "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
+                "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" }, "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
             },
             "regions": {
                 "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 50, "t": 1050 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_top", dir: -1} ] },
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
-                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, // Simplified closing for beta
+                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
                 
                 "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
@@ -294,7 +318,7 @@
         };
 
         // ==========================================
-        // V21: RENDER ENGINE
+        // V22: RENDER ENGINE
         // ==========================================
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
@@ -311,17 +335,19 @@
         }
 
         function drawLabels() {
-            sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
                 if (!region.label) continue;
                 if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
                 
                 let baseText = region.label.text;
-                sb_ctx.font = `bold 22px sans-serif`;
-                let x = mapX(region.label.c); let y = mapY(region.label.t);
+                let c = PhaseEngine.centroids[regionId].c;
+                let t = PhaseEngine.centroids[regionId].t;
+                let x = mapX(c); let y = mapY(t);
                 
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 25, y - 15, 50, 30);
-                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.fillText(baseText, x, y);
+                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+                sb_ctx.font = `bold 22px sans-serif`;
+                sb_ctx.fillText(baseText, x, y);
             }
         }
 
@@ -339,14 +365,30 @@
             sb_ctx.fillStyle = sb_isFrozen ? '#ff00ff' : '#fff'; sb_ctx.fill();
 
             if (sb_isFrozen) {
+                // Dropdown Guidelines
                 sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(curC), mapY(curT)); sb_ctx.lineTo(mapX(curC), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
                 
+                // Color Spans
                 sb_ctx.fillStyle = 'rgba(255, 136, 0, 0.2)'; sb_ctx.fillRect(mapX(vL), mapY(curT)-15, mapX(curC)-mapX(vL), 30);
                 sb_ctx.fillStyle = 'rgba(0, 255, 255, 0.2)'; sb_ctx.fillRect(mapX(curC), mapY(curT)-15, mapX(vR)-mapX(curC), 30);
+                
+                // Typography Labels (Subscripts and Temp)
+                let yAxis = sb_canvas.height - PAD + 20;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-20, yAxis-10, 40, 20); sb_ctx.fillRect(mapX(curC)-20, yAxis-10, 40, 20); sb_ctx.fillRect(mapX(vR)-20, yAxis-10, 40, 20);
+                
+                drawSubscript(sb_ctx, "C", mathState.phases[0], mapX(vL), yAxis, 14, '#00ffff');
+                drawSubscript(sb_ctx, "C", "0", mapX(curC), yAxis, 14, '#ff00ff');
+                drawSubscript(sb_ctx, "C", mathState.phases[1], mapX(vR), yAxis, 14, '#ff8800');
+                
+                // Isotherm Readout
+                let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
+                sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
+                sb_ctx.fillText(`T = ${Math.round(curT)} K`, midX, mapY(curT) - 15);
             }
         }
 
@@ -361,12 +403,10 @@
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
                 
-                // Draw text tags
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 20, sb_canvas.height - PAD + 5, 40, 20);
-                sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
-                sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; 
-                sb_ctx.fillText(v0, mapX(v0), sb_canvas.height - PAD + 15);
-                sb_ctx.fillText(t0, PAD - 22, mapY(curT));
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 20, sb_canvas.height - PAD + 10, 40, 20); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
+                
+                drawSubscript(sb_ctx, "C", "0", mapX(v0), sb_canvas.height - PAD + 20, 14, '#ff00ff');
+                sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; sb_ctx.textAlign = 'right'; sb_ctx.fillText(t0, PAD - 10, mapY(curT));
             }
         }
 
@@ -374,14 +414,12 @@
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            // Layer 1: Perfect Path2D Fill
             if (activeRegionId && PhaseEngine.paths[activeRegionId]) {
                 const type = PhaseEngine.schema.regions[activeRegionId].type;
                 sb_ctx.fillStyle = type === 'single-phase' ? 'rgba(0, 255, 255, 0.08)' : 'rgba(255, 0, 255, 0.08)';
                 sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
             }
 
-            // Layer 2: Curves
             for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                 if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
                 const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
@@ -399,7 +437,6 @@
                 sb_ctx.lineWidth = 3; sb_ctx.stroke();
             }
 
-            // Layer 3: Horizontals (Invariants)
             for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                 if (curve.type !== 'horizontal') continue;
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(PhaseEngine.schema.nodes[curve.start].c), mapY(PhaseEngine.schema.nodes[curve.start].t)); 
@@ -409,7 +446,6 @@
 
             drawLabels();
 
-            // Layer 4: Interactive Overlays
             if (sb_lastMathState && sb_lastMathState.isTwoPhase && curT !== null) {
                 drawTieLineUI(curT, curC, sb_lastMathState);
             } else if (curT !== null && curC !== null) {
@@ -494,7 +530,7 @@
             if(sb_canvas.parentElement) {
                 sb_canvas.width = sb_canvas.parentElement.clientWidth; 
                 sb_canvas.height = sb_canvas.parentElement.clientHeight;
-                PhaseEngine.buildRegionPaths(); // Rebuild hitboxes to match new scale
+                PhaseEngine.buildRegionPaths(); 
                 sb_draw(); 
             }
         }
