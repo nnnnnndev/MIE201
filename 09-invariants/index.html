@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V25</title>
+    <title>Chapter 9: Procedural Phase Engine V26</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -47,7 +47,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V25: Smooth Topology)</div>
+        <div class="brand">Phase Engine Platform (V26: Sprint 1 Final)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -70,8 +70,8 @@
                 <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
                 <div class="toggle-container" style="flex-direction: column;">
                     <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(41, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
-                    <div class="toggle-btn" onclick="snapToPoint(70, 549.9)">Eutectic 2 (550 K)</div>
+                    <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
+                    <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
                 </div>
 
                 <div id="sb-math-panel">
@@ -125,7 +125,7 @@
         }
 
         // ==========================================
-        // V25: PROCEDURAL PHASE ENGINE (Explicit Curve Powers)
+        // PROCEDURAL PHASE ENGINE 
         // ==========================================
         const PhaseEngine = {
             schema: null, paths: {}, centroids: {},
@@ -149,7 +149,6 @@
 
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 
-                // Allow explicit JSON control of the curve taper shape
                 let power = curve.power !== undefined ? curve.power : 1.0; 
                 if (curve.power === undefined) {
                     if (curve.type === "solvus") power = 0.4; 
@@ -191,7 +190,6 @@
                             pts.push({c: nStart.c, t: nStart.t}); pts.push({c: nEnd.c, t: nEnd.t});
                         } else {
                             const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
-                            // Ultra-High Res Hitboxes (Step size 1K)
                             for (let t = tMax; t >= tMin; t -= 1) {
                                 let c = this.getC_onCurve(t, curveId);
                                 if (c !== null) pts.push({ c, t });
@@ -257,7 +255,7 @@
         };
 
         // ==========================================
-        // V25: THE JSON DATABASE (Explicit Powers & Pinched Solvus)
+        // THE JSON DATABASE 
         // ==========================================
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
@@ -267,14 +265,13 @@
                 "pil_t": { "c": 50, "t": 1180 }, "e2_p": { "c": 50, "t": 550 }, "e2_l": { "c": 75, "t": 550 }, "e2_g": { "c": 90, "t": 550 },
                 "tmB": { "c": 100, "t": 1050 }, 
                 "t_a": { "c": 5, "t": 0 }, 
-                "t_bl": { "c": 24.5, "t": 0 }, "t_br": { "c": 25.5, "t": 0 }, // Pinched bottom for Beta phase
+                "t_bl": { "c": 24.5, "t": 0 }, "t_br": { "c": 25.5, "t": 0 }, 
                 "pil_b": { "c": 50, "t": 0 }, "t_g": { "c": 95, "t": 0 }, "zero_bot": { "c": 0, "t": 0 }, "max_bot": { "c": 100, "t": 0 }
             },
             "curves": {
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
                 
-                // Explicit Powers: 4.5 creates the "Heart Bottom" by delaying the taper until near 0K
                 "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "power": 1.5 }, 
                 "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 4.5 },
                 "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.5 },
@@ -318,7 +315,7 @@
         };
 
         // ==========================================
-        // V25: RENDER ENGINE
+        // RENDER ENGINE
         // ==========================================
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
@@ -421,7 +418,6 @@
                 const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                 
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                // High-Res Rendering (150 segments) for flawless swoops
                 for(let i = 0; i <= 150; i++) {
                     let t = nStart.t - (i/150)*(nStart.t - nEnd.t);
                     let c = PhaseEngine.getC_onCurve(t, curveId);
