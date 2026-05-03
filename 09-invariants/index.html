@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V36</title>
+    <title>Chapter 9: Procedural Phase Engine V37</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -63,7 +63,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V36: Topology Mirroring)</div>
+        <div class="brand">Phase Engine Platform (V37: Mirrored Bounds & State-Aware Snaps)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -228,6 +228,7 @@
                     let cBuffer = 4; let tBuffer = 20;
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
+                        // V37: Absolute parsing of dynamic strings ensures constraints hold up even if mirrored
                         let bMin = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
                         let bMax = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
                         let actualMinC = Math.min(bMin, bMax);
@@ -299,36 +300,50 @@
                 this.schema.nodes['t_a'].c = 5 * scaleL; this.schema.nodes['t_bl'].c = 18 * scaleL; this.schema.nodes['t_br'].c = 32 * scaleL;
                 this.schema.nodes['t_g'].c = 100 - (5 * scaleR);
 
-                // V36 MIRROR TOPOLOGY (50% Chance)
+                // V37: Flawless Mirror Logic with strict array deep-swaps
                 let doMirror = Math.random() > 0.5;
                 if (doMirror) {
-                    // Update IM Name based on mirroring
                     let nameMap = {'A4B':'AB4', 'A3B':'AB3', 'A2B':'AB2', 'AB':'AB', 'AB2':'A2B', 'AB3':'A3B', 'AB4':'A4B'};
                     let newIMName = nameMap[chosenIM.name];
                     this.schema.regions['R_Pil'].phase_name = newIMName;
                     this.schema.regions['R_Pil'].stoichiometric_c = 100 - chosenIM.c;
                     
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
                         node.c = 100 - node.c;
-                        if (node.bounds && node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
+                        
+                        if (node.bounds) {
+                            if (node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
+                            
+                            // Swap c_min and c_max mathematically to prevent scrambler crush
+                            let oldMin = node.bounds.c_min;
+                            let oldMax = node.bounds.c_max;
+                            
+                            if (oldMax !== undefined) {
+                                node.bounds.c_min = typeof oldMax === 'number' ? 100 - oldMax : oldMax;
+                            } else { delete node.bounds.c_min; }
+                            
+                            if (oldMin !== undefined) {
+                                node.bounds.c_max = typeof oldMin === 'number' ? 100 - oldMin : oldMin;
+                            } else { delete node.bounds.c_max; }
+                        }
                     }
                     
                     for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                        if (region.label && region.label.c !== undefined) region.label.c = 100 - region.label.c;
+
                         if (region.type === 'two-phase') {
                             region.phases.reverse();
                             let temp = region.tie_line_boundaries.left;
                             region.tie_line_boundaries.left = region.tie_line_boundaries.right;
                             region.tie_line_boundaries.right = temp;
                             
-                            // Re-assign name if necessary
                             if (region.phases[0] === chosenIM.name) region.phases[0] = newIMName;
                             if (region.phases[1] === chosenIM.name) region.phases[1] = newIMName;
                         }
                     }
                 }
 
-                // Update labels to reflect spatial logic
+                // Update text labels
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
                     if (region.type === 'two-phase' && region.label) {
                         region.label.text = `${region.phases[0]} + ${region.phases[1]}`;
@@ -342,7 +357,7 @@
             scrambleNodes() {
                 for(let iter = 0; iter < 2; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId) || node.bounds.lock_c !== undefined) continue;
+                        if (node.bounds && node.bounds.lock_c !== undefined) continue;
                         let wildC = node.c + (Math.random() * 20 - 10); let wildT = node.t + (Math.random() * 150 - 75);
                         this.applyDrag(nodeId, wildC, wildT);
                     }
@@ -463,7 +478,6 @@
             }
         };
 
-        // V36: Extended bounding top nodes for infinite L ceiling grading
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -752,7 +766,7 @@
 
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue; 
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; 
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
                     sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
@@ -812,7 +826,6 @@
             sb_isFrozen = false; currentC = null; currentT = null;
             hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
             
-            // Only restore if leaving an active quiz. Architect edits carry over to Practice/Nav natively!
             if (mode !== 'assessment' && assessmentState === 'quiz') {
                 PhaseEngine.restoreBaseSchema();
                 setAssessmentState('practice'); 
@@ -834,31 +847,35 @@
 
         function snapToInvariant(type) {
             if (interactionMode !== 'navigator') setMode('navigator');
-            let c, t;
+            let c, visualT, evalT;
+            
             if (type === 'peri') {
-                let na = PhaseEngine.schema.nodes['p_a'];
-                let nl = PhaseEngine.schema.nodes['p_l'];
-                c = (na.c + nl.c) / 2; 
-                t = na.t + 0.1; 
+                let n1 = PhaseEngine.schema.nodes['p_a'];
+                let n2 = PhaseEngine.schema.nodes['p_l'];
+                c = (n1.c + n2.c) / 2;
+                visualT = n1.t;
+                evalT = visualT + 0.1; // Evaluate slightly above for the 2-phase region
             } else if (type === 'e1') {
-                let nb = PhaseEngine.schema.nodes['e1_b'];
-                let np = PhaseEngine.schema.nodes['e1_p'];
-                c = (nb.c + np.c) / 2; 
-                t = nb.t - 0.1; 
+                let n1 = PhaseEngine.schema.nodes['e1_b'];
+                let n2 = PhaseEngine.schema.nodes['e1_p'];
+                c = (n1.c + n2.c) / 2;
+                visualT = n1.t;
+                evalT = visualT - 0.1; // Evaluate slightly below
             } else if (type === 'e2') {
-                let np = PhaseEngine.schema.nodes['e2_p'];
-                let ng = PhaseEngine.schema.nodes['e2_g'];
-                c = (np.c + ng.c) / 2; 
-                t = np.t - 0.1;
+                let n1 = PhaseEngine.schema.nodes['e2_p'];
+                let n2 = PhaseEngine.schema.nodes['e2_g'];
+                c = (n1.c + n2.c) / 2;
+                visualT = n1.t;
+                evalT = visualT - 0.1;
             }
-            snapToPoint(c, t);
+            snapToPoint(c, visualT, evalT);
         }
 
-        function snapToPoint(c, t) {
-            sb_isFrozen = true; currentC = c; currentT = t;
-            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
-            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
-            updateTelemetry(activeRegion, sb_lastMathState, t, c);
+        function snapToPoint(c, visualT, evalT) {
+            sb_isFrozen = true; currentC = c; currentT = visualT;
+            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(evalT), c, evalT);
+            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, evalT, c) : null;
+            updateTelemetry(activeRegion, sb_lastMathState, visualT, c);
             document.getElementById('sb-math-panel').style.display = 'block';
             document.getElementById('sb-telemetry').style.display = 'none';
             updateMathPanel();
@@ -994,7 +1011,7 @@
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
+                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
                         if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                     }
                     if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; sb_draw(); }
@@ -1009,7 +1026,7 @@
                 }
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
+                    if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
                     if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                 }
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
