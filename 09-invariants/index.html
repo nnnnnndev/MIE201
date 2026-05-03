@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V33</title>
+    <title>Chapter 9: Procedural Phase Engine V34</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -32,13 +32,17 @@
         .toggle-btn:not(.active):hover { color: #fff; background: rgba(255,255,255,0.05); }
 
         .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
+        .tool-grid-labels { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; margin-bottom: 15px; }
         .tool-btn { padding: 10px; text-align: center; background: #000; border: 1px solid #444; color: #888; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; border-radius: 4px; transition: 0.2s;}
         .tool-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        
+        /* Tool Active States */
         .tool-btn.active[data-tool="liquidus"] { border-color: var(--magenta); color: var(--magenta); background: rgba(255, 0, 255, 0.1); }
         .tool-btn.active[data-tool="solidus"] { border-color: var(--cyan); color: var(--cyan); background: rgba(0, 255, 255, 0.1); }
         .tool-btn.active[data-tool="solvus"] { border-color: var(--green); color: var(--green); background: rgba(0, 255, 204, 0.1); }
         .tool-btn.active[data-tool="horizontal"] { border-color: var(--yellow); color: var(--yellow); background: rgba(255, 255, 0, 0.1); }
         .tool-btn.active[data-tool="vertical"] { border-color: var(--orange); color: var(--orange); background: rgba(255, 136, 0, 0.1); }
+        .tool-btn.active[data-tool^="lbl_"] { border-color: #fff; color: #fff; background: rgba(255, 255, 255, 0.15); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
         
         .tally-panel { background: #000; border: 1px dashed #444; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.85rem; font-family: 'Consolas', monospace; }
@@ -60,7 +64,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V33: Visual Overhaul & Dev Tool)</div>
+        <div class="brand">Phase Engine Platform (V34: Stamp Inventory & Topology)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -83,9 +87,9 @@
                     </div>
                     <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
                     <div class="toggle-container" style="flex-direction: column;">
-                        <div class="toggle-btn" onclick="snapToPoint(27.5, 851)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
-                        <div class="toggle-btn" onclick="snapToPoint(38, 601)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
-                        <div class="toggle-btn" onclick="snapToPoint(62, 551)">Eutectic 2 (550 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
                     </div>
                 </div>
 
@@ -96,7 +100,7 @@
                         <div class="toggle-btn" id="test-quiz" onclick="setAssessmentState('quiz')">Quiz</div>
                     </div>
                     
-                    <span class="label" style="margin-top: 10px;">Toolbelt</span>
+                    <span class="label" style="margin-top: 10px;">Curve Tools</span>
                     <div class="tool-grid">
                         <div class="tool-btn" data-tool="liquidus" onclick="setTool('liquidus')">Liquidus</div>
                         <div class="tool-btn" data-tool="solidus" onclick="setTool('solidus')">Solidus</div>
@@ -104,15 +108,25 @@
                         <div class="tool-btn" data-tool="horizontal" onclick="setTool('horizontal')">Isotherm</div>
                         <div class="tool-btn" data-tool="vertical" onclick="setTool('vertical')" style="grid-column: span 2;">Intermetallic (Vert)</div>
                     </div>
+
+                    <span class="label" style="margin-top: 10px;">Phase Inventory (Stamp)</span>
+                    <div class="tool-grid-labels">
+                        <div class="tool-btn" data-tool="lbl_L" onclick="setTool('lbl_L')">L</div>
+                        <div class="tool-btn" data-tool="lbl_alpha" onclick="setTool('lbl_alpha')">α</div>
+                        <div class="tool-btn" data-tool="lbl_beta" onclick="setTool('lbl_beta')">β</div>
+                        <div class="tool-btn" data-tool="lbl_gamma" onclick="setTool('lbl_gamma')">γ</div>
+                    </div>
+
                     <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px; display: block; width: 100%;">Eraser</div>
                     
                     <div id="tally-panel" class="tally-panel">
-                        <div class="label" style="color: #fff; margin-bottom: 5px;">Required Segments</div>
+                        <div class="label" style="color: #fff; margin-bottom: 5px;">Required Elements</div>
                         <div class="tally-row" style="color: var(--magenta);"><span>Liquidus</span><span id="tal-liq">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--cyan);"><span>Solidus</span><span id="tal-sol">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--green);"><span>Solvus</span><span id="tal-slv">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 0</span></div>
+                        <div class="tally-row" style="color: #fff; border-top: 1px solid #333; padding-top: 4px; margin-top: 4px;"><span>Phase Labels</span><span id="tal-lbl">0 / 0</span></div>
                     </div>
 
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
@@ -160,7 +174,8 @@
         let activeTool = null;
         let selectedNodeA = null;
         let studentCurves = [];
-        let showDevSolution = false; // Dev State
+        let studentLabels = []; // V34 Label Storage
+        let showDevSolution = false; 
 
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
@@ -195,8 +210,7 @@
             applyDrag(nodeId, newC, newT) {
                 let node = this.schema.nodes[nodeId];
                 if (node.bounds) {
-                    let cBuffer = 4;
-                    let tBuffer = 20;
+                    let cBuffer = 4; let tBuffer = 20;
 
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
@@ -213,7 +227,6 @@
                             else if (typeof node.bounds.t_min === 'string') minT = this.schema.nodes[node.bounds.t_min].t;
                             else minT = node.bounds.t_min;
                         }
-                        
                         let maxT = 1200;
                         if (node.bounds.t_max !== undefined) {
                             if (Array.isArray(node.bounds.t_max)) maxT = Math.min(...node.bounds.t_max.map(id => this.schema.nodes[id].t));
@@ -236,7 +249,6 @@
 
             scrambleNodes() {
                 this.restoreOriginalNodes();
-                // Reduced chaotic loops. Gentle displacement allows boundaries to hold logical shape.
                 for(let iter = 0; iter < 2; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
                         if (nodeId === 'zero_bot' || nodeId === 'max_bot' || node.bounds.lock_c !== undefined) continue;
@@ -257,7 +269,6 @@
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
                 const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
-
                 const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
@@ -381,8 +392,11 @@
                 "e2_g": { "c": 90, "t": 550, "bounds": {"c_min": "e2_l", "c_max": "t_g", "t_min": 100, "t_max": "tmB"} },
                 "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
-                "t_bl": { "c": 24.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "t_br"} },
-                "t_br": { "c": 25.5, "t": 0, "bounds": {"lock_t": 0, "c_min": "t_bl", "c_max": "e1_b"} },
+                
+                /* V34 Fix: Widened base limits for Beta so it looks like a distinct Solid Solution */
+                "t_bl": { "c": 18, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "t_br"} },
+                "t_br": { "c": 32, "t": 0, "bounds": {"lock_t": 0, "c_min": "t_bl", "c_max": "e1_b"} },
+                
                 "pil_b": { "c": 50, "t": 0, "bounds": {"lock_c": 50, "lock_t": 0} },
                 "t_g": { "c": 95, "t": 0, "bounds": {"lock_t": 0, "c_min": "e2_g", "c_max": 100} },
                 "zero_bot": { "c": 0, "t": 0, "bounds": {"lock_c": 0, "lock_t": 0} },
@@ -506,7 +520,6 @@
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
-            // DEV MODE OVERLAY (Renders behind user clicks)
             if (showDevSolution && interactionMode === 'assessment') {
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'edge' || curve.type === 'vertical') continue;
@@ -609,13 +622,23 @@
                     }
                     
                     if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
-                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ffffff'; // Replaced red with neutral white
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ffffff'; 
                     else sb_ctx.strokeStyle = getToolHex(sc.type);
                     
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
                 });
 
-                if (selectedNodeA && activeTool && activeTool !== 'eraser') {
+                // V34: Render Stamped Labels
+                studentLabels.forEach(sl => {
+                    let x = mapX(sl.c); let y = mapY(sl.t);
+                    sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#aaaaaa');
+                    sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
+                    sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+                    sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(sl.text, x, y);
+                });
+                sb_ctx.shadowBlur = 0; // reset
+
+                if (selectedNodeA && activeTool && !activeTool.startsWith('lbl_') && activeTool !== 'eraser') {
                     let startNode = PhaseEngine.schema.nodes[selectedNodeA];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
                     sb_ctx.strokeStyle = getToolHex(activeTool);
@@ -636,7 +659,6 @@
             }
         }
 
-        // TRANSPARENT, SHADOWED LABELS
         function drawLabels() {
             sb_ctx.save();
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
@@ -667,6 +689,10 @@
             document.getElementById('tal-slv').innerText = `${current.solvus} / ${expected.solvus}`;
             document.getElementById('tal-iso').innerText = `${current.horizontal} / ${expected.horizontal}`;
             document.getElementById('tal-ver').innerText = `${current.vertical} / ${expected.vertical}`;
+            
+            // V34: Label Tally
+            let expectedLabels = Object.values(PhaseEngine.schema.regions).filter(r => r.type === 'single-phase').length;
+            document.getElementById('tal-lbl').innerText = `${studentLabels.length} / ${expectedLabels}`;
         }
 
         function setMode(mode) {
@@ -702,8 +728,12 @@
         function snapToPoint(c, t) {
             if (interactionMode !== 'navigator') setMode('navigator');
             sb_isFrozen = true; currentC = c; currentT = t;
-            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(t), c, t);
-            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, t, c) : null;
+            // V34: Evaluate the hit-box slightly above/below the line so the mathematical 2-phase logic captures it flawlessly. 
+            // The cursor visually snaps perfectly to `c, t`.
+            let evalT = t > 600 ? t + 0.1 : t - 0.1; // Peritectics evaluate slightly above, Eutectics slightly below.
+            
+            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(evalT), c, evalT);
+            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, evalT, c) : null;
             updateTelemetry(activeRegion, sb_lastMathState, t, c);
             document.getElementById('sb-math-panel').style.display = 'block';
             document.getElementById('sb-telemetry').style.display = 'none';
@@ -754,7 +784,7 @@
             document.getElementById('assessment-score').style.display = 'none';
             document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
             
-            studentCurves = []; selectedNodeA = null; showDevSolution = false; updateTally();
+            studentCurves = []; studentLabels = []; selectedNodeA = null; showDevSolution = false; updateTally();
             if (state === 'quiz') { PhaseEngine.scrambleNodes(); } else { PhaseEngine.restoreOriginalNodes(); }
             sb_draw();
         }
@@ -766,17 +796,13 @@
             sb_draw();
         }
 
-        function distToSegment(px, py, x1, y1, x2, y2) {
-            let l2 = (x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2);
-            if (l2 == 0) return Math.hypot(px - x1, py - y1);
-            let t = Math.max(0, Math.min(1, ((px - x1)*(x2 - x1) + (py - y1)*(y2 - y1)) / l2));
-            return Math.hypot(px - (x1 + t*(x2 - x1)), py - (y1 + t*(y2 - y1)));
-        }
-
         function gradeAssessment() {
             let score = 0;
-            let totalExpected = Object.keys(PhaseEngine.schema.curves).filter(k => PhaseEngine.schema.curves[k].type !== 'edge').length;
+            let expectedCurves = Object.keys(PhaseEngine.schema.curves).filter(k => PhaseEngine.schema.curves[k].type !== 'edge').length;
+            let expectedLabels = Object.values(PhaseEngine.schema.regions).filter(r => r.type === 'single-phase').length;
+            let totalExpected = expectedCurves + expectedLabels;
             
+            // Grade Curves
             studentCurves.forEach(sc => {
                 let isCorrect = false;
                 for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
@@ -788,6 +814,22 @@
                 if (isCorrect) score++;
             });
 
+            // Grade Labels
+            studentLabels.forEach(sl => {
+                let x = mapX(sl.c); let y = mapY(sl.t);
+                let inRegion = null;
+                for (const [regionId, path] of Object.entries(PhaseEngine.paths)) {
+                    if (sb_ctx.isPointInPath(path, x, y)) { inRegion = PhaseEngine.schema.regions[regionId]; break; }
+                }
+                
+                if (inRegion && inRegion.phase_name === sl.text) {
+                    sl.status = 'correct';
+                    score++;
+                } else {
+                    sl.status = 'incorrect';
+                }
+            });
+
             let alertBox = document.getElementById('assessment-score');
             alertBox.style.display = 'block';
             
@@ -796,7 +838,8 @@
                 setTool(null); 
             } else {
                 let text = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br><span style="color:#00ff00">Green</span> = Correct, <span style="color:#ffffff">White</span> = Incorrect.`;
-                if(studentCurves.length < totalExpected) text += `<br><br><span style="color:#ff3333">Missing ${totalExpected - studentCurves.length} segments. Check tally!</span>`;
+                let missing = totalExpected - (studentCurves.length + studentLabels.length);
+                if(missing > 0) text += `<br><br><span style="color:#ff3333">Missing ${missing} elements. Check tally!</span>`;
                 alertBox.innerHTML = text;
             }
             sb_draw();
@@ -824,6 +867,10 @@
             }
 
             if (interactionMode === 'assessment') {
+                if (activeTool && activeTool.startsWith('lbl_')) {
+                    sb_canvas.style.cursor = 'crosshair'; 
+                    return; // Label stamping cursor
+                }
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                     if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
@@ -849,11 +896,47 @@
             }
 
             if (interactionMode === 'assessment') {
+                
+                // V34: Label Stamp Drop logic
+                if (activeTool && activeTool.startsWith('lbl_')) {
+                    let labelMap = { 'lbl_L': 'L', 'lbl_alpha': 'α', 'lbl_beta': 'β', 'lbl_gamma': 'γ' };
+                    studentLabels.push({
+                        text: labelMap[activeTool],
+                        c: invX(sb_mouseX),
+                        t: invY(sb_mouseY),
+                        status: 'un-graded'
+                    });
+                    document.getElementById('assessment-score').style.display = 'none';
+                    updateTally(); sb_draw();
+                    return;
+                }
+
                 if (activeTool === 'eraser') {
+                    // Check labels first
+                    let closestLblIdx = -1; let minLblDist = 20;
+                    studentLabels.forEach((sl, idx) => {
+                        let dist = Math.hypot(sb_mouseX - mapX(sl.c), sb_mouseY - mapY(sl.t));
+                        if (dist < minLblDist) { minLblDist = dist; closestLblIdx = idx; }
+                    });
+                    if (closestLblIdx !== -1) {
+                        studentLabels.splice(closestLblIdx, 1);
+                        document.getElementById('assessment-score').style.display = 'none'; updateTally(); sb_draw();
+                        return;
+                    }
+
+                    // Then check lines
                     let closestIdx = -1; let minDist = 15; 
                     studentCurves.forEach((sc, idx) => {
                         let nStart = PhaseEngine.schema.nodes[sc.start]; let nEnd = PhaseEngine.schema.nodes[sc.end];
-                        let dist = distToSegment(sb_mouseX, sb_mouseY, mapX(nStart.c), mapY(nStart.t), mapX(nEnd.c), mapY(nEnd.t));
+                        let dist = Math.hypot(sb_mouseX - mapX(nStart.c), sb_mouseY - mapY(nStart.t)); // Simplified bounds check
+                        // More exact line distance
+                        let l2 = (mapX(nStart.c) - mapX(nEnd.c))**2 + (mapY(nStart.t) - mapY(nEnd.t))**2;
+                        if (l2 === 0) dist = Math.hypot(sb_mouseX - mapX(nStart.c), sb_mouseY - mapY(nStart.t));
+                        else {
+                            let t = Math.max(0, Math.min(1, ((sb_mouseX - mapX(nStart.c))*(mapX(nEnd.c) - mapX(nStart.c)) + (sb_mouseY - mapY(nStart.t))*(mapY(nEnd.t) - mapY(nStart.t))) / l2));
+                            dist = Math.hypot(sb_mouseX - (mapX(nStart.c) + t*(mapX(nEnd.c) - mapX(nStart.c))), sb_mouseY - (mapY(nStart.t) + t*(mapY(nEnd.t) - mapY(nStart.t))));
+                        }
+
                         if (dist < minDist) { minDist = dist; closestIdx = idx; }
                     });
                     if (closestIdx !== -1) { 
