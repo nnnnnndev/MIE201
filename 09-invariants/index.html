@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V35</title>
+    <title>Chapter 9: Procedural Phase Engine V36</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -63,7 +63,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V35: Topological Randomization)</div>
+        <div class="brand">Phase Engine Platform (V36: Topology Mirroring)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -105,7 +105,7 @@
                         <div class="tool-btn" data-tool="solidus" onclick="setTool('solidus')">Solidus</div>
                         <div class="tool-btn" data-tool="solvus" onclick="setTool('solvus')">Solvus</div>
                         <div class="tool-btn" data-tool="horizontal" onclick="setTool('horizontal')">Isotherm</div>
-                        <div class="tool-btn" data-tool="vertical" onclick="setTool('vertical')" style="grid-column: span 2;">Intermetallic (Vert)</div>
+                        <div class="tool-btn" data-tool="vertical" onclick="setTool('vertical')" style="grid-column: span 2;">Intermetallic</div>
                     </div>
 
                     <span class="label" style="margin-top: 10px;">Single Phase Stamps</span>
@@ -228,9 +228,11 @@
                     let cBuffer = 4; let tBuffer = 20;
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
-                        let minC = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
-                        let maxC = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
-                        newC = Math.max(minC + cBuffer, Math.min(newC, maxC - cBuffer)); 
+                        let bMin = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
+                        let bMax = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
+                        let actualMinC = Math.min(bMin, bMax);
+                        let actualMaxC = Math.max(bMin, bMax);
+                        newC = Math.max(actualMinC + cBuffer, Math.min(newC, actualMaxC - cBuffer)); 
                     }
                     if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
                     else {
@@ -260,7 +262,6 @@
                 }
             },
 
-            // V35: Massive Topological Randomizer
             scrambleTopology() {
                 const imData = [
                     { name: 'A4B', c: 20 }, { name: 'A3B', c: 25 }, { name: 'A2B', c: 33.3 },
@@ -268,7 +269,6 @@
                 ];
                 let chosenIM = imData[Math.floor(Math.random() * imData.length)];
 
-                // Update Schema Regions & Nodes for new Intermetallic
                 this.schema.regions['R_Pil'].phase_name = chosenIM.name;
                 this.schema.regions['R_Pil'].stoichiometric_c = chosenIM.c;
                 ['pil_t', 'e1_p', 'e2_p', 'pil_b'].forEach(n => {
@@ -276,48 +276,65 @@
                     if(this.schema.nodes[n].bounds.lock_c !== undefined) this.schema.nodes[n].bounds.lock_c = chosenIM.c;
                 });
 
-                // Update dynamically labeled 2-phase regions
                 this.schema.regions['R_Lp1'].phases[1] = chosenIM.name;
                 this.schema.regions['R_Lp2'].phases[0] = chosenIM.name;
                 this.schema.regions['R_bp'].phases[1] = chosenIM.name;
                 this.schema.regions['R_pg'].phases[0] = chosenIM.name;
-                
-                this.schema.regions['R_Lp1'].label.text = `L + ${chosenIM.name}`;
-                this.schema.regions['R_Lp2'].label.text = `${chosenIM.name} + L`;
-                this.schema.regions['R_bp'].label.text = `β + ${chosenIM.name}`;
-                this.schema.regions['R_pg'].label.text = `${chosenIM.name} + γ`;
 
                 let spaceLeft = chosenIM.c; let spaceRight = 100 - chosenIM.c;
                 let scaleL = spaceLeft / 50.0; let scaleR = spaceRight / 50.0;
 
-                // Randomize Invariant Temps
                 let t_peri = 750 + Math.random()*250;
                 let t_e1 = t_peri - 100 - Math.random()*150;
                 let t_e2 = 350 + Math.random()*450;
 
-                // Compress Left Side (Peritectic & E1)
                 this.schema.nodes['p_a'].c = 15 * scaleL; this.schema.nodes['p_b'].c = 25 * scaleL; this.schema.nodes['p_l'].c = 40 * scaleL;
                 this.schema.nodes['e1_b'].c = 32 * scaleL; this.schema.nodes['e1_l'].c = 45 * scaleL;
                 ['p_a', 'p_b', 'p_l'].forEach(n => this.schema.nodes[n].t = t_peri);
                 ['e1_b', 'e1_l', 'e1_p'].forEach(n => this.schema.nodes[n].t = t_e1);
 
-                // Compress Right Side (E2)
                 this.schema.nodes['e2_l'].c = chosenIM.c + (25 * scaleR); this.schema.nodes['e2_g'].c = chosenIM.c + (40 * scaleR);
                 ['e2_p', 'e2_l', 'e2_g'].forEach(n => this.schema.nodes[n].t = t_e2);
 
-                // Adjust terminal nodes
                 this.schema.nodes['t_a'].c = 5 * scaleL; this.schema.nodes['t_bl'].c = 18 * scaleL; this.schema.nodes['t_br'].c = 32 * scaleL;
                 this.schema.nodes['t_g'].c = 100 - (5 * scaleR);
 
-                // Adjust static label fallbacks
-                for (const [rId, r] of Object.entries(this.schema.regions)) {
-                    if(r.label && r.label.c) {
-                        if (r.label.c < 50) r.label.c = r.label.c * scaleL;
-                        else if (r.label.c > 50) r.label.c = chosenIM.c + ((r.label.c - 50) * scaleR);
+                // V36 MIRROR TOPOLOGY (50% Chance)
+                let doMirror = Math.random() > 0.5;
+                if (doMirror) {
+                    // Update IM Name based on mirroring
+                    let nameMap = {'A4B':'AB4', 'A3B':'AB3', 'A2B':'AB2', 'AB':'AB', 'AB2':'A2B', 'AB3':'A3B', 'AB4':'A4B'};
+                    let newIMName = nameMap[chosenIM.name];
+                    this.schema.regions['R_Pil'].phase_name = newIMName;
+                    this.schema.regions['R_Pil'].stoichiometric_c = 100 - chosenIM.c;
+                    
+                    for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
+                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
+                        node.c = 100 - node.c;
+                        if (node.bounds && node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
+                    }
+                    
+                    for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                        if (region.type === 'two-phase') {
+                            region.phases.reverse();
+                            let temp = region.tie_line_boundaries.left;
+                            region.tie_line_boundaries.left = region.tie_line_boundaries.right;
+                            region.tie_line_boundaries.right = temp;
+                            
+                            // Re-assign name if necessary
+                            if (region.phases[0] === chosenIM.name) region.phases[0] = newIMName;
+                            if (region.phases[1] === chosenIM.name) region.phases[1] = newIMName;
+                        }
                     }
                 }
 
-                // Overwrite original structure so this becomes the new "Correct" standard for the Quiz
+                // Update labels to reflect spatial logic
+                for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                    if (region.type === 'two-phase' && region.label) {
+                        region.label.text = `${region.phases[0]} + ${region.phases[1]}`;
+                    }
+                }
+
                 this.originalNodes = JSON.parse(JSON.stringify(this.schema.nodes));
                 this.buildRegionPaths();
             },
@@ -325,7 +342,7 @@
             scrambleNodes() {
                 for(let iter = 0; iter < 2; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (nodeId === 'zero_bot' || nodeId === 'max_bot' || node.bounds.lock_c !== undefined) continue;
+                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId) || node.bounds.lock_c !== undefined) continue;
                         let wildC = node.c + (Math.random() * 20 - 10); let wildT = node.t + (Math.random() * 150 - 75);
                         this.applyDrag(nodeId, wildC, wildT);
                     }
@@ -425,14 +442,16 @@
 
             calculateTieLine(region, T, C_mouse) {
                 if (region.type !== "two-phase") return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
-                let cLeft = null, cRight = null;
+                let intersections = [];
                 for (const curveId of region.tie_line_boundaries.left) {
-                    let c = this.getC_onCurve(T, curveId); if (c !== null) { cLeft = c; break; }
+                    let c = this.getC_onCurve(T, curveId); if (c !== null) intersections.push(c);
                 }
                 for (const curveId of region.tie_line_boundaries.right) {
-                    let c = this.getC_onCurve(T, curveId); if (c !== null) { cRight = c; break; } 
+                    let c = this.getC_onCurve(T, curveId); if (c !== null) intersections.push(c); 
                 }
-                if (cLeft !== null && cRight !== null) {
+                if (intersections.length >= 2) {
+                    intersections.sort((a,b) => a - b);
+                    let cLeft = intersections[0]; let cRight = intersections[intersections.length - 1];
                     const total = cRight - cLeft;
                     return {
                         isTwoPhase: true, phases: region.phases,
@@ -444,9 +463,12 @@
             }
         };
 
+        // V36: Extended bounding top nodes for infinite L ceiling grading
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
+                "top_L": { "c": 0, "t": 1200, "bounds": {"lock_c": 0, "lock_t": 1200} },
+                "top_R": { "c": 100, "t": 1200, "bounds": {"lock_c": 100, "lock_t": 1200} },
                 "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a", "t_max": 1200} },
                 "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
                 "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "p_l", "t_min": "e1_l", "t_max": "tmA"} },
@@ -491,12 +513,15 @@
                 "p_w1": { "start": "pil_t", "end": "e1_p", "type": "vertical" }, "p_w2": { "start": "e1_p", "end": "e2_p", "type": "vertical" },
                 "p_w3": { "start": "e2_p", "end": "pil_b", "type": "vertical" },
                 "e_L": { "start": "zero_bot", "end": "tmA", "type": "edge" }, "e_R": { "start": "max_bot", "end": "tmB", "type": "edge" },
-                "e_top": { "start": "tmA", "end": "tmB", "type": "edge" }, "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
+                "e_TL": { "start": "tmA", "end": "top_L", "type": "edge" },
+                "e_TT": { "start": "top_L", "end": "top_R", "type": "edge" },
+                "e_TR": { "start": "top_R", "end": "tmB", "type": "edge" },
+                "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
                 "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" }, "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
                 "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" }, "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
             },
             "regions": {
-                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_top", dir: -1} ] },
+                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_TR", dir: -1}, {id: "e_TT", dir: -1}, {id: "e_TL", dir: -1} ] },
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
                 "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
@@ -604,11 +629,10 @@
                     sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
                 
-                // Dev Solution for Labels
                 for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
                     if (region.type === 'single-phase' || region.type === 'intermetallic-pillar') {
                         let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : region.stoichiometric_c;
-                        let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400; // default lower
+                        let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
                         sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
                         sb_ctx.textAlign = 'center'; sb_ctx.font = `bold 20px sans-serif`;
                         sb_ctx.fillText(region.phase_name, mapX(c), mapY(t));
@@ -656,7 +680,7 @@
             } else {
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
-                    if (curveId === 'e_top') continue;
+                    if (curveId === 'e_TL' || curveId === 'e_TT' || curveId === 'e_TR') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
                     sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
@@ -728,7 +752,7 @@
 
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue; 
+                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue; 
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
                     sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
@@ -788,7 +812,11 @@
             sb_isFrozen = false; currentC = null; currentT = null;
             hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
             
-            if (mode !== 'assessment' && assessmentState === 'quiz') PhaseEngine.restoreBaseSchema();
+            // Only restore if leaving an active quiz. Architect edits carry over to Practice/Nav natively!
+            if (mode !== 'assessment' && assessmentState === 'quiz') {
+                PhaseEngine.restoreBaseSchema();
+                setAssessmentState('practice'); 
+            }
             sb_draw();
         }
 
@@ -804,24 +832,23 @@
             sb_draw();
         }
 
-        // V35: State-Aware Dynamic Invariant Snaps
         function snapToInvariant(type) {
             if (interactionMode !== 'navigator') setMode('navigator');
             let c, t;
             if (type === 'peri') {
-                let nb = PhaseEngine.schema.nodes['p_b'];
+                let na = PhaseEngine.schema.nodes['p_a'];
                 let nl = PhaseEngine.schema.nodes['p_l'];
-                c = nb.c + (nl.c - nb.c) * 0.1; // 10% right of beta inside the liquid+beta region
-                t = nb.t + 0.1; 
+                c = (na.c + nl.c) / 2; 
+                t = na.t + 0.1; 
             } else if (type === 'e1') {
                 let nb = PhaseEngine.schema.nodes['e1_b'];
-                let nl = PhaseEngine.schema.nodes['e1_l'];
-                c = (nb.c + nl.c) / 2; 
+                let np = PhaseEngine.schema.nodes['e1_p'];
+                c = (nb.c + np.c) / 2; 
                 t = nb.t - 0.1; 
             } else if (type === 'e2') {
                 let np = PhaseEngine.schema.nodes['e2_p'];
-                let nl = PhaseEngine.schema.nodes['e2_l'];
-                c = (np.c + nl.c) / 2; 
+                let ng = PhaseEngine.schema.nodes['e2_g'];
+                c = (np.c + ng.c) / 2; 
                 t = np.t - 0.1;
             }
             snapToPoint(c, t);
@@ -918,7 +945,6 @@
                 if (isCorrect) score++;
             });
 
-            // V35: Intermetallic Proximity vs Path Grading
             studentLabels.forEach(sl => {
                 let isIM = ['AB', 'A2B', 'A3B', 'A4B', 'AB2', 'AB3', 'AB4'].includes(sl.text);
                 if (isIM) {
@@ -968,7 +994,7 @@
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                        if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
+                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
                         if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                     }
                     if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; sb_draw(); }
@@ -983,7 +1009,7 @@
                 }
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (nodeId === 'zero_bot' || nodeId === 'max_bot') continue;
+                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
                     if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                 }
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
