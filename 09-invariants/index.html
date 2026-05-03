@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V44</title>
+    <title>Chapter 9: Procedural Phase Engine V45</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -32,7 +32,7 @@
         .toggle-btn:not(.active):hover { color: #fff; background: rgba(255,255,255,0.05); }
 
         .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
-        .tool-grid-labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 15px; }
+        .tool-grid-labels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 15px; }
         .tool-btn { padding: 8px; text-align: center; background: #000; border: 1px solid #444; color: #888; cursor: pointer; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; border-radius: 4px; transition: 0.2s;}
         .tool-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
         
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V44: Boundary Fix Edition)</div>
+        <div class="brand">Phase Engine Platform (V45: The Master Renderer)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -87,12 +87,9 @@
                         <div class="toggle-btn active" id="lbl-easy" onclick="setLabels('all')">Easy</div>
                         <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard</div>
                     </div>
-                    <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
-                    <div class="toggle-container" style="flex-direction: column;">
-                        <div class="toggle-btn" onclick="snapToInvariant('peri')" style="border-bottom: 1px solid #444;">Peritectic</div>
-                        <div class="toggle-btn" onclick="snapToInvariant('e1')" style="border-bottom: 1px solid #444;">Eutectic 1</div>
-                        <div class="toggle-btn" onclick="snapToInvariant('e2')">Eutectic 2</div>
-                    </div>
+                    <span class="label" style="margin-top: 20px;">Jump to Invariants</span>
+                    <div class="toggle-container" style="flex-direction: column;" id="dynamic-invariant-bank">
+                        </div>
                 </div>
 
                 <div id="assessment-bank" style="display: none;">
@@ -117,6 +114,8 @@
                         <div class="tool-btn" data-tool="lbl_alpha" onclick="setTool('lbl_alpha')">α</div>
                         <div class="tool-btn" data-tool="lbl_beta" onclick="setTool('lbl_beta')">β</div>
                         <div class="tool-btn" data-tool="lbl_gamma" onclick="setTool('lbl_gamma')">γ</div>
+                        <div class="tool-btn" data-tool="lbl_delta" onclick="setTool('lbl_delta')">δ</div>
+                        <div class="tool-btn" data-tool="lbl_epsilon" onclick="setTool('lbl_epsilon')">ε</div>
                     </div>
 
                     <select id="im-stamp-select" class="im-select" onchange="if(this.value !== 'none') setTool(this.value)">
@@ -137,8 +136,8 @@
                         <div class="tally-row" style="color: var(--magenta);"><span>Liquidus</span><span id="tal-liq">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--cyan);"><span>Solidus</span><span id="tal-sol">0 / 0</span></div>
                         <div class="tally-row" style="color: var(--green);"><span>Solvus</span><span id="tal-slv">0 / 0</span></div>
-                        <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 3</span></div>
-                        <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 1</span></div>
+                        <div class="tally-row" style="color: var(--yellow);"><span>Isotherm</span><span id="tal-iso">0 / 0</span></div>
+                        <div class="tally-row" style="color: var(--orange);"><span>Intermetallic</span><span id="tal-ver">0 / 0</span></div>
                         <div class="tally-row" style="color: #fff; border-top: 1px solid #333; padding-top: 4px; margin-top: 4px;"><span>Phase Labels</span><span id="tal-lbl">0 / 0</span></div>
                     </div>
 
@@ -165,7 +164,10 @@
                 </div>
             </div>
         </div>
-        <div class="stage"><canvas id="canvas-sandbox"></canvas></div>
+        <div class="stage">
+            <div id="loading-overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:50; display:flex; justify-content:center; align-items:center; color:var(--cyan); font-weight:bold; font-size:1.2rem; text-transform:uppercase; letter-spacing:2px;">Contacting Python Backend...</div>
+            <canvas id="canvas-sandbox"></canvas>
+        </div>
     </div>
 
     <script>
@@ -189,13 +191,10 @@
         let studentLabels = []; 
         let showDevSolution = false; 
 
-        const fullHorizontals = [ {start: 'p_a', end: 'p_l'}, {start: 'e1_b', end: 'e1_p'}, {start: 'e2_p', end: 'e2_g'} ];
-        const fullVerticals = [ {start: 'pil_t', end: 'pil_b'} ];
-
-        function mapX(c) { return PAD + (c / PhaseEngine.baseSchema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
-        function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.baseSchema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
-        function invX(x) { return Math.max(0, Math.min(PhaseEngine.baseSchema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.baseSchema.metadata.axes.c_max)); }
-        function invY(y) { return Math.max(0, Math.min(PhaseEngine.baseSchema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.baseSchema.metadata.axes.t_max)); }
+        function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
+        function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
+        function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
+        function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
         function drawSubscriptAndValue(ctx, baseTxt, subTxt, value, x, y, baseSize, color, align='center') {
             ctx.textBaseline = 'middle';
@@ -211,209 +210,43 @@
             ctx.fillText(value.toFixed(1), x, y + 20);
         }
 
-        function getChunks(total, count, maxVal) {
-            if (total > count * maxVal) maxVal = (total / count) + 1; 
-            let chunks = Array.from({length: count}, () => Math.random() + 0.5);
-            let sum = chunks.reduce((a,b)=>a+b, 0);
-            chunks = chunks.map(c => (c/sum)*total);
-            
-            for (let iter=0; iter<10; iter++) {
-                let overflow = 0; let receivers = 0;
-                for (let i=0; i<count; i++) {
-                    if (chunks[i] > maxVal) { overflow += chunks[i] - maxVal; chunks[i] = maxVal; } 
-                    else if (chunks[i] < maxVal - 0.1) { receivers++; }
-                }
-                if (overflow < 0.1) break;
-                let share = overflow / (receivers || count);
-                for (let i=0; i<count; i++) { if (chunks[i] < maxVal - 0.1 || receivers === 0) chunks[i] += share; }
-            }
-            return chunks;
-        }
-
         const PhaseEngine = {
-            baseSchema: null, schema: null, paths: {}, centroids: {}, originalNodes: {}, 
+            schema: null, paths: {}, centroids: {}, 
 
             loadSchema(jsonSchema) {
-                this.baseSchema = JSON.parse(JSON.stringify(jsonSchema));
                 this.schema = JSON.parse(JSON.stringify(jsonSchema));
-                this.originalNodes = JSON.parse(JSON.stringify(jsonSchema.nodes));
                 this.buildRegionPaths();
+                this.generateDynamicInvariantButtons();
                 updateTally();
-            },
-
-            restoreBaseSchema() {
-                this.schema = JSON.parse(JSON.stringify(this.baseSchema));
-                this.originalNodes = JSON.parse(JSON.stringify(this.baseSchema.nodes));
-                this.buildRegionPaths();
+                document.getElementById('loading-overlay').style.display = 'none';
             },
 
             applyDrag(nodeId, reqC, reqT) {
+                // V45: Architect mode is strictly "Dumb Dragging" bounded only by the Canvas edges
+                // All thermodynamic rules are enforced by the Python backend generator, not the JS UI.
                 let node = this.schema.nodes[nodeId];
-                let newC = reqC; let newT = reqT;
-                let clamped = false;
-
-                let safeMinC = 0; let safeMaxC = 100;
-                let seq = ['p_a', 'p_b', 'e1_b', 'p_l', 'e1_l', 'e2_p', 'e2_l', 'e2_g'];
-                
-                let isMirrored = this.schema.nodes['p_a'].c > this.schema.nodes['e2_g'].c;
-                if (isMirrored) seq.reverse();
-                
-                let idx = seq.indexOf(nodeId);
-                if (idx !== -1) {
-                    let imC = this.schema.nodes['pil_t'].c;
-                    let leftOfIM = isMirrored ? seq.indexOf('e2_p') : seq.indexOf('e1_l');
-                    
-                    if (idx <= leftOfIM) {
-                        safeMinC = idx > 0 ? this.schema.nodes[seq[idx-1]].c + 2 : 2;
-                        safeMaxC = idx < leftOfIM ? this.schema.nodes[seq[idx+1]].c - 2 : (isMirrored ? imC + 2 : imC - 2);
-                    } else {
-                        safeMinC = idx > leftOfIM + 1 ? this.schema.nodes[seq[idx-1]].c + 2 : (isMirrored ? imC - 2 : imC + 2);
-                        safeMaxC = idx < seq.length - 1 ? this.schema.nodes[seq[idx+1]].c - 2 : 98;
-                    }
-                }
-
-                if (node.bounds && node.bounds.lock_c !== undefined) { safeMinC = node.bounds.lock_c; safeMaxC = node.bounds.lock_c; }
-                
-                if (isMirrored) {
-                    if (reqC > safeMinC || reqC < safeMaxC) clamped = true; 
-                    newC = Math.min(safeMinC, Math.max(reqC, safeMaxC));
-                } else {
-                    if (reqC < safeMinC || reqC > safeMaxC) clamped = true;
-                    newC = Math.max(safeMinC, Math.min(reqC, safeMaxC));
-                }
-
-                let safeMinT = 0; let safeMaxT = 1200;
-                if (['p_a', 'p_b', 'p_l'].includes(nodeId)) { safeMinT = this.schema.nodes['e1_l'].t + 20; safeMaxT = this.schema.nodes['tmA'].t - 20; }
-                if (['e1_b', 'e1_l', 'e1_p'].includes(nodeId)) { safeMinT = 100; safeMaxT = this.schema.nodes['p_b'].t - 20; }
-                if (['e2_p', 'e2_l', 'e2_g'].includes(nodeId)) { safeMinT = 100; safeMaxT = Math.min(this.schema.nodes['pil_t'].t - 20, this.schema.nodes['tmB'].t - 20); }
-
-                if (node.bounds && node.bounds.lock_t !== undefined) { safeMinT = node.bounds.lock_t; safeMaxT = node.bounds.lock_t; }
-                if (reqT < safeMinT || reqT > safeMaxT) clamped = true;
-                newT = Math.max(safeMinT, Math.min(reqT, safeMaxT));
-
-                node.c = newC; node.t = newT;
-
-                if (nodeId === 'p_b' || nodeId === 'e1_b') {
-                    let midC = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
-                    this.schema.nodes['t_bl'].c = midC - 0.1;
-                    this.schema.nodes['t_br'].c = midC + 0.1;
-                }
-
-                if (this.schema.invariants) {
-                    for (let key in this.schema.invariants) {
-                        let inv = this.schema.invariants[key];
-                        if (inv.nodes && inv.nodes.includes(nodeId)) {
-                            inv.nodes.forEach(nId => { this.schema.nodes[nId].t = newT; });
-                        }
-                    }
-                }
-                
-                return { clamped: clamped };
+                if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) return { clamped: true };
+                node.c = Math.max(0, Math.min(reqC, 100));
+                node.t = Math.max(0, Math.min(reqT, 1200));
+                return { clamped: false };
             },
 
-            scrambleTopology() {
-                const imData = [
-                    { name: 'A4B', c: 20 }, { name: 'A3B', c: 25 }, { name: 'A2B', c: 33.3 },
-                    { name: 'AB', c: 50 }, { name: 'AB2', c: 66.7 }, { name: 'AB3', c: 75 }, { name: 'AB4', c: 80 }
-                ];
-                let chosenIM = imData[Math.floor(Math.random() * imData.length)];
-
-                this.schema.regions['R_Pil'].phase_name = chosenIM.name;
-                this.schema.regions['R_Pil'].stoichiometric_c = chosenIM.c;
-                ['pil_t', 'e1_p', 'e2_p', 'pil_b'].forEach(n => {
-                    this.schema.nodes[n].c = chosenIM.c;
-                    if(this.schema.nodes[n].bounds.lock_c !== undefined) this.schema.nodes[n].bounds.lock_c = chosenIM.c;
-                });
-
-                this.schema.regions['R_Lp1'].phases[1] = chosenIM.name;
-                this.schema.regions['R_Lp2'].phases[0] = chosenIM.name;
-                this.schema.regions['R_bp'].phases[1] = chosenIM.name;
-                this.schema.regions['R_pg'].phases[0] = chosenIM.name;
-
-                let spaceLeft = chosenIM.c; let spaceRight = 100 - chosenIM.c;
-                let t_peri = 750 + Math.random()*250;
-                let t_e1 = t_peri - 100 - Math.random()*150;
-                let t_e2 = 350 + Math.random()*450;
-
-                let chunksL = getChunks(spaceLeft, 5, 26);
-                this.schema.nodes['p_a'].c = chunksL[0];
-                this.schema.nodes['p_b'].c = chunksL[0] + chunksL[1];
-                this.schema.nodes['e1_b'].c = chunksL[0] + chunksL[1] + (chunksL[2] * 0.5); 
-                this.schema.nodes['p_l'].c = chunksL[0] + chunksL[1] + chunksL[2];
-                this.schema.nodes['e1_l'].c = chunksL[0] + chunksL[1] + chunksL[2] + chunksL[3];
+            generateDynamicInvariantButtons() {
+                const container = document.getElementById('dynamic-invariant-bank');
+                container.innerHTML = '';
                 
-                ['p_a', 'p_b', 'p_l'].forEach(n => this.schema.nodes[n].t = t_peri);
-                ['e1_b', 'e1_l', 'e1_p'].forEach(n => this.schema.nodes[n].t = t_e1);
-
-                let chunksR = getChunks(spaceRight, 3, 26);
-                this.schema.nodes['e2_l'].c = chosenIM.c + chunksR[0];
-                this.schema.nodes['e2_g'].c = chosenIM.c + chunksR[0] + chunksR[1];
-                ['e2_p', 'e2_l', 'e2_g'].forEach(n => this.schema.nodes[n].t = t_e2);
-
-                this.schema.nodes['t_a'].c = this.schema.nodes['p_a'].c * (0.2 + Math.random()*0.4); 
-                let midBeta = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
-                this.schema.nodes['t_bl'].c = midBeta - 0.1; 
-                this.schema.nodes['t_br'].c = midBeta + 0.1;
-                this.schema.nodes['t_g'].c = 100 - (100 - this.schema.nodes['e2_g'].c) * (0.2 + Math.random()*0.4);
-
-                let doMirror = Math.random() > 0.5;
-                if (doMirror) {
-                    let nameMap = {'A4B':'AB4', 'A3B':'AB3', 'A2B':'AB2', 'AB':'AB', 'AB2':'A2B', 'AB3':'A3B', 'AB4':'A4B'};
-                    let newIMName = nameMap[chosenIM.name];
-                    this.schema.regions['R_Pil'].phase_name = newIMName;
-                    this.schema.regions['R_Pil'].stoichiometric_c = 100 - chosenIM.c;
-                    
-                    for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        node.c = 100 - node.c;
-                        if (node.bounds) {
-                            if (node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
-                            let oldMin = node.bounds.c_min; let oldMax = node.bounds.c_max;
-                            if (oldMax !== undefined) node.bounds.c_min = typeof oldMax === 'number' ? 100 - oldMax : oldMax;
-                            else delete node.bounds.c_min;
-                            if (oldMin !== undefined) node.bounds.c_max = typeof oldMin === 'number' ? 100 - oldMin : oldMin;
-                            else delete node.bounds.c_max;
-                        }
-                    }
-                    
-                    let phaseSwap = {'α': 'γ', 'γ': 'α', 'L': 'L', 'β': 'β'};
-                    phaseSwap[chosenIM.name] = newIMName;
-                    
-                    for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                        if (region.label && region.label.c !== undefined) region.label.c = 100 - region.label.c;
-                        
-                        if (region.type === 'single-phase') {
-                            region.phase_name = phaseSwap[region.phase_name];
-                        }
-                        
-                        if (region.type === 'two-phase') {
-                            region.phases = region.phases.map(p => phaseSwap[p] || p);
-                            region.phases.reverse(); 
-                            let temp = region.tie_line_boundaries.left;
-                            region.tie_line_boundaries.left = region.tie_line_boundaries.right;
-                            region.tie_line_boundaries.right = temp;
-                        }
+                let count = 1;
+                for (const [curveId, curve] of Object.entries(this.schema.curves)) {
+                    if (curve.type === 'horizontal') {
+                        let btn = document.createElement('div');
+                        btn.className = 'toggle-btn';
+                        btn.style.borderBottom = '1px solid #444';
+                        btn.innerText = `Invariant ${count}`;
+                        btn.onclick = () => snapToDynamicInvariant(curveId);
+                        container.appendChild(btn);
+                        count++;
                     }
                 }
-
-                for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'two-phase' && region.label) {
-                        region.label.text = `${region.phases[0]} + ${region.phases[1]}`;
-                    }
-                }
-
-                this.originalNodes = JSON.parse(JSON.stringify(this.schema.nodes));
-                this.buildRegionPaths();
-            },
-
-            scrambleNodes() {
-                for(let iter = 0; iter < 2; iter++) {
-                    for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
-                        if (node.bounds && node.bounds.lock_c !== undefined) continue;
-                        let wildC = node.c + (Math.random() * 10 - 5); let wildT = node.t + (Math.random() * 100 - 50);
-                        this.applyDrag(nodeId, wildC, wildT);
-                    }
-                }
-                this.buildRegionPaths();
             },
 
             getC_onCurve(T, curveId) {
@@ -426,17 +259,10 @@
                 if (T > nTop.t || T < nBot.t) return null;
                 if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
 
-                // V44: Strict Clamp to prevent NaN float rendering panics to X=0
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
-                ratio = Math.max(0, Math.min(1, ratio));
+                ratio = Math.max(0, Math.min(1, ratio)); // Safety Clamp
 
                 let power = curve.power !== undefined ? curve.power : 1.0; 
-                if (curve.power === undefined) {
-                    if (curve.type === "solvus") power = 3.0; 
-                    else if (curve.convexity === true) power = 1.5; 
-                    else if (curve.convexity === false) power = 0.7; 
-                }
-                
                 return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
             
@@ -500,7 +326,7 @@
 
             getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < this.schema.nodes['pil_t'].t) { 
+                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0 && targetT < this.schema.nodes[region.bounding_curves[0].id.split('_')[1] /* proxy logic for top node */]?.t) { 
                         return { id: regionId, ...region };
                     }
                 }
@@ -533,88 +359,38 @@
             }
         };
 
-        const schema_3Invariant = {
-            "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
-            "nodes": {
-                "top_L": { "c": 0, "t": 1200, "bounds": {"lock_c": 0, "lock_t": 1200} },
-                "top_R": { "c": 100, "t": 1200, "bounds": {"lock_c": 100, "lock_t": 1200} },
-                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_max": 1200} },
-                "p_a": { "c": 12, "t": 850 },
-                "p_b": { "c": 22, "t": 850 }, 
-                "p_l": { "c": 40, "t": 850 },
-                "e1_b": { "c": 30, "t": 600 }, 
-                "e1_l": { "c": 48, "t": 600 },
-                "e1_p": { "c": 60, "t": 600, "bounds": {"lock_c": 60} },
-                "pil_t": { "c": 60, "t": 1180, "bounds": {"lock_c": 60} },
-                "e2_p": { "c": 60, "t": 550, "bounds": {"lock_c": 60} },
-                "e2_l": { "c": 75, "t": 550 },
-                "e2_g": { "c": 88, "t": 550 },
-                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_max": 1200} },
-                "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0} },
+        // V45: Fetcher Logic replaces hardcoded JSON and Scrambler
+        async function loadRandomDiagram() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            
+            // Randomly select one of the 500 JSON files generated by Python
+            let rand = Math.floor(Math.random() * 500) + 1;
+            let numStr = String(rand).padStart(3, '0');
+            let url = `diagrams/binaryboss${numStr}.json`;
+            
+            try {
+                // In production, this pulls directly from the web server/LTI
+                // let response = await fetch(url);
+                // let data = await response.json();
+                // PhaseEngine.loadSchema(data);
                 
-                "t_bl": { "c": 25.9, "t": 0, "bounds": {"lock_t": 0} },
-                "t_br": { "c": 26.1, "t": 0, "bounds": {"lock_t": 0} },
+                // [DEV FALLBACK] - Since you are running this locally without the Python files yet, 
+                // we will throw an error to alert you to build the files, but keep the UI running.
+                throw new Error("Python JSON files not found. Waiting for Chat 1 output.");
                 
-                "pil_b": { "c": 60, "t": 0, "bounds": {"lock_c": 60, "lock_t": 0} },
-                "t_g": { "c": 95, "t": 0, "bounds": {"lock_t": 0} },
-                "zero_bot": { "c": 0, "t": 0, "bounds": {"lock_c": 0, "lock_t": 0} },
-                "max_bot": { "c": 100, "t": 0, "bounds": {"lock_c": 100, "lock_t": 0} }
-            },
-            "invariants": {
-                "inv_peri": { "nodes": ["p_a", "p_b", "p_l"] },
-                "inv_e1": { "nodes": ["e1_b", "e1_l", "e1_p"] },
-                "inv_e2": { "nodes": ["e2_p", "e2_l", "e2_g"] }
-            },
-            "curves": {
-                "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
-                "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
-                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "power": 3.0 }, 
-                
-                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 3.0 }, 
-                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.1 }, 
-                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 3.0 }, 
-                
-                "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
-                "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
-                "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
-                "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
-                "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "power": 1.5 },
-                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "power": 3.0 },
-                "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" }, "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
-                "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" }, "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
-                "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" }, "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
-                "p_w1": { "start": "pil_t", "end": "e1_p", "type": "vertical" }, "p_w2": { "start": "e1_p", "end": "e2_p", "type": "vertical" },
-                "p_w3": { "start": "e2_p", "end": "pil_b", "type": "vertical" },
-                "e_L": { "start": "zero_bot", "end": "tmA", "type": "edge" }, "e_R": { "start": "max_bot", "end": "tmB", "type": "edge" },
-                "e_TL": { "start": "tmA", "end": "top_L", "type": "edge" },
-                "e_TT": { "start": "top_L", "end": "top_R", "type": "edge" },
-                "e_TR": { "start": "top_R", "end": "tmB", "type": "edge" },
-                "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
-                "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" }, "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
-                "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" }, "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
-            },
-            "regions": {
-                "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_TR", dir: -1}, {id: "e_TT", dir: -1}, {id: "e_TL", dir: -1} ] },
-                "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
-                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 26, "t": 450 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
-                "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
-                "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
-                "R_Lb": { "type": "two-phase", "phases": ["β", "L"], "label": { "text": "L + β", "c": 35, "t": 750 }, "bounding_curves": [ {id: "i_p_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "i_e1_bl", dir: 1}, {id: "L_b", dir: -1} ], "tie_line_boundaries": { "left": ["S_br"], "right": ["L_b"] } },
-                "R_Lp1":{ "type": "two-phase", "phases": ["L", "AB"], "label": { "text": "L + AB", "c": 52, "t": 750 }, "bounding_curves": [ {id: "L_p1", dir: 1}, {id: "i_e1_lp", dir: 1}, {id: "p_w1", dir: -1} ], "tie_line_boundaries": { "left": ["L_p1"], "right": ["p_w1"] } },
-                "R_Lp2":{ "type": "two-phase", "phases": ["AB", "L"], "label": { "text": "AB + L", "c": 68, "t": 750 }, "bounding_curves": [ {id: "L_p2", dir: 1}, {id: "i_e2_pl", dir: -1}, {id: "p_w1", dir: -1}, {id: "p_w2", dir: -1} ], "tie_line_boundaries": { "left": ["p_w1", "p_w2"], "right": ["L_p2"] } },
-                "R_Lg": { "type": "two-phase", "phases": ["L", "γ"], "label": { "text": "L + γ", "c": 87, "t": 800 }, "bounding_curves": [ {id: "L_g", dir: 1}, {id: "i_e2_lg", dir: 1}, {id: "S_g", dir: -1} ], "tie_line_boundaries": { "left": ["L_g"], "right": ["S_g"] } },
-                "R_ab": { "type": "two-phase", "phases": ["α", "β"], "label": { "text": "α + β", "c": 12, "t": 400 }, "bounding_curves": [ {id: "sol_a", dir: 1}, {id: "bot_ab", dir: 1}, {id: "sol_bl", dir: -1}, {id: "i_p_ab", dir: -1} ], "tie_line_boundaries": { "left": ["sol_a"], "right": ["sol_bl"] } },
-                "R_bp": { "type": "two-phase", "phases": ["β", "AB"], "label": { "text": "β + AB", "c": 45, "t": 300 }, "bounding_curves": [ {id: "sol_br", dir: 1}, {id: "bot_bp", dir: 1}, {id: "p_w3", dir: -1}, {id: "p_w2", dir: -1}, {id: "i_e1_lp", dir: -1}, {id: "i_e1_bl", dir: -1} ], "tie_line_boundaries": { "left": ["sol_br"], "right": ["p_w2", "p_w3"] } },
-                "R_pg": { "type": "two-phase", "phases": ["AB", "γ"], "label": { "text": "AB + γ", "c": 78, "t": 200 }, "bounding_curves": [ {id: "p_w3", dir: 1}, {id: "bot_pg", dir: 1}, {id: "sol_g", dir: -1}, {id: "i_e2_lg", dir: -1}, {id: "i_e2_pl", dir: -1} ], "tie_line_boundaries": { "left": ["p_w3"], "right": ["sol_g"] } },
-                "R_Pil": { "type": "intermetallic-pillar", "phase_name": "AB", "stoichiometric_c": 60 }
+            } catch(e) {
+                console.warn(e);
+                document.getElementById('loading-overlay').innerHTML = `Awaiting Python JSON Directory...<br>diagrams/binaryboss${numStr}.json`;
             }
-        };
+        }
 
         function drawGridAndAxes() {
             sb_ctx.strokeStyle = '#555'; sb_ctx.lineWidth = 2; sb_ctx.beginPath();
             sb_ctx.moveTo(PAD, PAD); sb_ctx.lineTo(PAD, sb_canvas.height - PAD);
             sb_ctx.lineTo(sb_canvas.width - PAD, sb_canvas.height - PAD);
             sb_ctx.lineTo(sb_canvas.width - PAD, PAD); sb_ctx.stroke();
+
+            if (!PhaseEngine.schema) return;
 
             sb_ctx.fillStyle = '#888'; sb_ctx.font = '12px sans-serif'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'top';
             for(let i=0; i<=100; i+=10) { let x = mapX(i); sb_ctx.beginPath(); sb_ctx.moveTo(x, sb_canvas.height - PAD); sb_ctx.lineTo(x, sb_canvas.height - PAD + 5); sb_ctx.stroke(); sb_ctx.fillText(i, x, sb_canvas.height - PAD + 10); }
@@ -683,38 +459,30 @@
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
+            if (!PhaseEngine.schema) return;
+
             if (showDevSolution && interactionMode === 'assessment') {
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type === 'edge' || curve.type === 'horizontal' || curve.type === 'vertical') continue;
+                    if (curve.type === 'edge') continue;
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
                     
-                    for(let i = 0; i <= 50; i++) {
-                        let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
-                        let c = PhaseEngine.getC_onCurve(t, curveId);
-                        if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                    if (curve.type === 'horizontal' || curve.type === 'vertical') {
+                        sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
+                    } else {
+                        for(let i = 0; i <= 50; i++) {
+                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let c = PhaseEngine.getC_onCurve(t, curveId);
+                            if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                        }
                     }
                     sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
                     sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
                 
-                fullHorizontals.forEach(h => {
-                    const nStart = PhaseEngine.schema.nodes[h.start]; const nEnd = PhaseEngine.schema.nodes[h.end];
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t)); sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
-                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
-                });
-
-                fullVerticals.forEach(v => {
-                    const nStart = PhaseEngine.schema.nodes[v.start]; const nEnd = PhaseEngine.schema.nodes[v.end];
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t)); sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
-                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
-                });
-                
                 for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
                     if (region.type === 'single-phase' || region.type === 'intermetallic-pillar') {
-                        let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : region.stoichiometric_c;
+                        let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
                         let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
                         sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
                         sb_ctx.textAlign = 'center'; sb_ctx.font = `bold 20px sans-serif`;
@@ -762,34 +530,20 @@
                 }
             } else {
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
-                    if (curveId === 'e_TL' || curveId === 'e_TT' || curveId === 'e_TR') continue; 
+                    if (curve.type !== 'edge') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    if (nStart.t === 1200 || nEnd.t === 1200) continue; // Hide absolute top bounds from render
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
                     sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
                 }
 
                 studentCurves.forEach(sc => {
-                    let isCorrectSpan = false;
                     let matchedCurveId = null;
-
-                    if (sc.type === 'horizontal') {
-                        isCorrectSpan = fullHorizontals.some(h => 
-                            (sc.start === h.start && sc.end === h.end) || 
-                            (sc.start === h.end && sc.end === h.start)
-                        );
-                    } else if (sc.type === 'vertical') {
-                        isCorrectSpan = fullVerticals.some(v => 
-                            (sc.start === v.start && sc.end === v.end) || 
-                            (sc.start === v.end && sc.end === v.start)
-                        );
-                    } else {
-                        for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                            if (curve.type === 'edge' || curve.type === 'horizontal' || curve.type === 'vertical') continue;
-                            let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
-                            if (nodesMatch && sc.type === curve.type) { matchedCurveId = key; isCorrectSpan = true; break; }
-                        }
+                    for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                        if (curve.type === 'edge') continue;
+                        let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
+                        if (nodesMatch && sc.type === curve.type) { matchedCurveId = key; break; }
                     }
 
                     if (matchedCurveId && sc.type !== 'horizontal' && sc.type !== 'vertical') {
@@ -805,7 +559,6 @@
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
                         let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
                         
-                        // V44 Fix: Safely route start/end points regardless of student draw direction
                         let drawStart = y1 > y2 ? {x: x1, y: y1} : {x: x2, y: y2};
                         let drawEnd = y1 > y2 ? {x: x2, y: y2} : {x: x1, y: y1};
                         
@@ -821,8 +574,7 @@
                             if (sc.type === 'liquidus') cpY += bow;
                             else if (sc.type === 'solidus') cpY -= bow;
                             else if (sc.type === 'solvus') { 
-                                let centerC = mapX(PhaseEngine.schema.nodes['pil_t'].c);
-                                cpX += (midX < centerC) ? -bow : bow; 
+                                cpX += bow; // Default fallback generic bow
                             }
                             sb_ctx.quadraticCurveTo(cpX, cpY, drawEnd.x, drawEnd.y);
                         }
@@ -854,8 +606,7 @@
 
             if (interactionMode === 'architect' || interactionMode === 'assessment') {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue; 
-                    
+                    if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; // Hide absolute top bounding nodes
                     if (interactionMode === 'architect' && node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
                     
                     sb_ctx.beginPath();
@@ -885,12 +636,14 @@
         }
 
         function updateTally() {
+            if (!PhaseEngine.schema) return;
+            
             let current = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
             studentCurves.forEach(sc => current[sc.type]++);
             
-            let expected = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 3, vertical: 1 };
+            let expected = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
             for(const [k, c] of Object.entries(PhaseEngine.schema.curves)) {
-                if(c.type !== 'edge' && c.type !== 'horizontal' && c.type !== 'vertical') {
+                if(c.type !== 'edge') {
                     if(expected[c.type] !== undefined) expected[c.type]++;
                 }
             }
@@ -920,10 +673,11 @@
             hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
             
             if (mode !== 'assessment' && assessmentState === 'quiz') {
-                PhaseEngine.restoreBaseSchema();
+                loadRandomDiagram(); 
                 setAssessmentState('practice'); 
+            } else {
+                sb_draw();
             }
-            sb_draw();
         }
 
         function setLabels(mode) {
@@ -938,20 +692,23 @@
             sb_draw();
         }
 
-        function snapToInvariant(type) {
+        // V45: Dynamic Invariant Finder (Scans schema for horizontal lines)
+        function snapToDynamicInvariant(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
-            let c, visualT, evalT;
             
-            if (type === 'peri') {
-                let node = PhaseEngine.schema.nodes['p_b'];
-                c = node.c; visualT = node.t; evalT = visualT + 0.1;
-            } else if (type === 'e1') {
-                let node = PhaseEngine.schema.nodes['e1_l'];
-                c = node.c; visualT = node.t; evalT = visualT - 0.1;
-            } else if (type === 'e2') {
-                let node = PhaseEngine.schema.nodes['e2_l'];
-                c = node.c; visualT = node.t; evalT = visualT - 0.1;
-            }
+            let curve = PhaseEngine.schema.curves[curveId];
+            let nStart = PhaseEngine.schema.nodes[curve.start];
+            let nEnd = PhaseEngine.schema.nodes[curve.end];
+            
+            let c = (nStart.c + nEnd.c) / 2;
+            let visualT = nStart.t;
+            
+            // Determine evaluation offset by casting slightly above and below
+            let regionBelow = PhaseEngine.getRegionAtPoint(mapX(c), mapY(visualT - 0.1), c, visualT - 0.1);
+            let regionAbove = PhaseEngine.getRegionAtPoint(mapX(c), mapY(visualT + 0.1), c, visualT + 0.1);
+            
+            let evalT = (regionBelow && regionBelow.type === 'two-phase') ? visualT - 0.1 : visualT + 0.1;
+
             snapToPoint(c, visualT, evalT);
         }
 
@@ -1012,11 +769,7 @@
             studentCurves = []; studentLabels = []; selectedNodeA = null; showDevSolution = false; 
             
             if (state === 'quiz') { 
-                PhaseEngine.restoreBaseSchema();
-                PhaseEngine.scrambleTopology();
-                PhaseEngine.scrambleNodes(); 
-            } else { 
-                PhaseEngine.restoreBaseSchema(); 
+                loadRandomDiagram();
             }
             updateTally();
             sb_draw();
@@ -1039,33 +792,18 @@
             let score = 0;
             let expectedCurves = 0;
             for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type !== 'edge' && curve.type !== 'horizontal' && curve.type !== 'vertical') expectedCurves++;
+                if (curve.type !== 'edge') expectedCurves++;
             }
-            expectedCurves += 3; 
-            expectedCurves += 1; 
             
             let expectedLabels = Object.values(PhaseEngine.schema.regions).filter(r => r.type === 'single-phase' || r.type === 'intermetallic-pillar').length;
             let totalExpected = expectedCurves + expectedLabels;
             
             studentCurves.forEach(sc => {
                 let isCorrect = false;
-                
-                if (sc.type === 'horizontal') {
-                    isCorrect = fullHorizontals.some(h => 
-                        (sc.start === h.start && sc.end === h.end) || 
-                        (sc.start === h.end && sc.end === h.start)
-                    );
-                } else if (sc.type === 'vertical') {
-                    isCorrect = fullVerticals.some(v => 
-                        (sc.start === v.start && sc.end === v.end) || 
-                        (sc.start === v.end && sc.end === v.start)
-                    );
-                } else {
-                    for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                        if (curve.type === 'edge' || curve.type === 'horizontal' || curve.type === 'vertical') continue;
-                        let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
-                        if (nodesMatch && sc.type === curve.type) { isCorrect = true; break; }
-                    }
+                for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'edge') continue;
+                    let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
+                    if (nodesMatch && sc.type === curve.type) { isCorrect = true; break; }
                 }
                 sc.status = isCorrect ? 'correct' : 'incorrect';
                 if (isCorrect) score++;
@@ -1073,23 +811,27 @@
 
             studentLabels.forEach(sl => {
                 let isIM = ['AB', 'A2B', 'A3B', 'A4B', 'AB2', 'AB3', 'AB4'].includes(sl.text);
+                let hitTarget = false;
+                
                 if (isIM) {
-                    let px = mapX(PhaseEngine.schema.nodes['pil_b'].c);
-                    if (Math.abs(mapX(sl.c) - px) < 25) { 
-                        if (sl.text === PhaseEngine.schema.regions['R_Pil'].phase_name) {
-                            sl.status = 'correct'; score++;
-                        } else sl.status = 'incorrect';
-                    } else sl.status = 'incorrect';
+                    // Check against all regions to find the IM pillar
+                    for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
+                        if (region.type === 'intermetallic-pillar' && sl.text === region.phase_name) {
+                            let px = mapX(region.stoichiometric_c);
+                            if (Math.abs(mapX(sl.c) - px) < 25) { hitTarget = true; break; }
+                        }
+                    }
                 } else {
                     let x = mapX(sl.c); let y = mapY(sl.t);
-                    let inRegion = null;
                     for (const [regionId, path] of Object.entries(PhaseEngine.paths)) {
-                        if (sb_ctx.isPointInPath(path, x, y)) { inRegion = PhaseEngine.schema.regions[regionId]; break; }
+                        if (sb_ctx.isPointInPath(path, x, y) && PhaseEngine.schema.regions[regionId].phase_name === sl.text) { 
+                            hitTarget = true; break; 
+                        }
                     }
-                    if (inRegion && inRegion.phase_name === sl.text) {
-                        sl.status = 'correct'; score++;
-                    } else sl.status = 'incorrect';
                 }
+                
+                sl.status = hitTarget ? 'correct' : 'incorrect';
+                if (hitTarget) score++;
             });
 
             let alertBox = document.getElementById('assessment-score');
@@ -1108,6 +850,8 @@
         }
 
         sb_canvas.addEventListener('mousemove', (e) => {
+            if (!PhaseEngine.schema) return;
+            
             let rect = sb_canvas.getBoundingClientRect(); 
             sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
             let c = invX(sb_mouseX); let t = invY(sb_mouseY);
@@ -1119,21 +863,14 @@
                     document.getElementById('sb-out-t').innerText = Math.round(node.t); document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
                     
                     let alertEl = document.getElementById('architect-alert');
-                    if (result.clamped) {
-                        alertEl.innerHTML = `<strong>Topology Lock</strong><br><br>Thermodynamic bound reached.`;
-                        alertEl.style.borderColor = 'var(--red)';
-                        alertEl.style.color = 'var(--red)';
-                        alertEl.style.background = 'rgba(255, 51, 51, 0.1)';
-                    } else {
-                        alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
-                        alertEl.style.borderColor = 'var(--cyan)';
-                        alertEl.style.color = 'var(--cyan)';
-                        alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
-                    }
+                    alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
+                    alertEl.style.borderColor = 'var(--cyan)';
+                    alertEl.style.color = 'var(--cyan)';
+                    alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                        if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
+                        if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
                         if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; 
                         if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                     }
@@ -1149,7 +886,7 @@
                 }
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (['zero_bot', 'max_bot', 'top_L', 'top_R'].includes(nodeId)) continue;
+                    if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
                     if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                 }
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
@@ -1166,6 +903,8 @@
         });
 
         sb_canvas.addEventListener('mousedown', () => { 
+            if (!PhaseEngine.schema) return;
+
             if (interactionMode === 'architect') {
                 if (hoveredNode) { draggedNode = hoveredNode; sb_canvas.style.cursor = 'grabbing'; }
                 return;
@@ -1175,6 +914,7 @@
                 if (activeTool && activeTool.startsWith('lbl_')) {
                     let labelMap = { 
                         'lbl_L': 'L', 'lbl_alpha': 'α', 'lbl_beta': 'β', 'lbl_gamma': 'γ',
+                        'lbl_delta': 'δ', 'lbl_epsilon': 'ε', 'lbl_zeta': 'ζ',
                         'lbl_AB': 'AB', 'lbl_A2B': 'A2B', 'lbl_A3B': 'A3B', 'lbl_A4B': 'A4B',
                         'lbl_AB2': 'AB2', 'lbl_AB3': 'AB3', 'lbl_AB4': 'AB4'
                     };
@@ -1240,23 +980,21 @@
             if (interactionMode === 'architect') {
                 draggedNode = null; 
                 sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
-                let alertEl = document.getElementById('architect-alert');
-                alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
-                alertEl.style.borderColor = 'var(--cyan)';
-                alertEl.style.color = 'var(--cyan)';
-                alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
             }
         });
 
-        PhaseEngine.loadSchema(schema_3Invariant);
         function resizeAll() {
             if(sb_canvas.parentElement) {
                 sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
-                PhaseEngine.buildRegionPaths(); sb_draw(); 
+                if(PhaseEngine.schema) { PhaseEngine.buildRegionPaths(); sb_draw(); }
             }
         }
+        
         window.addEventListener('resize', resizeAll);
-        document.addEventListener('DOMContentLoaded', resizeAll);
+        document.addEventListener('DOMContentLoaded', () => {
+            resizeAll();
+            loadRandomDiagram(); // Initial load
+        });
         if (document.readyState === "complete" || document.readyState === "interactive") setTimeout(resizeAll, 100);
     </script>
 </body>
