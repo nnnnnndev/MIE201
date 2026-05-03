@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V32</title>
+    <title>Chapter 9: Procedural Phase Engine V33</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -60,7 +60,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V32: Smart Curves & Strict Spacing)</div>
+        <div class="brand">Phase Engine Platform (V33: Visual Overhaul & Dev Tool)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -83,9 +83,9 @@
                     </div>
                     <span class="label" style="margin-top: 20px;">Jump to Invariant</span>
                     <div class="toggle-container" style="flex-direction: column;">
-                        <div class="toggle-btn" onclick="snapToPoint(25, 850.1)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
-                        <div class="toggle-btn" onclick="snapToPoint(45, 599.9)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
-                        <div class="toggle-btn" onclick="snapToPoint(75, 549.9)">Eutectic 2 (550 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(27.5, 851)" style="border-bottom: 1px solid #444;">Peritectic (850 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(38, 601)" style="border-bottom: 1px solid #444;">Eutectic 1 (600 K)</div>
+                        <div class="toggle-btn" onclick="snapToPoint(62, 551)">Eutectic 2 (550 K)</div>
                     </div>
                 </div>
 
@@ -117,6 +117,8 @@
 
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
                     <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
+                    
+                    <div class="tool-btn" onclick="toggleDevSolution()" style="margin-top:15px; border-color: #555; color: #aaa;">Toggle Dev Solution</div>
                 </div>
 
                 <div id="sb-math-panel">
@@ -158,6 +160,7 @@
         let activeTool = null;
         let selectedNodeA = null;
         let studentCurves = [];
+        let showDevSolution = false; // Dev State
 
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
@@ -186,13 +189,12 @@
                 this.schema = JSON.parse(JSON.stringify(jsonSchema));
                 this.originalNodes = JSON.parse(JSON.stringify(jsonSchema.nodes));
                 this.buildRegionPaths();
-                updateTally(); // Init Tally
+                updateTally();
             },
 
             applyDrag(nodeId, newC, newT) {
                 let node = this.schema.nodes[nodeId];
                 if (node.bounds) {
-                    // FIX #3: Added larger strict buffers to prevent node overlapping
                     let cBuffer = 4;
                     let tBuffer = 20;
 
@@ -234,12 +236,12 @@
 
             scrambleNodes() {
                 this.restoreOriginalNodes();
-                // FIX #3: Aggressively throw nodes randomly, letting applyDrag's strict buffers handle the spacing
-                for(let iter = 0; iter < 4; iter++) {
+                // Reduced chaotic loops. Gentle displacement allows boundaries to hold logical shape.
+                for(let iter = 0; iter < 2; iter++) {
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
                         if (nodeId === 'zero_bot' || nodeId === 'max_bot' || node.bounds.lock_c !== undefined) continue;
-                        let wildC = node.c + (Math.random() * 100 - 50);
-                        let wildT = node.t + (Math.random() * 600 - 300);
+                        let wildC = node.c + (Math.random() * 20 - 10);
+                        let wildT = node.t + (Math.random() * 150 - 75);
                         this.applyDrag(nodeId, wildC, wildT);
                     }
                 }
@@ -446,11 +448,11 @@
         }
 
         function getToolHex(type) {
-            if(type === 'liquidus') return '#ff00ff'; // Magenta
-            if(type === 'solidus') return '#00ffff';  // Cyan
-            if(type === 'solvus') return '#00ffcc';   // Neon Green
-            if(type === 'horizontal') return '#ffff00'; // Yellow
-            if(type === 'vertical') return '#ff8800'; // Orange
+            if(type === 'liquidus') return '#ff00ff'; 
+            if(type === 'solidus') return '#00ffff';  
+            if(type === 'solvus') return '#00ffcc';   
+            if(type === 'horizontal') return '#ffff00'; 
+            if(type === 'vertical') return '#ff8800'; 
             return '#ffffff';
         }
 
@@ -504,6 +506,22 @@
             sb_ctx.clearRect(0, 0, sb_canvas.width, sb_canvas.height);
             drawGridAndAxes();
 
+            // DEV MODE OVERLAY (Renders behind user clicks)
+            if (showDevSolution && interactionMode === 'assessment') {
+                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'edge' || curve.type === 'vertical') continue;
+                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    for(let i = 0; i <= 50; i++) {
+                        let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                        let c = PhaseEngine.getC_onCurve(t, curveId);
+                        if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                    }
+                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
+                }
+            }
+
             if (interactionMode !== 'assessment') {
                 if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
                     const type = PhaseEngine.schema.regions[activeRegionId].type;
@@ -542,10 +560,9 @@
                     }
                 }
             } else {
-                // Assessment Mode Drawing
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type !== 'edge' && curve.type !== 'vertical') continue; 
-                    if (curveId === 'e_top') continue; // FIX #2: Hide the top bounding cord
+                    if (curveId === 'e_top') continue;
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
                     sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
@@ -553,7 +570,6 @@
                 }
 
                 studentCurves.forEach(sc => {
-                    // FIX #4: "Snap to Math" for correct curves
                     let matchedCurveId = null;
                     for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
                         if (curve.type === 'edge') continue;
@@ -562,7 +578,6 @@
                     }
 
                     if (matchedCurveId && sc.type !== 'horizontal' && sc.type !== 'vertical') {
-                        // User got it right! Draw the perfect thermodynamic curve
                         const curve = PhaseEngine.schema.curves[matchedCurveId];
                         const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                         sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
@@ -572,7 +587,6 @@
                             if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
                     } else {
-                        // Unmatched or generic curve behavior
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
                         let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
                         sb_ctx.beginPath(); sb_ctx.moveTo(x1, y1);
@@ -595,7 +609,7 @@
                     }
                     
                     if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
-                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ff3333';
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ffffff'; // Replaced red with neutral white
                     else sb_ctx.strokeStyle = getToolHex(sc.type);
                     
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
@@ -622,19 +636,23 @@
             }
         }
 
+        // TRANSPARENT, SHADOWED LABELS
         function drawLabels() {
+            sb_ctx.save();
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
                 if (!region.label) continue;
                 if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
                 let c = PhaseEngine.centroids[regionId].c; let t = PhaseEngine.centroids[regionId].t;
                 let x = mapX(c); let y = mapY(t);
-                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(x - 30, y - 15, 60, 30);
-                sb_ctx.fillStyle = 'rgba(255,255,255,0.6)'; sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+                
+                sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
+                sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
+                sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
                 sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(region.label.text, x, y);
             }
+            sb_ctx.restore();
         }
 
-        // FIX #1: Dynamic Tally Parsing
         function updateTally() {
             let current = { liquidus: 0, solidus: 0, solvus: 0, horizontal: 0, vertical: 0 };
             studentCurves.forEach(sc => current[sc.type]++);
@@ -663,7 +681,7 @@
             document.getElementById('sb-math-panel').style.display = 'none';
 
             sb_isFrozen = false; currentC = null; currentT = null;
-            hoveredNode = null; draggedNode = null; selectedNodeA = null;
+            hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
             
             if (mode !== 'assessment' && assessmentState === 'quiz') PhaseEngine.restoreOriginalNodes();
             sb_draw();
@@ -673,6 +691,11 @@
             sb_labelMode = mode;
             document.getElementById('lbl-easy').classList.toggle('active', mode === 'all');
             document.getElementById('lbl-hard').classList.toggle('active', mode === 'single');
+            sb_draw();
+        }
+
+        function toggleDevSolution() {
+            showDevSolution = !showDevSolution;
             sb_draw();
         }
 
@@ -731,7 +754,7 @@
             document.getElementById('assessment-score').style.display = 'none';
             document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
             
-            studentCurves = []; selectedNodeA = null; updateTally();
+            studentCurves = []; selectedNodeA = null; showDevSolution = false; updateTally();
             if (state === 'quiz') { PhaseEngine.scrambleNodes(); } else { PhaseEngine.restoreOriginalNodes(); }
             sb_draw();
         }
@@ -772,8 +795,8 @@
                 alertBox.innerHTML = `<strong>Quiz Complete</strong><br>Score: ${score} / ${totalExpected}<br>Answers Locked.`;
                 setTool(null); 
             } else {
-                let text = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br><span style="color:#00ff00">Green</span> = Correct, <span style="color:#ff3333">Red</span> = Incorrect.`;
-                if(studentCurves.length < totalExpected) text += `<br><br><span style="color:#fff">Missing ${totalExpected - studentCurves.length} segments. Check tally!</span>`;
+                let text = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br><span style="color:#00ff00">Green</span> = Correct, <span style="color:#ffffff">White</span> = Incorrect.`;
+                if(studentCurves.length < totalExpected) text += `<br><br><span style="color:#ff3333">Missing ${totalExpected - studentCurves.length} segments. Check tally!</span>`;
                 alertBox.innerHTML = text;
             }
             sb_draw();
