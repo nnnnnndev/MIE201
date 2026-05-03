@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V40</title>
+    <title>Chapter 9: Procedural Phase Engine V41</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V40: Topology Lock Validation)</div>
+        <div class="brand">Phase Engine Platform (V41: Teardrop Geometry Fix)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -234,7 +234,7 @@
                 let clamped = false;
 
                 if (node.bounds) {
-                    let cBuffer = 2; let tBuffer = 20; // Reduced buffer for smoother corner sliding
+                    let cBuffer = 2; let tBuffer = 20;
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
                         let bMin = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
@@ -273,7 +273,7 @@
                 
                 node.c = newC; node.t = newT;
                 
-                // V40: Perfect Teardrop Base Anchoring
+                // V41: Perfect Teardrop Base Anchoring
                 if (nodeId === 'p_b' || nodeId === 'e1_b') {
                     let p_b_c = this.schema.nodes['p_b'].c;
                     let e1_b_c = this.schema.nodes['e1_b'].c;
@@ -333,7 +333,6 @@
 
                 this.schema.nodes['t_a'].c = 5 * scaleL; 
                 
-                // Teardrop Midpoint Calculation
                 let midC = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
                 this.schema.nodes['t_bl'].c = midC - 0.1; 
                 this.schema.nodes['t_br'].c = midC + 0.1;
@@ -514,7 +513,7 @@
             }
         };
 
-        // V40: Strict Dynamic Bounds to Prevent Inversions
+        // V41: Math parameters tightened down severely for Beta teardrop limits
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -522,9 +521,9 @@
                 "top_R": { "c": 100, "t": 1200, "bounds": {"lock_c": 100, "lock_t": 1200} },
                 "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a", "t_max": 1200} },
                 "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
-                "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "e1_b", "t_min": "e1_l", "t_max": "tmA"} }, // Bound strictly against e1_b
+                "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "e1_b", "t_min": "e1_l", "t_max": "tmA"} }, 
                 "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "e1_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
-                "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": 100, "t_max": "p_b"} }, // Bound strictly against p_b
+                "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": 100, "t_max": "p_b"} }, 
                 "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_b"} },
                 "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_b"} },
                 "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": ["tmA", "tmB"], "t_max": 1200} },
@@ -534,7 +533,6 @@
                 "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
                 
-                // V40: Teardrop bottom anchors calculated dynamically in applyDrag
                 "t_bl": { "c": 28.4, "t": 0, "bounds": {"lock_c": 28.4, "lock_t": 0} },
                 "t_br": { "c": 28.6, "t": 0, "bounds": {"lock_c": 28.6, "lock_t": 0} },
                 
@@ -553,10 +551,10 @@
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
                 "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "bow": -4 }, 
                 
-                // V40: Beta Region Topology Tuning
-                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 0.85, "bow": -12 }, 
-                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.1 }, // Straighter spine
-                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 0.85, "bow": 12 }, 
+                // V41: Teardrop narrowed extensively back to 1/3 scale bounds
+                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 0.85, "bow": -2 }, 
+                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.1 }, 
+                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 0.85, "bow": 2 }, 
                 
                 "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
