@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V43</title>
+    <title>Chapter 9: Procedural Phase Engine V44</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V43: Thermodynamic Locking)</div>
+        <div class="brand">Phase Engine Platform (V44: Boundary Fix Edition)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -252,17 +252,14 @@
                 let newC = reqC; let newT = reqT;
                 let clamped = false;
 
-                // V43: Strict Topological Horizontal Sequence
                 let safeMinC = 0; let safeMaxC = 100;
                 let seq = ['p_a', 'p_b', 'e1_b', 'p_l', 'e1_l', 'e2_p', 'e2_l', 'e2_g'];
                 
-                // Dynamically reverse sequence logic if diagram is mirrored
                 let isMirrored = this.schema.nodes['p_a'].c > this.schema.nodes['e2_g'].c;
                 if (isMirrored) seq.reverse();
                 
                 let idx = seq.indexOf(nodeId);
                 if (idx !== -1) {
-                    // Prevent crossing the intermetallic pillar
                     let imC = this.schema.nodes['pil_t'].c;
                     let leftOfIM = isMirrored ? seq.indexOf('e2_p') : seq.indexOf('e1_l');
                     
@@ -278,14 +275,13 @@
                 if (node.bounds && node.bounds.lock_c !== undefined) { safeMinC = node.bounds.lock_c; safeMaxC = node.bounds.lock_c; }
                 
                 if (isMirrored) {
-                    if (reqC > safeMinC || reqC < safeMaxC) clamped = true; // Min is actually larger in mirrored C space
+                    if (reqC > safeMinC || reqC < safeMaxC) clamped = true; 
                     newC = Math.min(safeMinC, Math.max(reqC, safeMaxC));
                 } else {
                     if (reqC < safeMinC || reqC > safeMaxC) clamped = true;
                     newC = Math.max(safeMinC, Math.min(reqC, safeMaxC));
                 }
 
-                // Vertical bounds remain stable
                 let safeMinT = 0; let safeMaxT = 1200;
                 if (['p_a', 'p_b', 'p_l'].includes(nodeId)) { safeMinT = this.schema.nodes['e1_l'].t + 20; safeMaxT = this.schema.nodes['tmA'].t - 20; }
                 if (['e1_b', 'e1_l', 'e1_p'].includes(nodeId)) { safeMinT = 100; safeMaxT = this.schema.nodes['p_b'].t - 20; }
@@ -329,17 +325,20 @@
                     if(this.schema.nodes[n].bounds.lock_c !== undefined) this.schema.nodes[n].bounds.lock_c = chosenIM.c;
                 });
 
-                let spaceLeft = chosenIM.c; let spaceRight = 100 - chosenIM.c;
+                this.schema.regions['R_Lp1'].phases[1] = chosenIM.name;
+                this.schema.regions['R_Lp2'].phases[0] = chosenIM.name;
+                this.schema.regions['R_bp'].phases[1] = chosenIM.name;
+                this.schema.regions['R_pg'].phases[0] = chosenIM.name;
 
+                let spaceLeft = chosenIM.c; let spaceRight = 100 - chosenIM.c;
                 let t_peri = 750 + Math.random()*250;
                 let t_e1 = t_peri - 100 - Math.random()*150;
                 let t_e2 = 350 + Math.random()*450;
 
-                // V43: Strict Sequencing prevents overhangs natively
                 let chunksL = getChunks(spaceLeft, 5, 26);
                 this.schema.nodes['p_a'].c = chunksL[0];
                 this.schema.nodes['p_b'].c = chunksL[0] + chunksL[1];
-                this.schema.nodes['e1_b'].c = chunksL[0] + chunksL[1] + (chunksL[2] * 0.5); // Insert solidly between
+                this.schema.nodes['e1_b'].c = chunksL[0] + chunksL[1] + (chunksL[2] * 0.5); 
                 this.schema.nodes['p_l'].c = chunksL[0] + chunksL[1] + chunksL[2];
                 this.schema.nodes['e1_l'].c = chunksL[0] + chunksL[1] + chunksL[2] + chunksL[3];
                 
@@ -376,7 +375,6 @@
                         }
                     }
                     
-                    // V43: Swap phase names during mirror to prevent alpha/gamma side flip errors
                     let phaseSwap = {'α': 'γ', 'γ': 'α', 'L': 'L', 'β': 'β'};
                     phaseSwap[chosenIM.name] = newIMName;
                     
@@ -389,7 +387,7 @@
                         
                         if (region.type === 'two-phase') {
                             region.phases = region.phases.map(p => phaseSwap[p] || p);
-                            region.phases.reverse(); // Flip tie-line notation (e.g. L + a -> a + L)
+                            region.phases.reverse(); 
                             let temp = region.tie_line_boundaries.left;
                             region.tie_line_boundaries.left = region.tie_line_boundaries.right;
                             region.tie_line_boundaries.right = temp;
@@ -428,10 +426,12 @@
                 if (T > nTop.t || T < nBot.t) return null;
                 if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
 
-                const ratio = (nTop.t - T) / (nTop.t - nBot.t); 
+                // V44: Strict Clamp to prevent NaN float rendering panics to X=0
+                let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
+                ratio = Math.max(0, Math.min(1, ratio));
+
                 let power = curve.power !== undefined ? curve.power : 1.0; 
                 if (curve.power === undefined) {
-                    // V43: Strict Thermodynamic Exponential Decay for Solvi
                     if (curve.type === "solvus") power = 3.0; 
                     else if (curve.convexity === true) power = 1.5; 
                     else if (curve.convexity === false) power = 0.7; 
@@ -533,7 +533,6 @@
             }
         };
 
-        // V43: JSON updated to remove custom bows. All Solvi rely on strict power: 3.0 decay.
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -805,22 +804,27 @@
                     } else {
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
                         let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
-                        sb_ctx.beginPath(); sb_ctx.moveTo(x1, y1);
+                        
+                        // V44 Fix: Safely route start/end points regardless of student draw direction
+                        let drawStart = y1 > y2 ? {x: x1, y: y1} : {x: x2, y: y2};
+                        let drawEnd = y1 > y2 ? {x: x2, y: y2} : {x: x1, y: y1};
+                        
+                        sb_ctx.beginPath(); sb_ctx.moveTo(drawStart.x, drawStart.y);
                         
                         if (sc.type === 'horizontal' || sc.type === 'vertical') {
-                            sb_ctx.lineTo(x2, y2);
+                            sb_ctx.lineTo(drawEnd.x, drawEnd.y);
                         } else {
-                            let pTop = y1 < y2 ? {x: x1, y: y1} : {x: x2, y: y2};
-                            let pBot = y1 < y2 ? {x: x2, y: y2} : {x: x1, y: y1};
-                            let midX = (pTop.x + pBot.x) / 2; let midY = (pTop.y + pBot.y) / 2;
-                            let bow = Math.hypot(x2 - x1, y2 - y1) * 0.05; 
+                            let midX = (drawStart.x + drawEnd.x) / 2; let midY = (drawStart.y + drawEnd.y) / 2;
+                            let bow = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y) * 0.05; 
                             let cpX = midX, cpY = midY;
                             
                             if (sc.type === 'liquidus') cpY += bow;
                             else if (sc.type === 'solidus') cpY -= bow;
-                            else if (sc.type === 'solvus') { cpX += (pTop.x < pBot.x) ? -bow : bow; }
-                            
-                            sb_ctx.quadraticCurveTo(cpX, cpY, pBot.x, pBot.y);
+                            else if (sc.type === 'solvus') { 
+                                let centerC = mapX(PhaseEngine.schema.nodes['pil_t'].c);
+                                cpX += (midX < centerC) ? -bow : bow; 
+                            }
+                            sb_ctx.quadraticCurveTo(cpX, cpY, drawEnd.x, drawEnd.y);
                         }
                     }
                     
