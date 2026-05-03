@@ -44,9 +44,7 @@
         .tool-btn.active[data-tool^="lbl_"] { border-color: #fff; color: #fff; background: rgba(255, 255, 255, 0.15); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
         
-        /* V40: Dropdown dark mode styling fix */
         .im-select { width: 100%; padding: 8px; background: #000; color: #888; border: 1px solid #444; border-radius: 4px; font-weight: bold; text-align: center; text-transform: uppercase; appearance: none; cursor: pointer; margin-bottom: 15px; }
-        .im-select option { background: #000; color: #fff; }
         .im-select:focus { outline: none; border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
 
         .tally-panel { background: #000; border: 1px dashed #444; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.85rem; font-family: 'Consolas', monospace; }
@@ -62,13 +60,13 @@
         #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         
-        .alert-box { padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px dashed var(--cyan); color: var(--cyan); font-size: 0.85rem; text-align: center; margin-top: 10px; display: none; line-height: 1.4;}
+        .alert-box { padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px dashed var(--cyan); color: var(--cyan); font-size: 0.85rem; text-align: center; margin-top: 10px; display: none; line-height: 1.4; transition: 0.2s;}
     </style>
 </head>
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V40: Production Candidate)</div>
+        <div class="brand">Phase Engine Platform (V40: Topology Lock Validation)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -132,7 +130,7 @@
                         <option value="lbl_AB4">AB4</option>
                     </select>
 
-                    <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px; margin-top: 10px; display: block; width: 100%;">Eraser</div>
+                    <div class="tool-btn" data-tool="eraser" onclick="setTool('eraser')" style="margin-bottom: 15px; display: block; width: 100%;">Eraser</div>
                     
                     <div id="tally-panel" class="tally-panel">
                         <div class="label" style="color: #fff; margin-bottom: 5px;">Required Elements</div>
@@ -230,17 +228,26 @@
                 this.buildRegionPaths();
             },
 
-            applyDrag(nodeId, newC, newT) {
+            applyDrag(nodeId, reqC, reqT) {
                 let node = this.schema.nodes[nodeId];
+                let newC = reqC; let newT = reqT;
+                let clamped = false;
+
                 if (node.bounds) {
-                    let cBuffer = 4; let tBuffer = 20;
+                    let cBuffer = 2; let tBuffer = 20; // Reduced buffer for smoother corner sliding
                     if (node.bounds.lock_c !== undefined) newC = node.bounds.lock_c;
                     else {
                         let bMin = node.bounds.c_min !== undefined ? (typeof node.bounds.c_min === 'string' ? this.schema.nodes[node.bounds.c_min].c : node.bounds.c_min) : 0;
                         let bMax = node.bounds.c_max !== undefined ? (typeof node.bounds.c_max === 'string' ? this.schema.nodes[node.bounds.c_max].c : node.bounds.c_max) : 100;
                         let actualMinC = Math.min(bMin, bMax); let actualMaxC = Math.max(bMin, bMax);
-                        newC = Math.max(actualMinC + cBuffer, Math.min(newC, actualMaxC - cBuffer)); 
+                        
+                        let safeMinC = actualMinC + cBuffer;
+                        let safeMaxC = actualMaxC - cBuffer;
+                        
+                        if (reqC < safeMinC || reqC > safeMaxC) clamped = true;
+                        newC = Math.max(safeMinC, Math.min(reqC, safeMaxC)); 
                     }
+
                     if (node.bounds.lock_t !== undefined) newT = node.bounds.lock_t;
                     else {
                         let minT = 0;
@@ -255,16 +262,27 @@
                             else if (typeof node.bounds.t_max === 'string') maxT = this.schema.nodes[node.bounds.t_max].t;
                             else maxT = node.bounds.t_max;
                         }
-                        newT = Math.max(minT + tBuffer, Math.min(newT, maxT - tBuffer)); 
+                        
+                        let safeMinT = minT + tBuffer;
+                        let safeMaxT = maxT - tBuffer;
+                        
+                        if (reqT < safeMinT || reqT > safeMaxT) clamped = true;
+                        newT = Math.max(safeMinT, Math.min(reqT, safeMaxT)); 
                     }
                 }
                 
                 node.c = newC; node.t = newT;
                 
-                // V40: Teardrop bottom perfectly tracks the beta peak
-                if (nodeId === 'p_b') {
-                    this.schema.nodes['t_b'].c = newC;
-                    if (this.schema.nodes['t_b'].bounds) this.schema.nodes['t_b'].bounds.lock_c = newC;
+                // V40: Perfect Teardrop Base Anchoring
+                if (nodeId === 'p_b' || nodeId === 'e1_b') {
+                    let p_b_c = this.schema.nodes['p_b'].c;
+                    let e1_b_c = this.schema.nodes['e1_b'].c;
+                    let midC = (p_b_c + e1_b_c) / 2;
+                    
+                    this.schema.nodes['t_bl'].c = midC - 0.1;
+                    this.schema.nodes['t_br'].c = midC + 0.1;
+                    if (this.schema.nodes['t_bl'].bounds) this.schema.nodes['t_bl'].bounds.lock_c = midC - 0.1;
+                    if (this.schema.nodes['t_br'].bounds) this.schema.nodes['t_br'].bounds.lock_c = midC + 0.1;
                 }
 
                 if (this.schema.invariants) {
@@ -275,6 +293,8 @@
                         }
                     }
                 }
+                
+                return { clamped: clamped };
             },
 
             scrambleTopology() {
@@ -312,7 +332,11 @@
                 ['e2_p', 'e2_l', 'e2_g'].forEach(n => this.schema.nodes[n].t = t_e2);
 
                 this.schema.nodes['t_a'].c = 5 * scaleL; 
-                this.schema.nodes['t_b'].c = 25 * scaleL; 
+                
+                // Teardrop Midpoint Calculation
+                let midC = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
+                this.schema.nodes['t_bl'].c = midC - 0.1; 
+                this.schema.nodes['t_br'].c = midC + 0.1;
                 this.schema.nodes['t_g'].c = 100 - (5 * scaleR);
 
                 let doMirror = Math.random() > 0.5;
@@ -337,18 +361,10 @@
                     for (const [key, curve] of Object.entries(this.schema.curves)) {
                         if (curve.bow !== undefined) curve.bow = -curve.bow;
                     }
-
-                    // V40 Fix: Explicit Phase Renaming so left is ALWAYS alpha, right is ALWAYS gamma
-                    this.schema.regions['R_a'].phase_name = 'γ';
-                    this.schema.regions['R_g'].phase_name = 'α';
-                    this.schema.regions['R_La'].phases = ['γ', 'L'];
-                    this.schema.regions['R_Lg'].phases = ['L', 'α'];
-                    this.schema.regions['R_ab'].phases = ['γ', 'β'];
-                    this.schema.regions['R_pg'].phases = [newIMName, 'α'];
                     
                     for (const [regionId, region] of Object.entries(this.schema.regions)) {
                         if (region.label && region.label.c !== undefined) region.label.c = 100 - region.label.c;
-                        if (region.type === 'two-phase' && regionId !== 'R_La' && regionId !== 'R_Lg' && regionId !== 'R_ab' && regionId !== 'R_pg') {
+                        if (region.type === 'two-phase') {
                             region.phases.reverse();
                             let temp = region.tie_line_boundaries.left;
                             region.tie_line_boundaries.left = region.tie_line_boundaries.right;
@@ -360,9 +376,7 @@
                 }
 
                 for (const [regionId, region] of Object.entries(this.schema.regions)) {
-                    if (region.type === 'single-phase') {
-                        region.label.text = region.phase_name;
-                    } else if (region.type === 'two-phase') {
+                    if (region.type === 'two-phase' && region.label) {
                         region.label.text = `${region.phases[0]} + ${region.phases[1]}`;
                     }
                 }
@@ -399,8 +413,11 @@
                     else if (curve.convexity === true) power = 1.4; 
                     else if (curve.convexity === false) power = 0.7; 
                 }
+                
                 let c = nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+                
                 if (curve.bow) { c += curve.bow * Math.sin(ratio * Math.PI); }
+                
                 return c;
             },
             
@@ -497,6 +514,7 @@
             }
         };
 
+        // V40: Strict Dynamic Bounds to Prevent Inversions
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
@@ -504,11 +522,11 @@
                 "top_R": { "c": 100, "t": 1200, "bounds": {"lock_c": 100, "lock_t": 1200} },
                 "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a", "t_max": 1200} },
                 "p_a": { "c": 15, "t": 850, "bounds": {"c_min": "t_a", "c_max": "p_b", "t_min": "e1_l", "t_max": "tmA"} },
-                "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "p_l", "t_min": "e1_l", "t_max": "tmA"} },
-                "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
-                "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "p_a", "c_max": "e1_l", "t_min": 100, "t_max": "p_a"} },
-                "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_a"} },
-                "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_a"} },
+                "p_b": { "c": 25, "t": 850, "bounds": {"c_min": "p_a", "c_max": "e1_b", "t_min": "e1_l", "t_max": "tmA"} }, // Bound strictly against e1_b
+                "p_l": { "c": 40, "t": 850, "bounds": {"c_min": "e1_b", "c_max": "e1_l", "t_min": "e1_l", "t_max": "tmA"} },
+                "e1_b": { "c": 32, "t": 600, "bounds": {"c_min": "p_b", "c_max": "e1_l", "t_min": 100, "t_max": "p_b"} }, // Bound strictly against p_b
+                "e1_l": { "c": 45, "t": 600, "bounds": {"c_min": "e1_b", "c_max": "e1_p", "t_min": 100, "t_max": "p_b"} },
+                "e1_p": { "c": 50, "t": 600, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "p_b"} },
                 "pil_t": { "c": 50, "t": 1180, "bounds": {"lock_c": 50, "t_min": ["tmA", "tmB"], "t_max": 1200} },
                 "e2_p": { "c": 50, "t": 550, "bounds": {"lock_c": 50, "t_min": 100, "t_max": "pil_t"} },
                 "e2_l": { "c": 75, "t": 550, "bounds": {"c_min": "e2_p", "c_max": "e2_g", "t_min": 100, "t_max": "pil_t"} },
@@ -516,8 +534,9 @@
                 "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0, "c_min": 0, "c_max": "p_a"} },
                 
-                // V40: Unified Beta Teardrop Base
-                "t_b": { "c": 25, "t": 0, "bounds": {"lock_t": 0, "c_min": "p_a", "c_max": "e1_b"} },
+                // V40: Teardrop bottom anchors calculated dynamically in applyDrag
+                "t_bl": { "c": 28.4, "t": 0, "bounds": {"lock_c": 28.4, "lock_t": 0} },
+                "t_br": { "c": 28.6, "t": 0, "bounds": {"lock_c": 28.6, "lock_t": 0} },
                 
                 "pil_b": { "c": 50, "t": 0, "bounds": {"lock_c": 50, "lock_t": 0} },
                 "t_g": { "c": 95, "t": 0, "bounds": {"lock_t": 0, "c_min": "e2_g", "c_max": 100} },
@@ -532,16 +551,19 @@
             "curves": {
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
-                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "bow": -2 }, 
-                "sol_bl": { "start": "p_b", "end": "t_b", "type": "solvus", "bow": -4 }, // Teardrop Left
-                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.5 },
-                "sol_br": { "start": "e1_b", "end": "t_b", "type": "solvus", "bow": 4 }, // Teardrop Right
+                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "bow": -4 }, 
+                
+                // V40: Beta Region Topology Tuning
+                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 0.85, "bow": -12 }, 
+                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.1 }, // Straighter spine
+                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 0.85, "bow": 12 }, 
+                
                 "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "power": 1.5 },
-                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "bow": 2 },
+                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "bow": 3 },
                 "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" }, "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
                 "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" }, "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
                 "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" }, "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
@@ -552,13 +574,13 @@
                 "e_TT": { "start": "top_L", "end": "top_R", "type": "edge" },
                 "e_TR": { "start": "top_R", "end": "tmB", "type": "edge" },
                 "bot_a": { "start": "zero_bot", "end": "t_a", "type": "edge" },
-                "bot_ab": { "start": "t_a", "end": "t_b", "type": "edge" }, "bot_bp": { "start": "t_b", "end": "pil_b", "type": "edge" },
+                "bot_ab": { "start": "t_a", "end": "t_bl", "type": "edge" }, "bot_bp": { "start": "t_br", "end": "pil_b", "type": "edge" },
                 "bot_pg": { "start": "pil_b", "end": "t_g", "type": "edge" }, "bot_g": { "start": "t_g", "end": "max_bot", "type": "edge" }
             },
             "regions": {
                 "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_TR", dir: -1}, {id: "e_TT", dir: -1}, {id: "e_TL", dir: -1} ] },
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
-                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1} ] }, 
+                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 28, "t": 500 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
                 "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
                 "R_Lb": { "type": "two-phase", "phases": ["β", "L"], "label": { "text": "L + β", "c": 35, "t": 750 }, "bounding_curves": [ {id: "i_p_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "i_e1_bl", dir: 1}, {id: "L_b", dir: -1} ], "tie_line_boundaries": { "left": ["S_br"], "right": ["L_b"] } },
@@ -785,41 +807,27 @@
                         }
                     }
                     
-                    // V40: Royal Blue assessment line logic
-                    if (sc.status === 'correct') {
-                        sb_ctx.strokeStyle = '#00ff00';
-                        sb_ctx.shadowColor = '#00ff00';
-                    } else if (sc.status === 'incorrect') {
-                        sb_ctx.strokeStyle = '#ffffff'; 
-                        sb_ctx.shadowColor = '#ffffff';
-                    } else {
-                        sb_ctx.strokeStyle = '#0066ff'; 
-                        sb_ctx.shadowColor = '#0066ff';
-                    }
+                    if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
+                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ffffff'; 
+                    else sb_ctx.strokeStyle = getToolHex(sc.type);
                     
-                    sb_ctx.shadowBlur = 8;
-                    sb_ctx.lineWidth = 4; 
-                    sb_ctx.stroke();
-                    sb_ctx.shadowBlur = 0;
+                    sb_ctx.lineWidth = 4; sb_ctx.stroke();
                 });
 
                 studentLabels.forEach(sl => {
                     let x = mapX(sl.c); let y = mapY(sl.t);
-                    sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#0066ff');
+                    sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#aaaaaa');
                     sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
                     sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
                     sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(sl.text, x, y);
                 });
                 sb_ctx.shadowBlur = 0; 
 
-                // V40: Royal Blue rubber-band line
                 if (selectedNodeA && activeTool && !activeTool.startsWith('lbl_') && activeTool !== 'eraser') {
                     let startNode = PhaseEngine.schema.nodes[selectedNodeA];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
-                    sb_ctx.strokeStyle = '#0066ff';
-                    sb_ctx.shadowColor = '#0066ff'; sb_ctx.shadowBlur = 8;
-                    sb_ctx.lineWidth = 3; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
-                    sb_ctx.shadowBlur = 0;
+                    sb_ctx.strokeStyle = getToolHex(activeTool);
+                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
             }
 
@@ -1020,6 +1028,7 @@
             
             studentCurves.forEach(sc => {
                 let isCorrect = false;
+                
                 if (sc.type === 'horizontal') {
                     isCorrect = fullHorizontals.some(h => 
                         (sc.start === h.start && sc.end === h.end) || 
@@ -1084,9 +1093,22 @@
 
             if (interactionMode === 'architect') {
                 if (draggedNode) {
-                    PhaseEngine.applyDrag(draggedNode, c, t); PhaseEngine.buildRegionPaths(); sb_draw();
+                    let result = PhaseEngine.applyDrag(draggedNode, c, t); PhaseEngine.buildRegionPaths(); sb_draw();
                     let node = PhaseEngine.schema.nodes[draggedNode];
                     document.getElementById('sb-out-t').innerText = Math.round(node.t); document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
+                    
+                    let alertEl = document.getElementById('architect-alert');
+                    if (result.clamped) {
+                        alertEl.innerHTML = `<strong>Topology Lock</strong><br><br>Thermodynamic bound reached.`;
+                        alertEl.style.borderColor = 'var(--red)';
+                        alertEl.style.color = 'var(--red)';
+                        alertEl.style.background = 'rgba(255, 51, 51, 0.1)';
+                    } else {
+                        alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
+                        alertEl.style.borderColor = 'var(--cyan)';
+                        alertEl.style.color = 'var(--cyan)';
+                        alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
+                    }
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
@@ -1194,7 +1216,15 @@
         });
 
         sb_canvas.addEventListener('mouseup', () => {
-            if (interactionMode === 'architect') { draggedNode = null; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; }
+            if (interactionMode === 'architect') {
+                draggedNode = null; 
+                sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
+                let alertEl = document.getElementById('architect-alert');
+                alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
+                alertEl.style.borderColor = 'var(--cyan)';
+                alertEl.style.color = 'var(--cyan)';
+                alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
+            }
         });
 
         PhaseEngine.loadSchema(schema_3Invariant);
