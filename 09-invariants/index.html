@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V42</title>
+    <title>Chapter 9: Procedural Phase Engine V43</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V42: Topology Lockdown)</div>
+        <div class="brand">Phase Engine Platform (V43: Thermodynamic Locking)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -211,7 +211,6 @@
             ctx.fillText(value.toFixed(1), x, y + 20);
         }
 
-        // V42: Proportion chunking engine enforces max width
         function getChunks(total, count, maxVal) {
             if (total > count * maxVal) maxVal = (total / count) + 1; 
             let chunks = Array.from({length: count}, () => Math.random() + 0.5);
@@ -253,36 +252,51 @@
                 let newC = reqC; let newT = reqT;
                 let clamped = false;
 
+                // V43: Strict Topological Horizontal Sequence
                 let safeMinC = 0; let safeMaxC = 100;
-                let safeMinT = 0; let safeMaxT = 1200;
-
-                // V42: Indestructible Dynamic Horizontal Bounds
-                if (nodeId === 'p_a') { safeMaxC = this.schema.nodes['p_b'].c - 2; }
-                if (nodeId === 'p_b') { safeMinC = this.schema.nodes['p_a'].c + 2; safeMaxC = Math.min(this.schema.nodes['p_l'].c - 2, this.schema.nodes['e1_l'].c - 2); }
-                if (nodeId === 'p_l') { safeMinC = this.schema.nodes['p_b'].c + 2; safeMaxC = this.schema.nodes['pil_t'].c - 2; }
-                if (nodeId === 'e1_b') { safeMinC = this.schema.nodes['p_a'].c + 2; safeMaxC = this.schema.nodes['e1_l'].c - 2; }
-                if (nodeId === 'e1_l') { safeMinC = Math.max(this.schema.nodes['e1_b'].c + 2, this.schema.nodes['p_b'].c + 2); safeMaxC = this.schema.nodes['e1_p'].c - 2; }
-                if (nodeId === 'e2_l') { safeMinC = this.schema.nodes['e2_p'].c + 2; safeMaxC = this.schema.nodes['e2_g'].c - 2; }
-                if (nodeId === 'e2_g') { safeMinC = this.schema.nodes['e2_l'].c + 2; safeMaxC = 98; }
+                let seq = ['p_a', 'p_b', 'e1_b', 'p_l', 'e1_l', 'e2_p', 'e2_l', 'e2_g'];
+                
+                // Dynamically reverse sequence logic if diagram is mirrored
+                let isMirrored = this.schema.nodes['p_a'].c > this.schema.nodes['e2_g'].c;
+                if (isMirrored) seq.reverse();
+                
+                let idx = seq.indexOf(nodeId);
+                if (idx !== -1) {
+                    // Prevent crossing the intermetallic pillar
+                    let imC = this.schema.nodes['pil_t'].c;
+                    let leftOfIM = isMirrored ? seq.indexOf('e2_p') : seq.indexOf('e1_l');
+                    
+                    if (idx <= leftOfIM) {
+                        safeMinC = idx > 0 ? this.schema.nodes[seq[idx-1]].c + 2 : 2;
+                        safeMaxC = idx < leftOfIM ? this.schema.nodes[seq[idx+1]].c - 2 : (isMirrored ? imC + 2 : imC - 2);
+                    } else {
+                        safeMinC = idx > leftOfIM + 1 ? this.schema.nodes[seq[idx-1]].c + 2 : (isMirrored ? imC - 2 : imC + 2);
+                        safeMaxC = idx < seq.length - 1 ? this.schema.nodes[seq[idx+1]].c - 2 : 98;
+                    }
+                }
 
                 if (node.bounds && node.bounds.lock_c !== undefined) { safeMinC = node.bounds.lock_c; safeMaxC = node.bounds.lock_c; }
+                
+                if (isMirrored) {
+                    if (reqC > safeMinC || reqC < safeMaxC) clamped = true; // Min is actually larger in mirrored C space
+                    newC = Math.min(safeMinC, Math.max(reqC, safeMaxC));
+                } else {
+                    if (reqC < safeMinC || reqC > safeMaxC) clamped = true;
+                    newC = Math.max(safeMinC, Math.min(reqC, safeMaxC));
+                }
 
-                if (reqC < safeMinC || reqC > safeMaxC) clamped = true;
-                newC = Math.max(safeMinC, Math.min(reqC, safeMaxC)); 
-
-                // Dynamic Vertical Bounds
-                if (['p_a', 'p_b', 'p_l'].includes(nodeId)) { safeMinT = this.schema.nodes['e1_l'].t + 10; safeMaxT = this.schema.nodes['tmA'].t - 10; }
-                if (['e1_b', 'e1_l', 'e1_p'].includes(nodeId)) { safeMinT = 100; safeMaxT = this.schema.nodes['p_b'].t - 10; }
-                if (['e2_p', 'e2_l', 'e2_g'].includes(nodeId)) { safeMinT = 100; safeMaxT = Math.min(this.schema.nodes['pil_t'].t - 10, this.schema.nodes['tmB'].t - 10); }
+                // Vertical bounds remain stable
+                let safeMinT = 0; let safeMaxT = 1200;
+                if (['p_a', 'p_b', 'p_l'].includes(nodeId)) { safeMinT = this.schema.nodes['e1_l'].t + 20; safeMaxT = this.schema.nodes['tmA'].t - 20; }
+                if (['e1_b', 'e1_l', 'e1_p'].includes(nodeId)) { safeMinT = 100; safeMaxT = this.schema.nodes['p_b'].t - 20; }
+                if (['e2_p', 'e2_l', 'e2_g'].includes(nodeId)) { safeMinT = 100; safeMaxT = Math.min(this.schema.nodes['pil_t'].t - 20, this.schema.nodes['tmB'].t - 20); }
 
                 if (node.bounds && node.bounds.lock_t !== undefined) { safeMinT = node.bounds.lock_t; safeMaxT = node.bounds.lock_t; }
-
                 if (reqT < safeMinT || reqT > safeMaxT) clamped = true;
                 newT = Math.max(safeMinT, Math.min(reqT, safeMaxT));
 
                 node.c = newC; node.t = newT;
 
-                // Sync teardrop bounds to the midpoint
                 if (nodeId === 'p_b' || nodeId === 'e1_b') {
                     let midC = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
                     this.schema.nodes['t_bl'].c = midC - 0.1;
@@ -315,42 +329,34 @@
                     if(this.schema.nodes[n].bounds.lock_c !== undefined) this.schema.nodes[n].bounds.lock_c = chosenIM.c;
                 });
 
-                this.schema.regions['R_Lp1'].phases[1] = chosenIM.name;
-                this.schema.regions['R_Lp2'].phases[0] = chosenIM.name;
-                this.schema.regions['R_bp'].phases[1] = chosenIM.name;
-                this.schema.regions['R_pg'].phases[0] = chosenIM.name;
+                let spaceLeft = chosenIM.c; let spaceRight = 100 - chosenIM.c;
 
                 let t_peri = 750 + Math.random()*250;
                 let t_e1 = t_peri - 100 - Math.random()*150;
                 let t_e2 = 350 + Math.random()*450;
 
-                // V42: Strict Horizontal Chunking (Max width 26%)
-                let chunksL = getChunks(chosenIM.c, 5, 26);
+                // V43: Strict Sequencing prevents overhangs natively
+                let chunksL = getChunks(spaceLeft, 5, 26);
                 this.schema.nodes['p_a'].c = chunksL[0];
                 this.schema.nodes['p_b'].c = chunksL[0] + chunksL[1];
+                this.schema.nodes['e1_b'].c = chunksL[0] + chunksL[1] + (chunksL[2] * 0.5); // Insert solidly between
                 this.schema.nodes['p_l'].c = chunksL[0] + chunksL[1] + chunksL[2];
                 this.schema.nodes['e1_l'].c = chunksL[0] + chunksL[1] + chunksL[2] + chunksL[3];
                 
-                let max_e1_b = Math.min(this.schema.nodes['e1_l'].c - 2, this.schema.nodes['p_b'].c + 15);
-                this.schema.nodes['e1_b'].c = this.schema.nodes['p_b'].c + Math.random() * (max_e1_b - this.schema.nodes['p_b'].c);
-
                 ['p_a', 'p_b', 'p_l'].forEach(n => this.schema.nodes[n].t = t_peri);
                 ['e1_b', 'e1_l', 'e1_p'].forEach(n => this.schema.nodes[n].t = t_e1);
 
-                let chunksR = getChunks(100 - chosenIM.c, 3, 26);
+                let chunksR = getChunks(spaceRight, 3, 26);
                 this.schema.nodes['e2_l'].c = chosenIM.c + chunksR[0];
                 this.schema.nodes['e2_g'].c = chosenIM.c + chunksR[0] + chunksR[1];
                 ['e2_p', 'e2_l', 'e2_g'].forEach(n => this.schema.nodes[n].t = t_e2);
 
                 this.schema.nodes['t_a'].c = this.schema.nodes['p_a'].c * (0.2 + Math.random()*0.4); 
-                
                 let midBeta = (this.schema.nodes['p_b'].c + this.schema.nodes['e1_b'].c) / 2;
                 this.schema.nodes['t_bl'].c = midBeta - 0.1; 
                 this.schema.nodes['t_br'].c = midBeta + 0.1;
-                
                 this.schema.nodes['t_g'].c = 100 - (100 - this.schema.nodes['e2_g'].c) * (0.2 + Math.random()*0.4);
 
-                // V42 Mirror Engine
                 let doMirror = Math.random() > 0.5;
                 if (doMirror) {
                     let nameMap = {'A4B':'AB4', 'A3B':'AB3', 'A2B':'AB2', 'AB':'AB', 'AB2':'A2B', 'AB3':'A3B', 'AB4':'A4B'};
@@ -360,13 +366,17 @@
                     
                     for (const [nodeId, node] of Object.entries(this.schema.nodes)) {
                         node.c = 100 - node.c;
-                        if (node.bounds && node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
+                        if (node.bounds) {
+                            if (node.bounds.lock_c !== undefined) node.bounds.lock_c = 100 - node.bounds.lock_c;
+                            let oldMin = node.bounds.c_min; let oldMax = node.bounds.c_max;
+                            if (oldMax !== undefined) node.bounds.c_min = typeof oldMax === 'number' ? 100 - oldMax : oldMax;
+                            else delete node.bounds.c_min;
+                            if (oldMin !== undefined) node.bounds.c_max = typeof oldMin === 'number' ? 100 - oldMin : oldMin;
+                            else delete node.bounds.c_max;
+                        }
                     }
                     
-                    for (const [key, curve] of Object.entries(this.schema.curves)) {
-                        if (curve.bow !== undefined) curve.bow = -curve.bow;
-                    }
-                    
+                    // V43: Swap phase names during mirror to prevent alpha/gamma side flip errors
                     let phaseSwap = {'α': 'γ', 'γ': 'α', 'L': 'L', 'β': 'β'};
                     phaseSwap[chosenIM.name] = newIMName;
                     
@@ -379,7 +389,7 @@
                         
                         if (region.type === 'two-phase') {
                             region.phases = region.phases.map(p => phaseSwap[p] || p);
-                            region.phases.reverse();
+                            region.phases.reverse(); // Flip tie-line notation (e.g. L + a -> a + L)
                             let temp = region.tie_line_boundaries.left;
                             region.tie_line_boundaries.left = region.tie_line_boundaries.right;
                             region.tie_line_boundaries.right = temp;
@@ -420,15 +430,14 @@
 
                 const ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 let power = curve.power !== undefined ? curve.power : 1.0; 
-                if (curve.power === undefined && !curve.bow) {
-                    if (curve.type === "solvus") power = 0.4; 
-                    else if (curve.convexity === true) power = 1.4; 
+                if (curve.power === undefined) {
+                    // V43: Strict Thermodynamic Exponential Decay for Solvi
+                    if (curve.type === "solvus") power = 3.0; 
+                    else if (curve.convexity === true) power = 1.5; 
                     else if (curve.convexity === false) power = 0.7; 
                 }
                 
-                let c = nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
-                if (curve.bow) { c += curve.bow * Math.sin(ratio * Math.PI); }
-                return c;
+                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
             
             calculateCentroid(pts) {
@@ -524,26 +533,29 @@
             }
         };
 
+        // V43: JSON updated to remove custom bows. All Solvi rely on strict power: 3.0 decay.
         const schema_3Invariant = {
             "metadata": { "axes": { "c_max": 100, "t_max": 1200 } },
             "nodes": {
                 "top_L": { "c": 0, "t": 1200, "bounds": {"lock_c": 0, "lock_t": 1200} },
                 "top_R": { "c": 100, "t": 1200, "bounds": {"lock_c": 100, "lock_t": 1200} },
-                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_min": "p_a", "t_max": 1200} },
-                "p_a": { "c": 14, "t": 850 },
-                "p_b": { "c": 28, "t": 850 },
-                "p_l": { "c": 42, "t": 850 },
-                "e1_b": { "c": 35, "t": 600 },
+                "tmA": { "c": 0, "t": 1100, "bounds": {"lock_c": 0, "t_max": 1200} },
+                "p_a": { "c": 12, "t": 850 },
+                "p_b": { "c": 22, "t": 850 }, 
+                "p_l": { "c": 40, "t": 850 },
+                "e1_b": { "c": 30, "t": 600 }, 
                 "e1_l": { "c": 48, "t": 600 },
                 "e1_p": { "c": 60, "t": 600, "bounds": {"lock_c": 60} },
                 "pil_t": { "c": 60, "t": 1180, "bounds": {"lock_c": 60} },
                 "e2_p": { "c": 60, "t": 550, "bounds": {"lock_c": 60} },
                 "e2_l": { "c": 75, "t": 550 },
                 "e2_g": { "c": 88, "t": 550 },
-                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_min": "e2_g", "t_max": 1200} },
+                "tmB": { "c": 100, "t": 1050, "bounds": {"lock_c": 100, "t_max": 1200} },
                 "t_a": { "c": 5, "t": 0, "bounds": {"lock_t": 0} },
-                "t_bl": { "c": 31.4, "t": 0, "bounds": {"lock_t": 0} },
-                "t_br": { "c": 31.6, "t": 0, "bounds": {"lock_t": 0} },
+                
+                "t_bl": { "c": 25.9, "t": 0, "bounds": {"lock_t": 0} },
+                "t_br": { "c": 26.1, "t": 0, "bounds": {"lock_t": 0} },
+                
                 "pil_b": { "c": 60, "t": 0, "bounds": {"lock_c": 60, "lock_t": 0} },
                 "t_g": { "c": 95, "t": 0, "bounds": {"lock_t": 0} },
                 "zero_bot": { "c": 0, "t": 0, "bounds": {"lock_c": 0, "lock_t": 0} },
@@ -557,16 +569,18 @@
             "curves": {
                 "L_a": { "start": "tmA", "end": "p_l", "type": "liquidus", "convexity": false },
                 "S_a": { "start": "tmA", "end": "p_a", "type": "solidus", "convexity": true },
-                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "bow": -3 }, 
-                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 0.85, "bow": -2 }, 
-                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.0 }, 
-                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 0.85, "bow": 2 }, 
+                "sol_a": { "start": "p_a", "end": "t_a", "type": "solvus", "power": 3.0 }, 
+                
+                "sol_bl": { "start": "p_b", "end": "t_bl", "type": "solvus", "power": 3.0 }, 
+                "S_br": { "start": "p_b", "end": "e1_b", "type": "solidus", "power": 1.1 }, 
+                "sol_br": { "start": "e1_b", "end": "t_br", "type": "solvus", "power": 3.0 }, 
+                
                 "L_b": { "start": "p_l", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p1": { "start": "pil_t", "end": "e1_l", "type": "liquidus", "convexity": false },
                 "L_p2": { "start": "pil_t", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "L_g": { "start": "tmB", "end": "e2_l", "type": "liquidus", "convexity": false },
                 "S_g": { "start": "tmB", "end": "e2_g", "type": "solidus", "power": 1.5 },
-                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "bow": 3 },
+                "sol_g": { "start": "e2_g", "end": "t_g", "type": "solvus", "power": 3.0 },
                 "i_p_ab": { "start": "p_a", "end": "p_b", "type": "horizontal" }, "i_p_bl": { "start": "p_b", "end": "p_l", "type": "horizontal" },
                 "i_e1_bl": { "start": "e1_b", "end": "e1_l", "type": "horizontal" }, "i_e1_lp": { "start": "e1_l", "end": "e1_p", "type": "horizontal" },
                 "i_e2_pl": { "start": "e2_p", "end": "e2_l", "type": "horizontal" }, "i_e2_lg": { "start": "e2_l", "end": "e2_g", "type": "horizontal" },
@@ -583,7 +597,7 @@
             "regions": {
                 "R_L": { "type": "single-phase", "phase_name": "L", "label": { "text": "L", "c": 62, "t": 1100 }, "bounding_curves": [ {id: "L_a", dir: 1}, {id: "L_b", dir: 1}, {id: "L_p1", dir: -1}, {id: "L_p2", dir: 1}, {id: "L_g", dir: -1}, {id: "e_TR", dir: -1}, {id: "e_TT", dir: -1}, {id: "e_TL", dir: -1} ] },
                 "R_a": { "type": "single-phase", "phase_name": "α", "label": { "text": "α", "c": 4, "t": 600 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "sol_a", dir: 1}, {id: "bot_a", dir: -1}, {id: "e_L", dir: 1} ] },
-                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 30, "t": 450 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
+                "R_b": { "type": "single-phase", "phase_name": "β", "label": { "text": "β", "c": 26, "t": 450 }, "bounding_curves": [ {id: "sol_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "sol_br", dir: 1}, {id: "bot_ab", dir: -1} ] }, 
                 "R_g": { "type": "single-phase", "phase_name": "γ", "label": { "text": "γ", "c": 96, "t": 600 }, "bounding_curves": [ {id: "S_g", dir: 1}, {id: "sol_g", dir: 1}, {id: "bot_g", dir: 1}, {id: "e_R", dir: 1} ] },
                 "R_La": { "type": "two-phase", "phases": ["α", "L"], "label": { "text": "L + α", "c": 20, "t": 950 }, "bounding_curves": [ {id: "S_a", dir: 1}, {id: "i_p_ab", dir: 1}, {id: "i_p_bl", dir: 1}, {id: "L_a", dir: -1} ], "tie_line_boundaries": { "left": ["S_a"], "right": ["L_a"] } },
                 "R_Lb": { "type": "two-phase", "phases": ["β", "L"], "label": { "text": "L + β", "c": 35, "t": 750 }, "bounding_curves": [ {id: "i_p_bl", dir: -1}, {id: "S_br", dir: 1}, {id: "i_e1_bl", dir: 1}, {id: "L_b", dir: -1} ], "tie_line_boundaries": { "left": ["S_br"], "right": ["L_b"] } },
