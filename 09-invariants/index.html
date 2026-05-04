@@ -878,7 +878,7 @@
             sb_draw();
         }
 
-        sb_canvas.addEventListener('mousemove', (e) => {
+ sb_canvas.addEventListener('mousemove', (e) => {
             if (!PhaseEngine.schema) return;
             
             let rect = sb_canvas.getBoundingClientRect(); 
@@ -921,6 +921,34 @@
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
                 if (selectedNodeA) sb_draw(); 
                 return;
+            }
+
+            // === V45 NAVIGATOR: MAGNETIC NEXUS SNAPPING ===
+            let activeNexus = null;
+            let snapRadius = 20; // Pixel distance to trigger the magnetic lock
+
+            for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
+                let isNexus = node.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nodeId);
+                
+                if (isNexus) {
+                    let pxX = mapX(node.c);
+                    let pxY = mapY(node.t);
+                    
+                    if (Math.hypot(pxX - sb_mouseX, pxY - sb_mouseY) < snapRadius) {
+                        activeNexus = node;
+                        break;
+                    }
+                }
+            }
+
+            if (activeNexus) {
+                c = activeNexus.c;
+                t = activeNexus.t;
+                sb_mouseX = mapX(c);
+                sb_mouseY = mapY(t);
+                sb_canvas.style.cursor = 'cell';
+            } else {
+                sb_canvas.style.cursor = 'default';
             }
 
             if (sb_isFrozen) return;
