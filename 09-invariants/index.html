@@ -247,7 +247,7 @@
                 }
             },
 
-            getC_onCurve(T, curveId) {
+getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
                 const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
@@ -255,7 +255,11 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
+                
+                // V45 BUGFIX: Removed "edge" from this check. 
+                // Only "vertical" types are strictly vertical. 
+                // "Edges" must now interpolate to follow diagonal solvus segments.
+                if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
