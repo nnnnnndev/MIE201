@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V45</title>
+    <title>Chapter 9: Procedural Phase Engine V46</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V45: The Master Renderer)</div>
+        <div class="brand">Phase Engine Platform (V46: The Master Renderer)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -255,7 +255,11 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                if (curve.type === "vertical" || curve.type === "edge" || nTop.t === nBot.t) return nTop.c; 
+                
+                // === V46 EDGE INTERPOLATION FIX ===
+                // Only strict vertical lines return a constant C.
+                // Edges (solvi bounds, etc.) must now interpolate their diagonal path.
+                if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
@@ -337,16 +341,37 @@
             calculateTieLine(region, T, C_mouse) {
                 if (region.type !== "two-phase") return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
                 let intersections = [];
-                for (const curveId of region.tie_line_boundaries.left) {
+                for (const curveId of region.tie_line_boundaries?.left || []) {
                     let c = this.getC_onCurve(T, curveId); if (c !== null) intersections.push(c);
                 }
-                for (const curveId of region.tie_line_boundaries.right) {
+                for (const curveId of region.tie_line_boundaries?.right || []) {
                     let c = this.getC_onCurve(T, curveId); if (c !== null) intersections.push(c); 
                 }
+                
+                // Fallback for implicitly bounded regions if tie_line_boundaries are not strictly provided
+                if (intersections.length < 2) {
+                     intersections = [];
+                     for (const curveId of Object.keys(this.schema.curves)) {
+                         let c = this.getC_onCurve(T, curveId);
+                         if (c !== null && !['horizontal', 'edge'].includes(this.schema.curves[curveId].type)) {
+                             intersections.push(c);
+                         }
+                     }
+                }
+                
                 if (intersections.length >= 2) {
-                    intersections.sort((a,b) => a - b);
+                    intersections = [...new Set(intersections.map(v => parseFloat(v.toFixed(4))))].sort((a,b) => a - b);
                     let cLeft = intersections[0]; let cRight = intersections[intersections.length - 1];
+                    
+                    // Refined bounded check
+                    for(let i=0; i < intersections.length - 1; i++) {
+                        if (C_mouse >= intersections[i] && C_mouse <= intersections[i+1]) {
+                            cLeft = intersections[i]; cRight = intersections[i+1]; break;
+                        }
+                    }
+
                     const total = cRight - cLeft;
+                    if (total === 0) return null;
                     return {
                         isTwoPhase: true, phases: region.phases,
                         cLeft: cLeft, cRight: cRight,
@@ -360,7 +385,6 @@
         async function loadRandomDiagram() {
             document.getElementById('loading-overlay').style.display = 'flex';
             
-            // Try fetching with the +1 index first (e.g. 001 to 500)
             let rand = Math.floor(Math.random() * 500); 
             let numStr = String(rand + 1).padStart(3,'0');
             let url = `diagrams/binaryboss${numStr}.json`;
@@ -368,7 +392,6 @@
             try {
                 let response = await fetch(url);
                 
-                // Silent fallback: if 001-500 fails, try 000-499 indexing
                 if (!response.ok) {
                     numStr = String(rand).padStart(3,'0');
                     url = `diagrams/binaryboss${numStr}.json`;
@@ -378,7 +401,6 @@
                 
                 let data = await response.json();
                 
-                // --- V45 KEVLAR ARMOR ---
                 if (data.curves) {
                     for (let c in data.curves) {
                         let curve = data.curves[c];
@@ -396,7 +418,6 @@
                         }
                     }
                 }
-                // ------------------------
 
                 PhaseEngine.loadSchema(data);
                 document.getElementById('loading-overlay').style.display = 'none';
@@ -475,7 +496,7 @@
                 let v0 = parseFloat(curC.toFixed(1)); let t0 = Math.round(curT);
                 sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(mapX(v0), sb_canvas.height - PAD); sb_ctx.stroke();
-                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
                 sb_ctx.setLineDash([]);
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 25, sb_canvas.height - PAD + 10, 50, 40); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
                 drawSubscriptAndValue(sb_ctx, "C", "0", v0, mapX(v0), sb_canvas.height - PAD + 20, 14, '#ff00ff');
@@ -601,9 +622,7 @@
                             
                             if (sc.type === 'liquidus') cpY += bow;
                             else if (sc.type === 'solidus') cpY -= bow;
-                            else if (sc.type === 'solvus') { 
-                                cpX += bow; 
-                            }
+                            else if (sc.type === 'solvus') { cpX += bow; }
                             sb_ctx.quadraticCurveTo(cpX, cpY, drawEnd.x, drawEnd.y);
                         }
                     }
@@ -647,11 +666,10 @@
             }
         }
 
-        // V45 BUGFIX: Prevents fatal crash when Centroids are not calculated for Pillars
         function drawLabels() {
             sb_ctx.save();
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
-                if (!region.label) continue;
+                if (!region.label && !PhaseEngine.centroids[regionId]) continue;
                 if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
                 
                 let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
@@ -661,7 +679,8 @@
                 sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
                 sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
                 sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
-                sb_ctx.font = `bold 22px sans-serif`; sb_ctx.fillText(region.label.text, x, y);
+                sb_ctx.font = `bold 22px sans-serif`; 
+                sb_ctx.fillText(region.label ? region.label.text : (region.phase_name || region.phases.join(' + ')), x, y);
             }
             sb_ctx.restore();
         }
