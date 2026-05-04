@@ -373,7 +373,30 @@
                 let response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 
-                let data = await response.json();
+               let data = await response.json();
+                
+                // --- V45 KEVLAR ARMOR ---
+                // 1. Delete any curves that point to missing "ghost" nodes
+                if (data.curves) {
+                    for (let c in data.curves) {
+                        let curve = data.curves[c];
+                        if (!data.nodes[curve.start] || !data.nodes[curve.end]) {
+                            delete data.curves[c];
+                        }
+                    }
+                }
+                // 2. Delete empty placeholder regions or regions with broken curves
+                if (data.regions) {
+                    for (let r in data.regions) {
+                        if (!data.regions[r].bounding_curves) data.regions[r].bounding_curves = [];
+                        data.regions[r].bounding_curves = data.regions[r].bounding_curves.filter(bc => data.curves[bc.id]);
+                        if (data.regions[r].bounding_curves.length === 0) {
+                            delete data.regions[r];
+                        }
+                    }
+                }
+                // ------------------------
+
                 PhaseEngine.loadSchema(data);
                 
                 document.getElementById('loading-overlay').style.display = 'none';
