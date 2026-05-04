@@ -234,11 +234,40 @@
                 document.getElementById('loading-overlay').style.display = 'none';
             },
 
+            // V47: KINEMATIC DRAG ENGINE
             applyDrag(nodeId, reqC, reqT) {
                 let node = this.schema.nodes[nodeId];
                 if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) return { clamped: true };
-                node.c = Math.max(0, Math.min(reqC, 100));
-                node.t = Math.max(0, Math.min(reqT, 1200));
+                
+                // Allow vertical dragging, but lock C if lock_c is present
+                if (node.bounds && node.bounds.lock_c) {
+                    node.t = Math.max(0, Math.min(reqT, 1200));
+                } else {
+                    node.c = Math.max(0, Math.min(reqC, 100));
+                    node.t = Math.max(0, Math.min(reqT, 1200));
+                }
+
+                // KINEMATIC LINKING: If this node belongs to an isotherm, drag the siblings vertically
+                const isothermGroups = [
+                    ['e1_a', 'e1_l', 'im1_e1'],       // Eutectic 1
+                    ['po_a', 'im2_po', 'im1_po'],     // Peritectoid
+                    ['im1_p', 'p_g', 'p_l'],          // Peritectic
+                    ['e2_g', 'e2_l', 'e2_e'],         // Eutectic 2
+                    ['im1_eu', 'eu_g', 'eu_e']        // Eutectoid
+                ];
+
+                for (let group of isothermGroups) {
+                    if (group.includes(nodeId)) {
+                        // Apply the new T to all nodes in the group
+                        group.forEach(siblingId => {
+                            if (this.schema.nodes[siblingId]) {
+                                this.schema.nodes[siblingId].t = node.t;
+                            }
+                        });
+                        break; // Found the group, no need to check others
+                    }
+                }
+
                 return { clamped: false };
             },
 
@@ -260,6 +289,133 @@
                 }
             },
 
+            getC_onCurve(T, curveId) {
+                const curve = this.schema.curves[curveId];
+                if (!curve) return null; 
+                const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
+                const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
+                const nBot = nStart.t < nEnd.t ? nStart : nEnd;
+
+                if (T > nTop.t || T < nBot.t) return null;
+                
+                if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
+
+                let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
+                ratio = Math.max(0, Math.min(1, ratio)); 
+
+                let power = curve.power !== undefined ? curve.power : 1.0; 
+                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+            },
+            
+            calculateCentroid(pts) {
+                let twicearea = 0, x = 0, y = 0, nPts = pts.length, p1, p2, f;
+                for (let i = 0, j = nPts - 1; i < nPts; j = i++) {
+                    p1 = pts[i]; p2 = pts[j]; f = p1.c * p2.t - p2.c * p1.t; twicearea += f;
+                    x += (p1.c + p2.c) * f; y += (p1.t + p2.t) * f;
+                }
+                f = twicearea * 3;
+                if (f === 0) return {c: pts[0].c, t: pts[0].t};
+                return { c: Math.abs(x / f), t: Math.abs(y / f) }; 
+            },
+
+            buildRegionPaths() {
+                this.paths = {}; this.centroids = {};
+                for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                    if (region.type === 'intermetallic-pillar') continue; 
+                    const path = new Path2D();
+                    let firstPoint = true; let allPts = [];
+
+                    // Safe fallback if bounding_curves is missing
+                    if(!region.bounding_curves) continue;
+
+                    region.bounding_curves.forEach(curveDef => {
+                        const curveId = curveDef.id; const direction = curveDef.dir; 
+                        const curve = this.schema.curves[curveId];
+                        if (!curve) return; 
+
+                        const nStart = this.schema.nodes[curve.start]; const nEnd = this.schema.nodes[curve.end];
+                        if (!nStart || !nEnd) return;
+
+                        let pts = [];
+                        
+                        if (curve.type === 'horizontal' || curve.type === 'vertical' || curve.type === 'edge') {
+                            pts.push({c: nStart.c, t: nStart.t}); pts.push({c: nEnd.c, t: nEnd.t});
+                        } else {
+                            const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
+                            for (let t = tMax; t >= tMin; t -= 1) {
+                                let c = this.getC_onCurve(t, curveId);
+                                if (c !== null) pts.push({ c, t });
+                            }
+                            let cMin = this.getC_onCurve(tMin, curveId);
+                            if(cMin !== null) pts.push({c: cMin, t: tMin});
+                            if (nStart.t < nEnd.t) pts.reverse(); 
+                        }
+
+                        if (direction === -1) pts.reverse();
+                        pts.forEach(p => {
+                            allPts.push(p);
+                            if (firstPoint) { path.moveTo(mapX(p.c), mapY(p.t)); firstPoint = false; } 
+                            else { path.lineTo(mapX(p.c), mapY(p.t)); }
+                        });
+                    });
+                    
+                    path.closePath(); this.paths[regionId] = path;
+                    
+                    // Only calculate centroid if we have points
+                    if (allPts.length > 2) {
+                        let calcCentroid = this.calculateCentroid(allPts);
+                        sb_ctx.save(); sb_ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                        if (region.label && !sb_ctx.isPointInPath(path, mapX(calcCentroid.c), mapY(calcCentroid.t))) {
+                            calcCentroid = { c: region.label.c, t: region.label.t }; 
+                        }
+                        sb_ctx.restore();
+                        this.centroids[regionId] = calcCentroid;
+                    }
+                }
+            },
+
+            getRegionAtPoint(mouseX, mouseY, targetC, targetT) {
+                for (const [regionId, region] of Object.entries(this.schema.regions)) {
+                    if (region.type === 'intermetallic-pillar' && Math.abs(targetC - region.stoichiometric_c) < 1.0) { 
+                        return { id: regionId, ...region };
+                    }
+                }
+                for (const [regionId, path] of Object.entries(this.paths)) {
+                    if (sb_ctx.isPointInPath(path, mouseX, mouseY)) return { id: regionId, ...this.schema.regions[regionId] };
+                }
+                return null;
+            },
+
+            calculateTieLine(region, T, C_mouse) {
+                if (region.type !== "two-phase") return { isTwoPhase: false, phase: region.phase_name, fraction: 1.00 };
+                let intersections = [];
+                for (const curveId of Object.keys(this.schema.curves)) {
+                    let c = this.getC_onCurve(T, curveId);
+                    if (c !== null && !['horizontal', 'edge'].includes(this.schema.curves[curveId].type)) {
+                        intersections.push(c);
+                    }
+                }
+                intersections = [...new Set(intersections.map(v => parseFloat(v.toFixed(4))))].sort((a,b) => a - b);
+                
+                let cLeft = null, cRight = null;
+                for(let i=0; i < intersections.length - 1; i++) {
+                    if (C_mouse >= intersections[i] && C_mouse <= intersections[i+1]) {
+                        cLeft = intersections[i]; cRight = intersections[i+1]; break;
+                    }
+                }
+                if (cLeft !== null && cRight !== null) {
+                    const total = cRight - cLeft;
+                    if(total === 0) return null;
+                    return {
+                        isTwoPhase: true, phases: region.phases,
+                        cLeft: cLeft, cRight: cRight,
+                        wLeft: (cRight - C_mouse) / total, wRight: (C_mouse - cLeft) / total
+                    };
+                }
+                return null;
+            }
+        };
+        
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
