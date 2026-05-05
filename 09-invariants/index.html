@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V48</title>
+    <title>Chapter 9: Procedural Phase Engine V50 (Production)</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -44,8 +44,10 @@
         .tool-btn.active[data-tool^="lbl_"] { border-color: #fff; color: #fff; background: rgba(255, 255, 255, 0.15); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
         
-        .im-select { width: 100%; padding: 8px; background: #000; color: #888; border: 1px solid #444; border-radius: 4px; font-weight: bold; text-align: center; text-transform: uppercase; appearance: none; cursor: pointer; margin-bottom: 15px; }
-        .im-select:focus { outline: none; border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
+        /* Fixed Contrast Dropdown */
+        .im-select { width: 100%; padding: 8px; background: #111; color: #eee; border: 1px solid #555; border-radius: 4px; font-weight: bold; text-align: center; text-transform: uppercase; appearance: none; cursor: pointer; margin-bottom: 15px; }
+        .im-select:focus { outline: none; border-color: #fff; background: #222; }
+        .im-select option { background: #111; color: #eee; }
 
         .tally-panel { background: #000; border: 1px dashed #444; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.85rem; font-family: 'Consolas', monospace; }
         .tally-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -53,11 +55,11 @@
         .submit-btn { width: 100%; padding: 12px; background: var(--cyan); color: #000; font-weight: bold; font-size: 0.9rem; text-transform: uppercase; cursor: pointer; border: none; border-radius: 4px; transition: 0.2s; }
         .submit-btn:hover { background: #fff; }
 
-        .readout-panel { padding: 20px; margin-top: auto; background: rgba(255, 0, 255, 0.05); border-top: 1px solid var(--magenta); }
+        .readout-panel { padding: 20px; margin-top: auto; background: rgba(0, 255, 255, 0.05); border-top: 1px solid var(--cyan); }
         .stat { display: flex; justify-content: space-between; margin: 8px 0; font-family: 'Consolas', monospace; font-size: 1.1rem; }
         .stat .val { color: #fff; font-weight: bold; }
         
-        #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--cyan); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
+        #sb-math-panel { display: none; padding: 15px; background: #000; border: 1px dashed var(--magenta); margin-top: 15px; font-family: 'Consolas', monospace; font-size: 0.95rem; line-height: 1.6; }
         .math-line { color: var(--silver); margin-bottom: 6px; }
         
         .alert-box { padding: 10px; background: rgba(0, 255, 255, 0.1); border: 1px dashed var(--cyan); color: var(--cyan); font-size: 0.85rem; text-align: center; margin-top: 10px; display: none; line-height: 1.4; transition: 0.2s;}
@@ -66,20 +68,18 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V48: Architectural Kinematics)</div>
+        <div class="brand">Phase Engine Platform (V50: Production)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
         <div class="sidebar">
-            <div class="header"><h2>Sandbox Controls</h2></div>
+            <div class="header"><h2>Module Controls</h2></div>
             <div class="control-group">
                 <span class="label">Interaction Mode</span>
                 <div class="toggle-container">
-                    <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Nav</div>
-                    <div class="toggle-btn" id="mode-architect" onclick="setMode('architect')">Arch</div>
-                    <div class="toggle-btn" id="mode-assessment" onclick="setMode('assessment')">Test</div>
+                    <div class="toggle-btn active" id="mode-navigator" onclick="setMode('navigator')">Navigator</div>
+                    <div class="toggle-btn" id="mode-assessment" onclick="setMode('assessment')">Assessment</div>
                 </div>
-                <div id="architect-alert" class="alert-box"><strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.</div>
 
                 <div id="nav-bank">
                     <span class="label" style="margin-top: 20px;">Phase Labels</span>
@@ -88,8 +88,7 @@
                         <div class="toggle-btn" id="lbl-hard" onclick="setLabels('single')">Hard</div>
                     </div>
                     <span class="label" style="margin-top: 20px;">Jump to Invariants</span>
-                    <div class="toggle-container" style="flex-direction: column;" id="dynamic-invariant-bank">
-                        </div>
+                    <div class="toggle-container" style="flex-direction: column;" id="dynamic-invariant-bank"></div>
                 </div>
 
                 <div id="assessment-bank" style="display: none;">
@@ -108,7 +107,7 @@
                         <div class="tool-btn" data-tool="vertical" onclick="setTool('vertical')" style="grid-column: span 2;">Intermetallic</div>
                     </div>
 
-                    <span class="label" style="margin-top: 10px;">Single Phase Stamps</span>
+                    <span class="label" style="margin-top: 10px;">Phase Stamps</span>
                     <div class="tool-grid-labels">
                         <div class="tool-btn" data-tool="lbl_L" onclick="setTool('lbl_L')">L</div>
                         <div class="tool-btn" data-tool="lbl_alpha" onclick="setTool('lbl_alpha')">α</div>
@@ -143,17 +142,16 @@
 
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
                     <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
-                    <div class="tool-btn" onclick="toggleDevSolution()" style="margin-top:15px; border-color: #555; color: #aaa;">Toggle Dev Solution</div>
                 </div>
 
                 <div id="sb-math-panel">
-                    <div class="label" style="color:var(--cyan)">Math Expansion (Lever Rule)</div>
+                    <div class="label" style="color:var(--magenta)">Math Expansion (Lever Rule)</div>
                     <div id="sb-math-content"></div>
                 </div>
             </div>
             
             <div class="readout-panel" id="sb-telemetry">
-                <span class="label">Telemetry</span>
+                <span class="label" style="color:var(--cyan)">Live Telemetry</span>
                 <div class="stat"><span>Temp (K):</span> <span class="val" id="sb-out-t">--</span></div>
                 <div class="stat"><span>Comp (at% B):</span> <span class="val" id="sb-out-c">--</span></div>
                 <div id="nav-telemetry">
@@ -179,17 +177,13 @@
         let sb_lastMathState = null;
         let sb_labelMode = 'all';
         let currentC = null, currentT = null;
-
         let interactionMode = 'navigator';
         let hoveredNode = null;
-        let draggedNode = null;
-
         let assessmentState = 'practice';
         let activeTool = null;
         let selectedNodeA = null;
         let studentCurves = [];
         let studentLabels = []; 
-        let showDevSolution = false; 
 
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
@@ -235,76 +229,6 @@
                 document.getElementById('loading-overlay').style.display = 'none';
             },
 
-            // V48: THE RED BOX OF DEATH & KINEMATICS
-            applyDrag(nodeId, reqC, reqT) {
-                let node = this.schema.nodes[nodeId];
-                if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) return { clamped: true };
-                
-                let newC = reqC;
-                let newT = reqT;
-                let isColliding = false;
-
-                // Restrict horizontal drag if permanently locked
-                if (node.bounds && node.bounds.lock_c) {
-                    newC = node.c;
-                }
-
-                // Strict Thermodynamic Collision (JSON min_c / max_c referencing)
-                if (node.bounds) {
-                    if (node.bounds.min_c && this.schema.nodes[node.bounds.min_c]) {
-                        let limit = this.schema.nodes[node.bounds.min_c].c;
-                        if (newC <= limit) { newC = limit + 0.5; isColliding = true; } 
-                    }
-                    if (node.bounds.max_c && this.schema.nodes[node.bounds.max_c]) {
-                        let limit = this.schema.nodes[node.bounds.max_c].c;
-                        if (newC >= limit) { newC = limit - 0.5; isColliding = true; }
-                    }
-                }
-
-                // UI Collision Warning
-                const alertEl = document.getElementById('architect-alert');
-                if (isColliding) {
-                    alertEl.innerHTML = `<strong>Thermodynamic Collision</strong><br><br>Node clamped to prevent physical inversion.`;
-                    alertEl.style.borderColor = 'var(--red)';
-                    alertEl.style.color = 'var(--red)';
-                    alertEl.style.background = 'rgba(255, 51, 51, 0.1)';
-                } else {
-                    alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
-                    alertEl.style.borderColor = 'var(--cyan)';
-                    alertEl.style.color = 'var(--cyan)';
-                    alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
-                }
-
-                newC = Math.max(0, Math.min(newC, 100));
-                newT = Math.max(0, Math.min(newT, 1200));
-
-                node.c = newC;
-                node.t = newT;
-
-                // Kinematic Vertical Locking for Isotherms
-                const isothermGroups = [
-                    ['e1_a', 'e1_l', 'im1_e1'],
-                    ['po_a', 'im2_po', 'im1_po'],
-                    ['im1_p', 'p_g', 'p_l'],
-                    ['e2_g', 'e2_l', 'e2_e'],
-                    ['im1_eu', 'eu_g', 'eu_e']
-                ];
-
-                for (let i = 0; i < isothermGroups.length; i++) {
-                    let group = isothermGroups[i];
-                    if (group.includes(nodeId)) {
-                        for (let j = 0; j < group.length; j++) {
-                            let siblingId = group[j];
-                            if (siblingId !== nodeId && this.schema.nodes[siblingId]) {
-                                this.schema.nodes[siblingId].t = newT;
-                            }
-                        }
-                        break;
-                    }
-                }
-                return { clamped: false };
-            },
-
             generateDynamicInvariantButtons() {
                 const container = document.getElementById('dynamic-invariant-bank');
                 container.innerHTML = '';
@@ -332,28 +256,21 @@
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
                 if (T > nTop.t || T < nBot.t) return null;
-                
                 if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
-
-                let power = curve.power !== undefined ? curve.power : 1.0; 
-                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, 1.0);
             },
             
             calculateCentroid(pts) {
-                let xSum = 0;
-                let ySum = 0;
-                let area = 0;
+                let xSum = 0, ySum = 0, area = 0;
                 for (let i = 0; i < pts.length; i++) {
                     let j = (i + 1) % pts.length;
-                    let p1 = pts[i];
-                    let p2 = pts[j];
-                    let f = (p1.c * p2.t) - (p2.c * p1.t);
+                    let f = (pts[i].c * pts[j].t) - (pts[j].c * pts[i].t);
                     area += f;
-                    xSum += (p1.c + p2.c) * f;
-                    ySum += (p1.t + p2.t) * f;
+                    xSum += (pts[i].c + pts[j].c) * f;
+                    ySum += (pts[i].t + pts[j].t) * f;
                 }
                 area *= 3;
                 if (area === 0) return {c: pts[0].c, t: pts[0].t};
@@ -367,23 +284,18 @@
                     const region = this.schema.regions[regionId];
                     if (region.type === 'intermetallic-pillar') continue; 
                     const path = new Path2D();
-                    let firstPoint = true; 
-                    let allPts = [];
+                    let firstPoint = true, allPts = [];
 
                     if(!region.bounding_curves) continue;
 
                     region.bounding_curves.forEach(curveDef => {
-                        const curveId = curveDef.id; 
-                        const direction = curveDef.dir; 
-                        const curve = this.schema.curves[curveId];
+                        const curve = this.schema.curves[curveDef.id];
                         if (!curve) return; 
-
                         const nStart = this.schema.nodes[curve.start]; 
                         const nEnd = this.schema.nodes[curve.end];
                         if (!nStart || !nEnd) return;
 
                         let pts = [];
-                        
                         if (curve.type === 'horizontal' || curve.type === 'vertical' || curve.type === 'edge') {
                             pts.push({c: nStart.c, t: nStart.t}); 
                             pts.push({c: nEnd.c, t: nEnd.t});
@@ -391,23 +303,17 @@
                             const tMax = Math.max(nStart.t, nEnd.t); 
                             const tMin = Math.min(nStart.t, nEnd.t);
                             for (let t = tMax; t >= tMin; t -= 1) {
-                                let c = this.getC_onCurve(t, curveId);
+                                let c = this.getC_onCurve(t, curveDef.id);
                                 if (c !== null) pts.push({ c: c, t: t });
                             }
-                            let cMin = this.getC_onCurve(tMin, curveId);
-                            if(cMin !== null) pts.push({c: cMin, t: tMin});
                             if (nStart.t < nEnd.t) pts.reverse(); 
                         }
 
-                        if (direction === -1) pts.reverse();
+                        if (curveDef.dir === -1) pts.reverse();
                         pts.forEach(p => {
                             allPts.push(p);
-                            if (firstPoint) { 
-                                path.moveTo(mapX(p.c), mapY(p.t)); 
-                                firstPoint = false; 
-                            } else { 
-                                path.lineTo(mapX(p.c), mapY(p.t)); 
-                            }
+                            if (firstPoint) { path.moveTo(mapX(p.c), mapY(p.t)); firstPoint = false; } 
+                            else { path.lineTo(mapX(p.c), mapY(p.t)); }
                         });
                     });
                     
@@ -474,26 +380,16 @@
             let rand = Math.floor(Math.random() * 500); 
             let numStr = String(rand + 1).padStart(3,'0');
             let url = `diagrams/binaryboss${numStr}.json`;
-            
             try {
                 let response = await fetch(url);
                 if (!response.ok) {
-                    numStr = String(rand).padStart(3,'0');
-                    url = `diagrams/binaryboss${numStr}.json`;
+                    url = `diagrams/binaryboss001.json`;
                     response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    if (!response.ok) throw new Error(`HTTP error`);
                 }
-                let data = await response.json();
-                PhaseEngine.loadSchema(data);
-                
+                PhaseEngine.loadSchema(await response.json());
             } catch(e) {
-                console.error("Fetch failed:", e);
-                document.getElementById('loading-overlay').innerHTML = 
-                    `<div style="text-align:center;">
-                        <span style="color:var(--red)">DATA FETCH ERROR</span><br>
-                        <small style="color:#888; font-size:0.8rem;">Could not find: ${url}</small><br>
-                        <button onclick="loadRandomDiagram()" style="margin-top:10px; padding:5px 10px; cursor:pointer;">Retry</button>
-                    </div>`;
+                document.getElementById('loading-overlay').innerHTML = `<span style="color:var(--red)">DATA FETCH ERROR</span><button onclick="loadRandomDiagram()">Retry</button>`;
             }
         }
 
@@ -587,35 +483,6 @@
 
             if (!PhaseEngine.schema) return;
 
-            if (showDevSolution && interactionMode === 'assessment') {
-                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type === 'edge') continue;
-                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                    
-                    if (curve.type === 'horizontal' || curve.type === 'vertical') {
-                        sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
-                    } else {
-                        for(let i = 0; i <= 50; i++) {
-                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
-                            let c = PhaseEngine.getC_onCurve(t, curveId);
-                            if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
-                        }
-                    }
-                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
-                }
-                
-                for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
-                    if (region.type === 'single-phase' || region.type === 'intermetallic-pillar') {
-                        let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
-                        let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
-                        sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
-                        drawTextWithSubscripts(sb_ctx, region.phase_name, mapX(c), mapY(t));
-                    }
-                }
-            }
-
             if (interactionMode !== 'assessment') {
                 if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
                     const type = PhaseEngine.schema.regions[activeRegionId].type;
@@ -654,13 +521,14 @@
                     }
                 }
             } else {
-                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type !== 'edge') continue; 
-                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
-                    if (nStart.t === 1200 || nEnd.t === 1200) continue; 
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                    sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
-                    sb_ctx.strokeStyle = '#333'; sb_ctx.lineWidth = 2; sb_ctx.stroke();
+                // Assessment Mode: NO GRAY LINES. Only draw student input and terminal nodes.
+                for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
+                    if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
+                    sb_ctx.beginPath();
+                    let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
+                    sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
+                    sb_ctx.fillStyle = isHoveredOrSelected ? '#00ffff' : '#ff00ff';
+                    sb_ctx.fill(); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1.5; sb_ctx.stroke();
                 }
 
                 studentCurves.forEach(sc => {
@@ -683,7 +551,6 @@
                     } else {
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
                         let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
-                        
                         let drawStart = y1 > y2 ? {x: x1, y: y1} : {x: x2, y: y2};
                         let drawEnd = y1 > y2 ? {x: x2, y: y2} : {x: x1, y: y1};
                         
@@ -695,7 +562,6 @@
                             let midX = (drawStart.x + drawEnd.x) / 2; let midY = (drawStart.y + drawEnd.y) / 2;
                             let bow = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y) * 0.05; 
                             let cpX = midX, cpY = midY;
-                            
                             if (sc.type === 'liquidus') cpY += bow;
                             else if (sc.type === 'solidus') cpY -= bow;
                             else if (sc.type === 'solvus') { cpX += bow; }
@@ -726,20 +592,6 @@
                     sb_ctx.lineWidth = 2; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
                 }
             }
-
-            if (interactionMode === 'architect' || interactionMode === 'assessment') {
-                for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                    if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
-                    if (interactionMode === 'architect' && node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue;
-                    
-                    sb_ctx.beginPath();
-                    let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
-                    sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
-                    sb_ctx.fillStyle = isHoveredOrSelected ? '#00ffff' : '#ff00ff';
-                    sb_ctx.fill();
-                    sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1.5; sb_ctx.stroke();
-                }
-            }
         }
 
         function drawLabels() {
@@ -750,13 +602,12 @@
                 
                 let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
                 let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
-                let x = mapX(c); let y = mapY(t);
                 
                 sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
                 sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
                 sb_ctx.font = `bold 22px sans-serif`; 
                 let text = region.label ? region.label.text : (region.phase_name || region.phases.join(' + '));
-                drawTextWithSubscripts(sb_ctx, text, x, y);
+                drawTextWithSubscripts(sb_ctx, text, mapX(c), mapY(t));
             }
             sb_ctx.restore();
         }
@@ -786,17 +637,16 @@
 
         function setMode(mode) {
             interactionMode = mode;
-            document.querySelectorAll('#mode-navigator, #mode-architect, #mode-assessment').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('#mode-navigator, #mode-assessment').forEach(el => el.classList.remove('active'));
             document.getElementById('mode-' + mode).classList.add('active');
             
             document.getElementById('nav-bank').style.display = mode === 'navigator' ? 'block' : 'none';
             document.getElementById('nav-telemetry').style.display = mode === 'navigator' ? 'block' : 'none';
-            document.getElementById('architect-alert').style.display = mode === 'architect' ? 'block' : 'none';
             document.getElementById('assessment-bank').style.display = mode === 'assessment' ? 'block' : 'none';
             document.getElementById('sb-math-panel').style.display = 'none';
 
             sb_isFrozen = false; currentC = null; currentT = null;
-            hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
+            hoveredNode = null; draggedNode = null; selectedNodeA = null;
             
             if (mode !== 'assessment' && assessmentState === 'quiz') {
                 loadRandomDiagram(); 
@@ -813,31 +663,22 @@
             sb_draw();
         }
 
-        function toggleDevSolution() {
-            showDevSolution = !showDevSolution;
-            sb_draw();
-        }
-
-        // V48: Invariant Snapping directly to Nexus Node
+        // V50: Flawless Invariant Snapping
         function snapToDynamicInvariant(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
             let curve = PhaseEngine.schema.curves[curveId];
             let nStart = PhaseEngine.schema.nodes[curve.start];
+            let nEnd = PhaseEngine.schema.nodes[curve.end];
+            
+            // Snap perfectly to the middle of the isotherm line
+            let c = (nStart.c + nEnd.c) / 2;
             let visualT = nStart.t;
             
-            let targetC = nStart.c;
-            for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
-                if (n.t === visualT && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
-                    targetC = n.c;
-                    break;
-                }
-            }
+            // Mathematically push the evaluation T just below the isotherm to guarantee 2-phase region
+            let evalT = visualT - 0.1;
 
-            let regionBelow = PhaseEngine.getRegionAtPoint(mapX(targetC), mapY(visualT - 0.1), targetC, visualT - 0.1);
-            let evalT = (regionBelow && regionBelow.type === 'two-phase') ? visualT - 0.1 : visualT + 0.1;
-
-            snapToPoint(targetC, visualT, evalT);
+            snapToPoint(c, visualT, evalT);
         }
 
         function snapToPoint(c, visualT, evalT) {
@@ -903,7 +744,7 @@
             document.getElementById('assessment-score').style.display = 'none';
             document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
             
-            studentCurves = []; studentLabels = []; selectedNodeA = null; showDevSolution = false; 
+            studentCurves = []; studentLabels = []; selectedNodeA = null;
             
             if (state === 'quiz') { 
                 loadRandomDiagram();
@@ -992,23 +833,6 @@
             sb_mouseX = e.clientX - rect.left; sb_mouseY = e.clientY - rect.top;
             let c = invX(sb_mouseX); let t = invY(sb_mouseY);
 
-            if (interactionMode === 'architect') {
-                if (draggedNode) {
-                    let result = PhaseEngine.applyDrag(draggedNode, c, t); PhaseEngine.buildRegionPaths(); sb_draw();
-                    let node = PhaseEngine.schema.nodes[draggedNode];
-                    document.getElementById('sb-out-t').innerText = Math.round(node.t); document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
-                } else {
-                    let found = null;
-                    for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
-                        if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
-                        if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) continue; 
-                        if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
-                    }
-                    if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair'; sb_draw(); }
-                }
-                return;
-            }
-
             if (interactionMode === 'assessment') {
                 if (activeTool && activeTool.startsWith('lbl_')) {
                     sb_canvas.style.cursor = 'crosshair'; 
@@ -1029,23 +853,15 @@
 
             for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                 let isNexus = node.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nodeId);
-                
                 if (isNexus) {
-                    let pxX = mapX(node.c);
-                    let pxY = mapY(node.t);
-                    
-                    if (Math.hypot(pxX - sb_mouseX, pxY - sb_mouseY) < snapRadius) {
-                        activeNexus = node;
-                        break;
+                    if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < snapRadius) {
+                        activeNexus = node; break;
                     }
                 }
             }
 
             if (activeNexus) {
-                c = activeNexus.c;
-                t = activeNexus.t;
-                sb_mouseX = mapX(c);
-                sb_mouseY = mapY(t);
+                c = activeNexus.c; t = activeNexus.t; sb_mouseX = mapX(c); sb_mouseY = mapY(t);
                 sb_canvas.style.cursor = 'cell';
             } else {
                 sb_canvas.style.cursor = 'default';
@@ -1061,11 +877,6 @@
 
         sb_canvas.addEventListener('mousedown', () => { 
             if (!PhaseEngine.schema) return;
-
-            if (interactionMode === 'architect') {
-                if (hoveredNode) { draggedNode = hoveredNode; sb_canvas.style.cursor = 'grabbing'; }
-                return;
-            }
 
             if (interactionMode === 'assessment') {
                 if (activeTool && activeTool.startsWith('lbl_')) {
@@ -1133,13 +944,6 @@
             sb_draw(null); 
         });
 
-        sb_canvas.addEventListener('mouseup', () => {
-            if (interactionMode === 'architect') {
-                draggedNode = null; 
-                sb_canvas.style.cursor = hoveredNode ? 'grab' : 'crosshair';
-            }
-        });
-
         function resizeAll() {
             if(sb_canvas.parentElement) {
                 sb_canvas.width = sb_canvas.parentElement.clientWidth; sb_canvas.height = sb_canvas.parentElement.clientHeight;
@@ -1149,8 +953,7 @@
         
         window.addEventListener('resize', resizeAll);
         document.addEventListener('DOMContentLoaded', () => {
-            resizeAll();
-            loadRandomDiagram(); 
+            resizeAll(); loadRandomDiagram(); 
         });
         if (document.readyState === "complete" || document.readyState === "interactive") setTimeout(resizeAll, 100);
     </script>
