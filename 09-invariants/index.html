@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V50 (Production)</title>
+    <title>Chapter 9: Procedural Phase Engine V53</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -44,7 +44,6 @@
         .tool-btn.active[data-tool^="lbl_"] { border-color: #fff; color: #fff; background: rgba(255, 255, 255, 0.15); }
         .tool-btn.active[data-tool="eraser"] { border-color: var(--red); color: var(--red); background: rgba(255, 51, 51, 0.1); }
         
-        /* Fixed Contrast Dropdown */
         .im-select { width: 100%; padding: 8px; background: #111; color: #eee; border: 1px solid #555; border-radius: 4px; font-weight: bold; text-align: center; text-transform: uppercase; appearance: none; cursor: pointer; margin-bottom: 15px; }
         .im-select:focus { outline: none; border-color: #fff; background: #222; }
         .im-select option { background: #111; color: #eee; }
@@ -68,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V50: Production)</div>
+        <div class="brand">Phase Engine Platform (V53: Production)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -142,6 +141,8 @@
 
                     <button class="submit-btn" onclick="gradeAssessment()">Submit Diagram</button>
                     <div id="assessment-score" class="alert-box" style="margin-top: 15px;"></div>
+                    
+                    <div class="tool-btn" onclick="toggleDevSolution()" style="margin-top:15px; border-color: #555; color: #aaa;">Toggle Dev Solution</div>
                 </div>
 
                 <div id="sb-math-panel">
@@ -184,6 +185,7 @@
         let selectedNodeA = null;
         let studentCurves = [];
         let studentLabels = []; 
+        let showDevSolution = false; 
 
         function mapX(c) { return PAD + (c / PhaseEngine.schema.metadata.axes.c_max) * (sb_canvas.width - PAD * 2); }
         function mapY(t) { return sb_canvas.height - PAD - (t / PhaseEngine.schema.metadata.axes.t_max) * (sb_canvas.height - PAD * 2); }
@@ -240,7 +242,7 @@
                         btn.className = 'toggle-btn';
                         btn.style.borderBottom = '1px solid #444';
                         btn.innerText = `Invariant ${count}`;
-                        btn.onclick = () => snapToDynamicInvariant(curveId);
+                        btn.onclick = () => window.snapToDynamicInvariant(curveId);
                         container.appendChild(btn);
                         count++;
                     }
@@ -255,12 +257,14 @@
                 const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
-                if (T > nTop.t || T < nBot.t) return null;
+                // Provide a tiny float buffer to prevent coordinate tearing
+                if (T > nTop.t + 0.01 || T < nBot.t - 0.01) return null;
                 if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
-                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, 1.0);
+                let power = curve.power !== undefined ? curve.power : 1.0;
+                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
             },
             
             calculateCentroid(pts) {
@@ -483,6 +487,35 @@
 
             if (!PhaseEngine.schema) return;
 
+            if (showDevSolution && interactionMode === 'assessment') {
+                for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'edge') continue;
+                    const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    
+                    if (curve.type === 'horizontal' || curve.type === 'vertical') {
+                        sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
+                    } else {
+                        for(let i = 0; i <= 50; i++) {
+                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let c = PhaseEngine.getC_onCurve(t, curveId);
+                            if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
+                        }
+                    }
+                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    sb_ctx.lineWidth = 2; sb_ctx.setLineDash([4, 4]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
+                }
+                
+                for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
+                    if (region.type === 'single-phase' || region.type === 'intermetallic-pillar') {
+                        let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
+                        let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
+                        sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
+                        drawTextWithSubscripts(sb_ctx, region.phase_name, mapX(c), mapY(t));
+                    }
+                }
+            }
+
             if (interactionMode !== 'assessment') {
                 if (activeRegionId && PhaseEngine.paths[activeRegionId] && interactionMode === 'navigator') {
                     const type = PhaseEngine.schema.regions[activeRegionId].type;
@@ -490,12 +523,18 @@
                     sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
                 }
 
+                // V53 FIX: Ensures curve renderer never skips the first coordinate
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
-                    sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
-                    for(let i = 0; i <= 150; i++) {
-                        let t = nStart.t - (i/150)*(nStart.t - nEnd.t);
+                    
+                    sb_ctx.beginPath(); 
+                    sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    
+                    const tMax = Math.max(nStart.t, nEnd.t);
+                    const tMin = Math.min(nStart.t, nEnd.t);
+                    for(let i = 0; i <= 100; i++) {
+                        let t = tMax - (i/100)*(tMax - tMin);
                         let c = PhaseEngine.getC_onCurve(t, curveId);
                         if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                     }
@@ -521,7 +560,6 @@
                     }
                 }
             } else {
-                // Assessment Mode: NO GRAY LINES. Only draw student input and terminal nodes.
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                     if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
                     sb_ctx.beginPath();
@@ -646,7 +684,7 @@
             document.getElementById('sb-math-panel').style.display = 'none';
 
             sb_isFrozen = false; currentC = null; currentT = null;
-            hoveredNode = null; draggedNode = null; selectedNodeA = null;
+            hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
             
             if (mode !== 'assessment' && assessmentState === 'quiz') {
                 loadRandomDiagram(); 
@@ -663,26 +701,37 @@
             sb_draw();
         }
 
-        // V50: Flawless Invariant Snapping
-        function snapToDynamicInvariant(curveId) {
+        function toggleDevSolution() {
+            showDevSolution = !showDevSolution;
+            sb_draw();
+        }
+
+        // V53 FIX: Global binding and true Nexus searching
+        window.snapToDynamicInvariant = function(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
             let curve = PhaseEngine.schema.curves[curveId];
             let nStart = PhaseEngine.schema.nodes[curve.start];
-            let nEnd = PhaseEngine.schema.nodes[curve.end];
-            
-            // Snap perfectly to the middle of the isotherm line
-            let c = (nStart.c + nEnd.c) / 2;
             let visualT = nStart.t;
             
-            // Mathematically push the evaluation T just below the isotherm to guarantee 2-phase region
-            let evalT = visualT - 0.1;
+            // Find the true nexus node (e.g. liquid eutectic point)
+            let targetC = nStart.c;
+            for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
+                if (Math.abs(n.t - visualT) < 1 && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
+                    targetC = n.c;
+                    break;
+                }
+            }
 
-            snapToPoint(c, visualT, evalT);
-        }
+            // Evaluate exactly 1K below to hit the two-phase region mathematically
+            let evalT = visualT - 1.0; 
+
+            snapToPoint(targetC, visualT, evalT);
+        };
 
         function snapToPoint(c, visualT, evalT) {
             sb_isFrozen = true; currentC = c; currentT = visualT;
+            sb_mouseX = mapX(c); sb_mouseY = mapY(visualT); 
             let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(evalT), c, evalT);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, evalT, c) : null;
             updateTelemetry(activeRegion, sb_lastMathState, visualT, c);
@@ -744,7 +793,7 @@
             document.getElementById('assessment-score').style.display = 'none';
             document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
             
-            studentCurves = []; studentLabels = []; selectedNodeA = null;
+            studentCurves = []; studentLabels = []; selectedNodeA = null; showDevSolution = false; 
             
             if (state === 'quiz') { 
                 loadRandomDiagram();
