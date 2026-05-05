@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V62 (Production)</title>
+    <title>Chapter 9: Procedural Phase Engine V66</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V62: Math/Subscript Final)</div>
+        <div class="brand">Phase Engine Platform (V66: Master Build)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -192,7 +192,7 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // V62: Nested Sub-Subscript Parser (C_A2B -> C(base), A(sub), 2(subsub), B(sub))
+        // V66: Perfect Nested Sub-Subscript Renderer
         function drawCanvasSubscript(ctx, text, x, y, align='center') {
             if (!text) return;
             let parts = [];
@@ -246,7 +246,6 @@
             ctx.font = baseFont; 
         }
 
-        // V62 HTML DOM Parser
         function toHTMLSubscript(text) {
             if (!text) return "";
             if (text.includes("_")) {
@@ -482,7 +481,8 @@
                 
                 sb_ctx.fillStyle = '#ff00ff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
                 sb_ctx.fillText(vN.toFixed(1), mapX(vN), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
+                sb_ctx.fillStyle = '#fff';
+                drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
                 
                 let midX = mapX(vN);
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
@@ -756,7 +756,6 @@
             }
         }
 
-        // V62 FIX: Typos eradicated, correct joining.
         function drawLabels() {
             sb_ctx.save();
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
