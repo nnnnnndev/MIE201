@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V64</title>
+    <title>Chapter 9: Procedural Phase Engine V66</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V64: Build Locked)</div>
+        <div class="brand">Phase Engine Platform (V66: Master Build)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -192,7 +192,7 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // V64: The Sub-Subscript Canvas Engine
+        // V66: Perfect Nested Sub-Subscript Renderer
         function drawCanvasSubscript(ctx, text, x, y, align='center') {
             if (!text) return;
             let parts = [];
