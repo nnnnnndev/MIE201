@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V56 (Production)</title>
+    <title>Chapter 9: Procedural Phase Engine V58 (Production)</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V56: Production Master)</div>
+        <div class="brand">Phase Engine Platform (V58: True Math Output)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -192,32 +192,26 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        function drawTextWithSubscripts(ctx, text, x, y) {
-            if (!text) return;
-            const parts = text.split(/([0-9]+)/);
-            let totalWidth = 0;
-            const baseFont = ctx.font;
-            const baseSizeMatch = baseFont.match(/\d+/);
-            if (!baseSizeMatch) return;
-            const baseSize = parseInt(baseSizeMatch[0]);
-            const subSize = Math.round(baseSize * 0.75);
+        // V58 Canvas Subscript Renderer
+        function drawSubscriptAndValue(ctx, baseTxt, subTxt, value, x, y, color) {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = color;
+            ctx.font = '14px Consolas, monospace';
+            ctx.fillText(value.toFixed(1), x, y + 20);
 
-            parts.forEach(part => {
-                ctx.font = /[0-9]+/.test(part) ? `bold ${subSize}px sans-serif` : `bold ${baseSize}px sans-serif`;
-                totalWidth += ctx.measureText(part).width;
-            });
+            ctx.font = 'bold 14px sans-serif';
+            let wBase = ctx.measureText(baseTxt).width;
+            ctx.font = 'bold 10px sans-serif';
+            let wSub = ctx.measureText(subTxt).width;
+            let totalW = wBase + wSub;
+            let startX = x - totalW / 2;
 
-            let startX = x - totalWidth / 2;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            parts.forEach(part => {
-                let isNum = /[0-9]+/.test(part);
-                ctx.font = isNum ? `bold ${subSize}px sans-serif` : `bold ${baseSize}px sans-serif`;
-                let yOffset = isNum ? baseSize * 0.25 : 0;
-                ctx.fillText(part, startX, y + yOffset);
-                startX += ctx.measureText(part).width;
-            });
-            ctx.font = baseFont; 
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText(baseTxt, startX, y);
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillText(subTxt, startX + wBase, y + 4);
         }
 
         const PhaseEngine = {
@@ -247,6 +241,16 @@
                         count++;
                     }
                 }
+                
+                // Add Congruent Melting Point if present
+                if (this.schema.nodes['im1_top']) {
+                    let btn = document.createElement('div');
+                    btn.className = 'toggle-btn';
+                    btn.style.borderBottom = '1px solid #444';
+                    btn.innerText = `Congruent Melt`;
+                    btn.onclick = () => window.snapToCongruent();
+                    container.appendChild(btn);
+                }
             },
 
             getC_onCurve(T, curveId) {
@@ -262,8 +266,6 @@
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
-                
-                // V56 True Bezier Offset Equation
                 let c_lin = nTop.c + (nBot.c - nTop.c) * ratio;
                 let cx = curve.cx || 0;
                 return c_lin + cx * 4 * ratio * (1 - ratio);
@@ -427,6 +429,29 @@
         }
 
         function drawTieLineUI(curT, curC, mathState) {
+            
+            // V58 CONGRUENT MELTING UI
+            if (mathState.isCongruent) {
+                let vN = mathState.cNexus;
+                sb_ctx.beginPath(); sb_ctx.arc(mapX(vN), mapY(curT), 8, 0, Math.PI*2);
+                sb_ctx.fillStyle = '#ff00ff'; sb_ctx.fill();
+                
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vN), mapY(curT)); sb_ctx.lineTo(mapX(vN), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                let yAxis = sb_canvas.height - PAD + 20;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vN)-25, yAxis-10, 50, 40);
+                drawSubscriptAndValue(sb_ctx, "C", mathState.reactionShort, vN, mapX(vN), yAxis, '#ff00ff');
+                
+                let midX = mapX(vN);
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
+                sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
+                sb_ctx.fillText(`T = ${Math.round(curT)} K`, midX, mapY(curT) - 15);
+                return;
+            }
+
+            // V58 3-PHASE INVARIANT HIGHLIGHT
             if (mathState.isInvariant) {
                 let vL = mathState.cLeft; let vR = mathState.cRight; let vN = mathState.cNexus;
                 
@@ -451,17 +476,9 @@
                 let yAxis = sb_canvas.height - PAD + 20;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vN)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
                 
-                sb_ctx.fillStyle = '#00ffff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
-                sb_ctx.fillText(vL.toFixed(1), mapX(vL), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_L", mapX(vL), yAxis);
-
-                sb_ctx.fillStyle = '#ff00ff'; sb_ctx.textAlign = 'center';
-                sb_ctx.fillText(vN.toFixed(1), mapX(vN), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_NEX", mapX(vN), yAxis);
-
-                sb_ctx.fillStyle = '#ff8800'; sb_ctx.textAlign = 'center';
-                sb_ctx.fillText(vR.toFixed(1), mapX(vR), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_R", mapX(vR), yAxis);
+                drawSubscriptAndValue(sb_ctx, "C", "L", vL, mapX(vL), yAxis, '#00ffff');
+                drawSubscriptAndValue(sb_ctx, "C", mathState.reactionShort, vN, mapX(vN), yAxis, '#ff00ff');
+                drawSubscriptAndValue(sb_ctx, "C", "R", vR, mapX(vR), yAxis, '#ff8800');
 
                 let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
@@ -490,17 +507,9 @@
                 let yAxis = sb_canvas.height - PAD + 20;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(curC)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
                 
-                sb_ctx.fillStyle = '#00ffff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
-                sb_ctx.fillText(vL.toFixed(1), mapX(vL), yAxis+20);
-                drawTextWithSubscripts(sb_ctx, "C" + mathState.phases[0], mapX(vL), yAxis);
-
-                sb_ctx.fillStyle = '#ff00ff'; ctx = sb_ctx; ctx.textAlign = 'center'; ctx.font = '14px Consolas, monospace';
-                ctx.fillText(curC.toFixed(1), mapX(curC), yAxis+20);
-                drawTextWithSubscripts(ctx, "C0", mapX(curC), yAxis);
-
-                sb_ctx.fillStyle = '#ff8800'; ctx.textAlign = 'center'; ctx.font = '14px Consolas, monospace';
-                ctx.fillText(vR.toFixed(1), mapX(vR), yAxis+20);
-                drawTextWithSubscripts(ctx, "C" + mathState.phases[1], mapX(vR), yAxis);
+                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[0], vL, mapX(vL), yAxis, '#00ffff');
+                drawSubscriptAndValue(sb_ctx, "C", "0", curC, mapX(curC), yAxis, '#ff00ff');
+                drawSubscriptAndValue(sb_ctx, "C", mathState.phases[1], vR, mapX(vR), yAxis, '#ff8800');
 
                 let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
@@ -520,9 +529,8 @@
                 sb_ctx.beginPath(); sb_ctx.moveTo(mapX(v0), mapY(curT)); sb_ctx.lineTo(PAD, mapY(curT)); sb_ctx.stroke();
                 
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(v0) - 25, sb_canvas.height - PAD + 10, 50, 40); sb_ctx.fillRect(PAD - 40, mapY(curT) - 10, 35, 20);
-                sb_ctx.fillStyle = '#b57edc'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
-                sb_ctx.fillText(v0.toFixed(1), mapX(v0), sb_canvas.height - PAD + 30);
-                drawTextWithSubscripts(sb_ctx, "C0", mapX(v0), sb_canvas.height - PAD + 10);
+                
+                drawSubscriptAndValue(sb_ctx, "C", "0", v0, mapX(v0), sb_canvas.height - PAD + 10, '#b57edc');
                 
                 sb_ctx.fillStyle = '#fff'; sb_ctx.font = 'bold 12px sans-serif'; sb_ctx.textAlign = 'right'; sb_ctx.fillText(t0, PAD - 10, mapY(curT));
             }
@@ -538,9 +546,9 @@
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'edge') continue;
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
-                    const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                     
-                    sb_ctx.beginPath();
+                    sb_ctx.beginPath(); 
+                    const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                     let startC = PhaseEngine.getC_onCurve(tMax, curveId);
                     sb_ctx.moveTo(mapX(startC), mapY(tMax));
                     
@@ -562,7 +570,25 @@
                         let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
                         let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
                         sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; 
-                        drawTextWithSubscripts(sb_ctx, region.phase_name, mapX(c), mapY(t));
+                        
+                        // Dev tool parses standard format (e.g. A2B) into subscripts
+                        let text = region.phase_name;
+                        const parts = text.split(/([0-9]+)/);
+                        let totalWidth = 0;
+                        sb_ctx.font = 'bold 20px sans-serif';
+                        parts.forEach(part => {
+                            sb_ctx.font = /[0-9]+/.test(part) ? 'bold 15px sans-serif' : 'bold 20px sans-serif';
+                            totalWidth += sb_ctx.measureText(part).width;
+                        });
+                        let startX = mapX(c) - totalWidth / 2;
+                        sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
+                        parts.forEach(part => {
+                            let isNum = /[0-9]+/.test(part);
+                            sb_ctx.font = isNum ? 'bold 15px sans-serif' : 'bold 20px sans-serif';
+                            let yOffset = isNum ? 5 : 0;
+                            sb_ctx.fillText(part, startX, mapY(t) + yOffset);
+                            startX += sb_ctx.measureText(part).width;
+                        });
                     }
                 }
             }
@@ -574,7 +600,6 @@
                     sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
                 }
 
-                // V56 FIX: Strictly drawn from tMax to tMin to avoid double-line overlaps
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
@@ -605,7 +630,9 @@
                 drawLabels();
 
                 if (interactionMode === 'navigator') {
-                    if (sb_lastMathState && sb_lastMathState.isInvariant && currentT !== null) {
+                    if (sb_lastMathState && sb_lastMathState.isCongruent && currentT !== null) {
+                        drawTieLineUI(currentT, currentC, sb_lastMathState);
+                    } else if (sb_lastMathState && sb_lastMathState.isInvariant && currentT !== null) {
                         drawTieLineUI(currentT, currentC, sb_lastMathState);
                     } else if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
                         drawTieLineUI(currentT, currentC, sb_lastMathState);
@@ -656,6 +683,7 @@
                         if (sc.type === 'horizontal' || sc.type === 'vertical') {
                             sb_ctx.lineTo(drawEnd.x, drawEnd.y);
                         } else {
+                            // Student generic curved rendering
                             let midX = (drawStart.x + drawEnd.x) / 2; let midY = (drawStart.y + drawEnd.y) / 2;
                             let bow = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y) * 0.05; 
                             let cpX = midX, cpY = midY;
@@ -677,8 +705,23 @@
                     let x = mapX(sl.c); let y = mapY(sl.t);
                     sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#aaaaaa');
                     sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
-                    sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
-                    sb_ctx.font = `bold 22px sans-serif`; drawTextWithSubscripts(sb_ctx, sl.text, x, y);
+                    
+                    const parts = sl.text.split(/([0-9]+)/);
+                    let totalWidth = 0;
+                    sb_ctx.font = 'bold 22px sans-serif';
+                    parts.forEach(part => {
+                        sb_ctx.font = /[0-9]+/.test(part) ? 'bold 16px sans-serif' : 'bold 22px sans-serif';
+                        totalWidth += sb_ctx.measureText(part).width;
+                    });
+                    let startX = x - totalWidth / 2;
+                    sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
+                    parts.forEach(part => {
+                        let isNum = /[0-9]+/.test(part);
+                        sb_ctx.font = isNum ? 'bold 16px sans-serif' : 'bold 22px sans-serif';
+                        let yOffset = isNum ? 5 : 0;
+                        sb_ctx.fillText(part, startX, y + yOffset);
+                        startX += sb_ctx.measureText(part).width;
+                    });
                 });
                 sb_ctx.shadowBlur = 0; 
 
@@ -702,9 +745,24 @@
                 
                 sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
                 sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
-                sb_ctx.font = `bold 22px sans-serif`; 
+                
                 let text = region.label ? region.label.text : (region.phase_name || region.phases.join(' + '));
-                drawTextWithSubscripts(sb_ctx, text, mapX(c), mapY(t));
+                const parts = text.split(/([0-9]+)/);
+                let totalWidth = 0;
+                sb_ctx.font = 'bold 22px sans-serif';
+                parts.forEach(part => {
+                    sb_ctx.font = /[0-9]+/.test(part) ? 'bold 16px sans-serif' : 'bold 22px sans-serif';
+                    totalWidth += sb_ctx.measureText(part).width;
+                });
+                let startX = mapX(c) - totalWidth / 2;
+                sb_ctx.textAlign = 'left'; sb_ctx.textBaseline = 'middle';
+                parts.forEach(part => {
+                    let isNum = /[0-9]+/.test(part);
+                    sb_ctx.font = isNum ? 'bold 16px sans-serif' : 'bold 22px sans-serif';
+                    let yOffset = isNum ? 5 : 0;
+                    sb_ctx.fillText(part, startX, mapY(t) + yOffset);
+                    startX += sb_ctx.measureText(part).width;
+                });
             }
             sb_ctx.restore();
         }
@@ -765,7 +823,25 @@
             sb_draw();
         }
 
-        // V56: Bypasses 2-Phase checks and forces 3-Phase Tie Line
+        window.snapToCongruent = function() {
+            if (interactionMode !== 'navigator') setMode('navigator');
+            let n = PhaseEngine.schema.nodes['im1_top'];
+            sb_isFrozen = true; currentC = n.c; currentT = n.t;
+            sb_mouseX = mapX(n.c); sb_mouseY = mapY(n.t); 
+
+            sb_lastMathState = {
+                isCongruent: true,
+                cNexus: n.c,
+                reactionName: "Congruent Melting",
+                reactionShort: "cong"
+            };
+
+            document.getElementById('sb-math-panel').style.display = 'block';
+            document.getElementById('sb-telemetry').style.display = 'none';
+            updateMathPanel();
+            sb_draw(null);
+        };
+
         window.snapToDynamicInvariant = function(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
@@ -776,6 +852,7 @@
             
             let targetC = (nStart.c + nEnd.c) / 2;
             let reactionType = "Reaction";
+            let reactionShort = "NEX";
             
             for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
                 if (Math.abs(n.t - visualT) < 1 && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
@@ -784,10 +861,10 @@
                 }
             }
 
-            if (curveId === 'iso_e1' || curveId === 'iso_e2') reactionType = "Eutectic Reaction";
-            else if (curveId === 'iso_p') reactionType = "Peritectic Reaction";
-            else if (curveId === 'iso_eu') reactionType = "Eutectoid Reaction";
-            else if (curveId === 'iso_po') reactionType = "Peritectoid Reaction";
+            if (curveId === 'iso_e1' || curveId === 'iso_e2') { reactionType = "Eutectic Reaction"; reactionShort = "euc"; }
+            else if (curveId === 'iso_p') { reactionType = "Peritectic Reaction"; reactionShort = "perc"; }
+            else if (curveId === 'iso_eu') { reactionType = "Eutectoid Reaction"; reactionShort = "eud"; }
+            else if (curveId === 'iso_po') { reactionType = "Peritectoid Reaction"; reactionShort = "perd"; }
 
             sb_isFrozen = true; currentC = targetC; currentT = visualT;
             sb_mouseX = mapX(targetC); sb_mouseY = mapY(visualT); 
@@ -797,13 +874,14 @@
                 cLeft: Math.min(nStart.c, nEnd.c),
                 cRight: Math.max(nStart.c, nEnd.c),
                 cNexus: targetC,
-                reactionName: reactionType
+                reactionName: reactionType,
+                reactionShort: reactionShort
             };
 
             document.getElementById('sb-math-panel').style.display = 'block';
             document.getElementById('sb-telemetry').style.display = 'none';
             updateMathPanel();
-            sb_draw(null); // Bypass standard calculateTieLine
+            sb_draw(null); 
         };
 
         sb_canvas.addEventListener('mousemove', (e) => {
@@ -856,10 +934,7 @@
             document.getElementById('sb-out-c').innerText = currentC.toFixed(1);
             if (!activeRegion) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; }
             else {
-                document.getElementById('sb-out-region').innerHTML = "";
-                drawTextWithSubscripts(document.getElementById('sb-out-region'), activeRegion.phase_name || activeRegion.phases.join(" + "), 0, 0); 
-                let phaseString = activeRegion.phase_name || activeRegion.phases.join(" + ");
-                document.getElementById('sb-out-region').innerHTML = phaseString.replace(/([0-9]+)/g, "<sub>$1</sub>");
+                document.getElementById('sb-out-region').innerHTML = (activeRegion.phase_name || activeRegion.phases.join(" + ")).replace(/([0-9]+)/g, "<sub>$1</sub>");
             }
             
             if (sb_lastMathState && sb_lastMathState.isTwoPhase) {
@@ -880,13 +955,20 @@
         });
 
         function updateMathPanel() {
-            if (sb_isFrozen && sb_lastMathState && sb_lastMathState.isInvariant) {
+            if (sb_isFrozen && sb_lastMathState && sb_lastMathState.isCongruent) {
+                document.getElementById('sb-math-content').innerHTML = `
+                    <div class="math-line" style="color:var(--yellow); font-weight:bold; font-size:1.1rem; margin-bottom:10px;">${sb_lastMathState.reactionName}</div>
+                    <div class="math-line" style="color:var(--magenta)">C<sub>${sb_lastMathState.reactionShort}</sub> = ${sb_lastMathState.cNexus.toFixed(1)}</div>
+                    <hr style="border-color:#333; margin:10px 0;">
+                    <div class="math-line" style="color:#aaa">Liquid and Solid phases have identical composition.</div>
+                `;
+            } else if (sb_isFrozen && sb_lastMathState && sb_lastMathState.isInvariant) {
                 document.getElementById('sb-math-content').innerHTML = `
                     <div class="math-line" style="color:var(--yellow); font-weight:bold; font-size:1.1rem; margin-bottom:10px;">${sb_lastMathState.reactionName}</div>
                     <div class="math-line">1. Isotherm Bounds:</div>
-                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
-                    <div class="math-line" style="color:var(--magenta)">C_nexus = ${sb_lastMathState.cNexus.toFixed(1)}</div>
-                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--cyan)">C<sub>L</sub> = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--magenta)">C<sub>${sb_lastMathState.reactionShort}</sub> = ${sb_lastMathState.cNexus.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C<sub>R</sub> = ${sb_lastMathState.cRight.toFixed(1)}</div>
                     <hr style="border-color:#333; margin:10px 0;">
                     <div class="math-line" style="color:#aaa">3-Phase equilibrium achieved. Lever rule spans full bounds.</div>
                 `;
@@ -895,13 +977,13 @@
                 let p1 = sb_lastMathState.phases[1].replace(/([0-9]+)/g, "<sub>$1</sub>");
                 document.getElementById('sb-math-content').innerHTML = `
                     <div class="math-line">1. Intersections:</div>
-                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
-                    <div class="math-line">C_0 = ${currentC.toFixed(1)}</div>
-                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--cyan)">C<sub>${p0}</sub> = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line">C<sub>0</sub> = ${currentC.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C<sub>${p1}</sub> = ${sb_lastMathState.cRight.toFixed(1)}</div>
                     <hr style="border-color:#333; margin:10px 0;">
                     <div class="math-line">2. Lever Rule:</div>
-                    <div class="math-line" style="color:var(--cyan)">X_${p0} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
-                    <div class="math-line" style="color:var(--orange)">X_${p1} = ${sb_lastMathState.wRight.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--cyan)">X<sub>${p0}</sub> = ${sb_lastMathState.wLeft.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--orange)">X<sub>${p1}</sub> = ${sb_lastMathState.wRight.toFixed(2)}</div>
                 `;
             } else if (sb_isFrozen) {
                 document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:#b57edc">Single Phase Region.</div>`;
