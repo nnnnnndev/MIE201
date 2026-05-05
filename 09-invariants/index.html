@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V53</title>
+    <title>Chapter 9: Procedural Phase Engine V54</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V53: Invariant Snapping)</div>
+        <div class="brand">Phase Engine Platform (V54: The Physics Matrix)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -249,6 +249,7 @@
                 }
             },
 
+            // V54: TRUE PARABOLIC ENGINE (Eliminates Math.pow)
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
@@ -262,8 +263,13 @@
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
-                let power = curve.power !== undefined ? curve.power : 1.0;
-                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+                
+                // Linear Base
+                let c_lin = nTop.c + (nBot.c - nTop.c) * ratio;
+                let cx = curve.cx || 0;
+                
+                // Parabolic Addition
+                return c_lin + cx * 4 * ratio * (1 - ratio);
             },
             
             calculateCentroid(pts) {
@@ -423,10 +429,7 @@
             return '#ffffff';
         }
 
-        // V53: The Universal Math UI Renderer (handles 2-Phase and 3-Phase Invariants)
         function drawTieLineUI(curT, curC, mathState) {
-            
-            // 3-PHASE INVARIANT HIGHLIGHT
             if (mathState.isInvariant) {
                 let vL = mathState.cLeft; let vR = mathState.cRight; let vN = mathState.cNexus;
                 
@@ -470,7 +473,6 @@
                 return;
             }
 
-            // STANDARD 2-PHASE TIE LINE
             let vL = mathState.cLeft; let vR = mathState.cRight;
             sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
             sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
@@ -539,13 +541,15 @@
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'edge') continue;
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                     
                     if (curve.type === 'horizontal' || curve.type === 'vertical') {
                         sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     } else {
                         for(let i = 0; i <= 50; i++) {
-                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let t = tMax - (i/50)*(tMax - tMin);
                             let c = PhaseEngine.getC_onCurve(t, curveId);
                             if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
@@ -571,6 +575,7 @@
                     sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
                 }
 
+                // V54: UNIFIED TRACER LOOP
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
@@ -627,33 +632,20 @@
                     }
 
                     if (matchedCurveId && sc.type !== 'horizontal' && sc.type !== 'vertical') {
+                        // V54: STUDENT SNAP TO TRUE PARABOLA
                         const curve = PhaseEngine.schema.curves[matchedCurveId];
                         const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                         sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                        const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                         for(let i = 0; i <= 50; i++) {
-                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let t = tMax - (i/50)*(tMax - tMin);
                             let c = PhaseEngine.getC_onCurve(t, matchedCurveId);
                             if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
                     } else {
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
-                        let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
-                        let drawStart = y1 > y2 ? {x: x1, y: y1} : {x: x2, y: y2};
-                        let drawEnd = y1 > y2 ? {x: x2, y: y2} : {x: x1, y: y1};
-                        
-                        sb_ctx.beginPath(); sb_ctx.moveTo(drawStart.x, drawStart.y);
-                        
-                        if (sc.type === 'horizontal' || sc.type === 'vertical') {
-                            sb_ctx.lineTo(drawEnd.x, drawEnd.y);
-                        } else {
-                            let midX = (drawStart.x + drawEnd.x) / 2; let midY = (drawStart.y + drawEnd.y) / 2;
-                            let bow = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y) * 0.05; 
-                            let cpX = midX, cpY = midY;
-                            if (sc.type === 'liquidus') cpY += bow;
-                            else if (sc.type === 'solidus') cpY -= bow;
-                            else if (sc.type === 'solvus') { cpX += bow; }
-                            sb_ctx.quadraticCurveTo(cpX, cpY, drawEnd.x, drawEnd.y);
-                        }
+                        sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                        sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     }
                     
                     if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
@@ -668,8 +660,7 @@
                     sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#aaaaaa');
                     sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
                     sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
-                    sb_ctx.font = `bold 22px sans-serif`; 
-                    drawTextWithSubscripts(sb_ctx, sl.text, x, y);
+                    sb_ctx.font = `bold 22px sans-serif`; drawTextWithSubscripts(sb_ctx, sl.text, x, y);
                 });
                 sb_ctx.shadowBlur = 0; 
 
@@ -756,7 +747,6 @@
             sb_draw();
         }
 
-        // V53: The Final Invariant Snap (3-Phase Mode)
         window.snapToDynamicInvariant = function(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
@@ -765,7 +755,6 @@
             let nEnd = PhaseEngine.schema.nodes[curve.end];
             let visualT = nStart.t;
             
-            // Search JSON matrix for the exact topological Nexus point
             let targetC = (nStart.c + nEnd.c) / 2;
             let reactionType = "Reaction";
             
@@ -784,7 +773,6 @@
             sb_isFrozen = true; currentC = targetC; currentT = visualT;
             sb_mouseX = mapX(targetC); sb_mouseY = mapY(visualT); 
 
-            // Create a custom Math State for the 3-Phase Reaction
             sb_lastMathState = {
                 isInvariant: true,
                 cLeft: Math.min(nStart.c, nEnd.c),
@@ -845,7 +833,6 @@
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
             
-            // Standard Telemetry
             document.getElementById('sb-out-t').innerText = Math.round(currentT); 
             document.getElementById('sb-out-c').innerText = currentC.toFixed(1);
             if (!activeRegion) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; }
