@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V53</title>
+    <title>Chapter 9: Procedural Phase Engine V54</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V53: Production)</div>
+        <div class="brand">Phase Engine Platform (V54: The Physics Matrix)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -249,6 +249,7 @@
                 }
             },
 
+            // V54: TRUE PARABOLIC ENGINE (Eliminates Math.pow)
             getC_onCurve(T, curveId) {
                 const curve = this.schema.curves[curveId];
                 if (!curve) return null; 
@@ -257,14 +258,18 @@
                 const nTop = nStart.t >= nEnd.t ? nStart : nEnd;
                 const nBot = nStart.t < nEnd.t ? nStart : nEnd;
 
-                // Provide a tiny float buffer to prevent coordinate tearing
                 if (T > nTop.t + 0.01 || T < nBot.t - 0.01) return null;
                 if (curve.type === "vertical" || nTop.t === nBot.t) return nTop.c; 
 
                 let ratio = (nTop.t - T) / (nTop.t - nBot.t); 
                 ratio = Math.max(0, Math.min(1, ratio)); 
-                let power = curve.power !== undefined ? curve.power : 1.0;
-                return nTop.c + (nBot.c - nTop.c) * Math.pow(ratio, power);
+                
+                // Linear Base
+                let c_lin = nTop.c + (nBot.c - nTop.c) * ratio;
+                let cx = curve.cx || 0;
+                
+                // Parabolic Addition
+                return c_lin + cx * 4 * ratio * (1 - ratio);
             },
             
             calculateCentroid(pts) {
@@ -310,6 +315,8 @@
                                 let c = this.getC_onCurve(t, curveDef.id);
                                 if (c !== null) pts.push({ c: c, t: t });
                             }
+                            let cMin = this.getC_onCurve(tMin, curveDef.id);
+                            if(cMin !== null) pts.push({c: cMin, t: tMin});
                             if (nStart.t < nEnd.t) pts.reverse(); 
                         }
 
@@ -423,6 +430,49 @@
         }
 
         function drawTieLineUI(curT, curC, mathState) {
+            if (mathState.isInvariant) {
+                let vL = mathState.cLeft; let vR = mathState.cRight; let vN = mathState.cNexus;
+                
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
+                sb_ctx.strokeStyle = '#ffff00'; sb_ctx.lineWidth = 4; sb_ctx.stroke();
+                
+                sb_ctx.beginPath(); sb_ctx.arc(mapX(vL), mapY(curT), 6, 0, Math.PI*2);
+                sb_ctx.fillStyle = '#00ffff'; sb_ctx.fill();
+                
+                sb_ctx.beginPath(); sb_ctx.arc(mapX(vR), mapY(curT), 6, 0, Math.PI*2);
+                sb_ctx.fillStyle = '#ff8800'; sb_ctx.fill();
+                
+                sb_ctx.beginPath(); sb_ctx.arc(mapX(vN), mapY(curT), 8, 0, Math.PI*2);
+                sb_ctx.fillStyle = '#ff00ff'; sb_ctx.fill();
+
+                sb_ctx.setLineDash([4, 4]); sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 1;
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vL), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vN), mapY(curT)); sb_ctx.lineTo(mapX(vN), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vR), mapY(curT)); sb_ctx.lineTo(mapX(vR), sb_canvas.height - PAD); sb_ctx.stroke();
+                sb_ctx.setLineDash([]);
+                
+                let yAxis = sb_canvas.height - PAD + 20;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(mapX(vL)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vN)-25, yAxis-10, 50, 40); sb_ctx.fillRect(mapX(vR)-25, yAxis-10, 50, 40);
+                
+                sb_ctx.fillStyle = '#00ffff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
+                sb_ctx.fillText(vL.toFixed(1), mapX(vL), yAxis+20);
+                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_L", mapX(vL), yAxis);
+
+                sb_ctx.fillStyle = '#ff00ff'; sb_ctx.textAlign = 'center';
+                sb_ctx.fillText(vN.toFixed(1), mapX(vN), yAxis+20);
+                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_NEX", mapX(vN), yAxis);
+
+                sb_ctx.fillStyle = '#ff8800'; sb_ctx.textAlign = 'center';
+                sb_ctx.fillText(vR.toFixed(1), mapX(vR), yAxis+20);
+                sb_ctx.fillStyle = '#fff'; sb_ctx.fillText("C_R", mapX(vR), yAxis);
+
+                let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
+                sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
+                sb_ctx.fillStyle = '#ffff00'; sb_ctx.textAlign = 'center'; sb_ctx.font = 'bold 12px sans-serif';
+                sb_ctx.fillText(`T = ${Math.round(curT)} K`, midX, mapY(curT) - 15);
+                return;
+            }
+
             let vL = mathState.cLeft; let vR = mathState.cRight;
             sb_ctx.beginPath(); sb_ctx.moveTo(mapX(vL), mapY(curT)); sb_ctx.lineTo(mapX(vR), mapY(curT));
             sb_ctx.strokeStyle = '#fff'; sb_ctx.lineWidth = 3; sb_ctx.stroke();
@@ -491,13 +541,15 @@
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'edge') continue;
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
+                    
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                    const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                     
                     if (curve.type === 'horizontal' || curve.type === 'vertical') {
                         sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     } else {
                         for(let i = 0; i <= 50; i++) {
-                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let t = tMax - (i/50)*(tMax - tMin);
                             let c = PhaseEngine.getC_onCurve(t, curveId);
                             if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
@@ -523,7 +575,7 @@
                     sb_ctx.fill(PhaseEngine.paths[activeRegionId]);
                 }
 
-                // V53 FIX: Ensures curve renderer never skips the first coordinate
+                // V54: UNIFIED TRACER LOOP
                 for (const [curveId, curve] of Object.entries(PhaseEngine.schema.curves)) {
                     if (curve.type === 'horizontal' || curve.type === 'edge') continue; 
                     const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
@@ -555,6 +607,8 @@
                 if (interactionMode === 'navigator') {
                     if (sb_lastMathState && sb_lastMathState.isTwoPhase && currentT !== null) {
                         drawTieLineUI(currentT, currentC, sb_lastMathState);
+                    } else if (sb_lastMathState && sb_lastMathState.isInvariant && currentT !== null) {
+                        drawTieLineUI(currentT, currentC, sb_lastMathState);
                     } else if (currentT !== null && currentC !== null) {
                         drawSinglePhaseUI(currentT, currentC);
                     }
@@ -578,33 +632,20 @@
                     }
 
                     if (matchedCurveId && sc.type !== 'horizontal' && sc.type !== 'vertical') {
+                        // V54: STUDENT SNAP TO TRUE PARABOLA
                         const curve = PhaseEngine.schema.curves[matchedCurveId];
                         const nStart = PhaseEngine.schema.nodes[curve.start]; const nEnd = PhaseEngine.schema.nodes[curve.end];
                         sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                        const tMax = Math.max(nStart.t, nEnd.t); const tMin = Math.min(nStart.t, nEnd.t);
                         for(let i = 0; i <= 50; i++) {
-                            let t = nStart.t - (i/50)*(nStart.t - nEnd.t);
+                            let t = tMax - (i/50)*(tMax - tMin);
                             let c = PhaseEngine.getC_onCurve(t, matchedCurveId);
                             if (c !== null) sb_ctx.lineTo(mapX(c), mapY(t));
                         }
                     } else {
                         const nStart = PhaseEngine.schema.nodes[sc.start]; const nEnd = PhaseEngine.schema.nodes[sc.end];
-                        let x1 = mapX(nStart.c), y1 = mapY(nStart.t); let x2 = mapX(nEnd.c), y2 = mapY(nEnd.t);
-                        let drawStart = y1 > y2 ? {x: x1, y: y1} : {x: x2, y: y2};
-                        let drawEnd = y1 > y2 ? {x: x2, y: y2} : {x: x1, y: y1};
-                        
-                        sb_ctx.beginPath(); sb_ctx.moveTo(drawStart.x, drawStart.y);
-                        
-                        if (sc.type === 'horizontal' || sc.type === 'vertical') {
-                            sb_ctx.lineTo(drawEnd.x, drawEnd.y);
-                        } else {
-                            let midX = (drawStart.x + drawEnd.x) / 2; let midY = (drawStart.y + drawEnd.y) / 2;
-                            let bow = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y) * 0.05; 
-                            let cpX = midX, cpY = midY;
-                            if (sc.type === 'liquidus') cpY += bow;
-                            else if (sc.type === 'solidus') cpY -= bow;
-                            else if (sc.type === 'solvus') { cpX += bow; }
-                            sb_ctx.quadraticCurveTo(cpX, cpY, drawEnd.x, drawEnd.y);
-                        }
+                        sb_ctx.beginPath(); sb_ctx.moveTo(mapX(nStart.c), mapY(nStart.t));
+                        sb_ctx.lineTo(mapX(nEnd.c), mapY(nEnd.t));
                     }
                     
                     if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
@@ -618,8 +659,8 @@
                     let x = mapX(sl.c); let y = mapY(sl.t);
                     sb_ctx.fillStyle = sl.status === 'correct' ? '#00ff00' : (sl.status === 'incorrect' ? '#ffffff' : '#aaaaaa');
                     sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
-                    sb_ctx.font = `bold 22px sans-serif`;
-                    drawTextWithSubscripts(sb_ctx, sl.text, x, y);
+                    sb_ctx.textAlign = 'center'; sb_ctx.textBaseline = 'middle';
+                    sb_ctx.font = `bold 22px sans-serif`; drawTextWithSubscripts(sb_ctx, sl.text, x, y);
                 });
                 sb_ctx.shadowBlur = 0; 
 
@@ -706,16 +747,17 @@
             sb_draw();
         }
 
-        // V53 FIX: Global binding and true Nexus searching
         window.snapToDynamicInvariant = function(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
             let curve = PhaseEngine.schema.curves[curveId];
             let nStart = PhaseEngine.schema.nodes[curve.start];
+            let nEnd = PhaseEngine.schema.nodes[curve.end];
             let visualT = nStart.t;
             
-            // Find the true nexus node (e.g. liquid eutectic point)
-            let targetC = nStart.c;
+            let targetC = (nStart.c + nEnd.c) / 2;
+            let reactionType = "Reaction";
+            
             for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
                 if (Math.abs(n.t - visualT) < 1 && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
                     targetC = n.c;
@@ -723,157 +765,27 @@
                 }
             }
 
-            // Evaluate exactly 1K below to hit the two-phase region mathematically
-            let evalT = visualT - 1.0; 
+            if (curveId === 'iso_e1' || curveId === 'iso_e2') reactionType = "Eutectic Reaction";
+            else if (curveId === 'iso_p') reactionType = "Peritectic Reaction";
+            else if (curveId === 'iso_eu') reactionType = "Eutectoid Reaction";
+            else if (curveId === 'iso_po') reactionType = "Peritectoid Reaction";
 
-            snapToPoint(targetC, visualT, evalT);
-        };
+            sb_isFrozen = true; currentC = targetC; currentT = visualT;
+            sb_mouseX = mapX(targetC); sb_mouseY = mapY(visualT); 
 
-        function snapToPoint(c, visualT, evalT) {
-            sb_isFrozen = true; currentC = c; currentT = visualT;
-            sb_mouseX = mapX(c); sb_mouseY = mapY(visualT); 
-            let activeRegion = PhaseEngine.getRegionAtPoint(mapX(c), mapY(evalT), c, evalT);
-            sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, evalT, c) : null;
-            updateTelemetry(activeRegion, sb_lastMathState, visualT, c);
+            sb_lastMathState = {
+                isInvariant: true,
+                cLeft: Math.min(nStart.c, nEnd.c),
+                cRight: Math.max(nStart.c, nEnd.c),
+                cNexus: targetC,
+                reactionName: reactionType
+            };
+
             document.getElementById('sb-math-panel').style.display = 'block';
             document.getElementById('sb-telemetry').style.display = 'none';
             updateMathPanel();
-            sb_draw(activeRegion ? activeRegion.id : null);
-        }
-
-        function updateTelemetry(region, mathState, curT, curC) {
-            document.getElementById('sb-out-t').innerText = Math.round(curT); 
-            document.getElementById('sb-out-c').innerText = curC.toFixed(1);
-            if (!region) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; return; }
-            document.getElementById('sb-out-region').innerHTML = "";
-            drawTextWithSubscripts(document.getElementById('sb-out-region'), region.phase_name || region.phases.join(" + "), 0, 0); 
-            
-            let phaseString = region.phase_name || region.phases.join(" + ");
-            phaseString = phaseString.replace(/([0-9]+)/g, "<sub>$1</sub>");
-            document.getElementById('sb-out-region').innerHTML = phaseString;
-            
-            if (mathState && mathState.isTwoPhase) {
-                let p0 = mathState.phases[0].replace(/([0-9]+)/g, "<sub>$1</sub>");
-                let p1 = mathState.phases[1].replace(/([0-9]+)/g, "<sub>$1</sub>");
-                document.getElementById('sb-lbl-left').innerHTML = `X<sub>${p0}</sub>:`;
-                document.getElementById('sb-out-w1').innerText = mathState.wLeft.toFixed(2);
-                document.getElementById('sb-lbl-right').innerHTML = `X<sub>${p1}</sub>:`;
-                document.getElementById('sb-out-w2').innerText = mathState.wRight.toFixed(2);
-            } else {
-                document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
-                document.getElementById('sb-out-w1').innerText = "1.00";
-                document.getElementById('sb-lbl-right').innerHTML = `X<sub>-</sub>:`;
-                document.getElementById('sb-out-w2').innerText = "0.00";
-            }
-        }
-
-        function updateMathPanel() {
-            if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
-                let p0 = sb_lastMathState.phases[0].replace(/([0-9]+)/g, "<sub>$1</sub>");
-                let p1 = sb_lastMathState.phases[1].replace(/([0-9]+)/g, "<sub>$1</sub>");
-                document.getElementById('sb-math-content').innerHTML = `
-                    <div class="math-line">1. Intersections:</div>
-                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
-                    <div class="math-line">C_0 = ${currentC.toFixed(1)}</div>
-                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
-                    <hr style="border-color:#333; margin:10px 0;">
-                    <div class="math-line">2. Lever Rule:</div>
-                    <div class="math-line" style="color:var(--cyan)">X_${p0} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
-                    <div class="math-line" style="color:var(--orange)">X_${p1} = ${sb_lastMathState.wRight.toFixed(2)}</div>
-                `;
-            } else if (sb_isFrozen) {
-                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:#b57edc">Single Phase Region.</div>`;
-            }
-        }
-
-        function setAssessmentState(state) {
-            assessmentState = state;
-            document.getElementById('test-practice').classList.toggle('active', state === 'practice');
-            document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
-            document.getElementById('assessment-score').style.display = 'none';
-            document.getElementById('tally-panel').style.display = state === 'practice' ? 'block' : 'none';
-            
-            studentCurves = []; studentLabels = []; selectedNodeA = null; showDevSolution = false; 
-            
-            if (state === 'quiz') { 
-                loadRandomDiagram();
-            }
-            updateTally();
-            sb_draw();
-        }
-
-        function setTool(toolName) {
-            activeTool = toolName; selectedNodeA = null;
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            if(toolName && !toolName.startsWith('lbl_A')) document.querySelector(`.tool-btn[data-tool="${toolName}"]`).classList.add('active');
-            
-            if (!toolName || !toolName.startsWith('lbl_A')) {
-                document.getElementById('im-stamp-select').value = 'none';
-            } else {
-                document.getElementById('im-stamp-select').value = toolName;
-            }
-            sb_draw();
-        }
-
-        function gradeAssessment() {
-            let score = 0;
-            let expectedCurves = 0;
-            for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                if (curve.type !== 'edge') expectedCurves++;
-            }
-            
-            let expectedLabels = Object.values(PhaseEngine.schema.regions).filter(r => r.type === 'single-phase' || r.type === 'intermetallic-pillar').length;
-            let totalExpected = expectedCurves + expectedLabels;
-            
-            studentCurves.forEach(sc => {
-                let isCorrect = false;
-                for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
-                    if (curve.type === 'edge') continue;
-                    let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
-                    if (nodesMatch && sc.type === curve.type) { isCorrect = true; break; }
-                }
-                sc.status = isCorrect ? 'correct' : 'incorrect';
-                if (isCorrect) score++;
-            });
-
-            studentLabels.forEach(sl => {
-                let isIM = ['AB', 'A2B', 'A3B', 'A4B', 'AB2', 'AB3', 'AB4'].includes(sl.text);
-                let hitTarget = false;
-                
-                if (isIM) {
-                    for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
-                        if (region.type === 'intermetallic-pillar' && sl.text === region.phase_name) {
-                            let px = mapX(region.stoichiometric_c);
-                            if (Math.abs(mapX(sl.c) - px) < 25) { hitTarget = true; break; }
-                        }
-                    }
-                } else {
-                    let x = mapX(sl.c); let y = mapY(sl.t);
-                    for (const [regionId, path] of Object.entries(PhaseEngine.paths)) {
-                        if (sb_ctx.isPointInPath(path, x, y) && PhaseEngine.schema.regions[regionId].phase_name === sl.text) { 
-                            hitTarget = true; break; 
-                        }
-                    }
-                }
-                
-                sl.status = hitTarget ? 'correct' : 'incorrect';
-                if (hitTarget) score++;
-            });
-
-            let alertBox = document.getElementById('assessment-score');
-            alertBox.style.display = 'block';
-            
-            if (assessmentState === 'quiz') {
-                alertBox.innerHTML = `<strong>Quiz Complete</strong><br>Score: ${score} / ${totalExpected}<br>Answers Locked.`;
-                setTool(null); 
-            } else {
-                let text = `<strong>Practice Complete</strong><br>Score: ${score} / ${totalExpected}<br><span style="color:#00ff00">Green</span> = Correct, <span style="color:#ffffff">White</span> = Incorrect.`;
-                let missing = totalExpected - (studentCurves.length + studentLabels.length);
-                if(missing > 0) text += `<br><br><span style="color:#ff3333">Missing ${missing} elements. Check tally!</span>`;
-                alertBox.innerHTML = text;
-            }
-            sb_draw();
-        }
+            sb_draw(null);
+        };
 
         sb_canvas.addEventListener('mousemove', (e) => {
             if (!PhaseEngine.schema) return;
@@ -920,9 +832,62 @@
             currentC = c; currentT = t;
             let activeRegion = PhaseEngine.getRegionAtPoint(sb_mouseX, sb_mouseY, currentC, currentT);
             sb_lastMathState = activeRegion ? PhaseEngine.calculateTieLine(activeRegion, currentT, currentC) : null;
-            updateTelemetry(activeRegion, sb_lastMathState, currentT, currentC);
+            
+            document.getElementById('sb-out-t').innerText = Math.round(currentT); 
+            document.getElementById('sb-out-c').innerText = currentC.toFixed(1);
+            if (!activeRegion) { document.getElementById('sb-out-region').innerText = "Out of Bounds"; }
+            else {
+                document.getElementById('sb-out-region').innerHTML = "";
+                drawTextWithSubscripts(document.getElementById('sb-out-region'), activeRegion.phase_name || activeRegion.phases.join(" + "), 0, 0); 
+                let phaseString = activeRegion.phase_name || activeRegion.phases.join(" + ");
+                document.getElementById('sb-out-region').innerHTML = phaseString.replace(/([0-9]+)/g, "<sub>$1</sub>");
+            }
+            
+            if (sb_lastMathState && sb_lastMathState.isTwoPhase) {
+                let p0 = sb_lastMathState.phases[0].replace(/([0-9]+)/g, "<sub>$1</sub>");
+                let p1 = sb_lastMathState.phases[1].replace(/([0-9]+)/g, "<sub>$1</sub>");
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>${p0}</sub>:`;
+                document.getElementById('sb-out-w1').innerText = sb_lastMathState.wLeft.toFixed(2);
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>${p1}</sub>:`;
+                document.getElementById('sb-out-w2').innerText = sb_lastMathState.wRight.toFixed(2);
+            } else {
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w1').innerText = "1.00";
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>-</sub>:`;
+                document.getElementById('sb-out-w2').innerText = "0.00";
+            }
+            
             sb_draw(activeRegion ? activeRegion.id : null);
         });
+
+        function updateMathPanel() {
+            if (sb_isFrozen && sb_lastMathState && sb_lastMathState.isInvariant) {
+                document.getElementById('sb-math-content').innerHTML = `
+                    <div class="math-line" style="color:var(--yellow); font-weight:bold; font-size:1.1rem; margin-bottom:10px;">${sb_lastMathState.reactionName}</div>
+                    <div class="math-line">1. Isotherm Bounds:</div>
+                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--magenta)">C_nexus = ${sb_lastMathState.cNexus.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <hr style="border-color:#333; margin:10px 0;">
+                    <div class="math-line" style="color:#aaa">3-Phase equilibrium achieved. Lever rule spans full bounds.</div>
+                `;
+            } else if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
+                let p0 = sb_lastMathState.phases[0].replace(/([0-9]+)/g, "<sub>$1</sub>");
+                let p1 = sb_lastMathState.phases[1].replace(/([0-9]+)/g, "<sub>$1</sub>");
+                document.getElementById('sb-math-content').innerHTML = `
+                    <div class="math-line">1. Intersections:</div>
+                    <div class="math-line" style="color:var(--cyan)">C_left = ${sb_lastMathState.cLeft.toFixed(1)}</div>
+                    <div class="math-line">C_0 = ${currentC.toFixed(1)}</div>
+                    <div class="math-line" style="color:var(--orange)">C_right = ${sb_lastMathState.cRight.toFixed(1)}</div>
+                    <hr style="border-color:#333; margin:10px 0;">
+                    <div class="math-line">2. Lever Rule:</div>
+                    <div class="math-line" style="color:var(--cyan)">X_${p0} = ${sb_lastMathState.wLeft.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--orange)">X_${p1} = ${sb_lastMathState.wRight.toFixed(2)}</div>
+                `;
+            } else if (sb_isFrozen) {
+                document.getElementById('sb-math-content').innerHTML = `<div class="math-line" style="color:#b57edc">Single Phase Region.</div>`;
+            }
+        }
 
         sb_canvas.addEventListener('mousedown', () => { 
             if (!PhaseEngine.schema) return;
