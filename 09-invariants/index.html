@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V47</title>
+    <title>Chapter 9: Procedural Phase Engine V48</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -66,7 +66,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V47: The Master Renderer)</div>
+        <div class="brand">Phase Engine Platform (V48: Architectural Kinematics)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -235,16 +235,44 @@
                 document.getElementById('loading-overlay').style.display = 'none';
             },
 
-            // V47: KINEMATIC DRAG ENGINE
+            // V48: THE RED BOX OF DEATH & KINEMATICS
             applyDrag(nodeId, reqC, reqT) {
                 let node = this.schema.nodes[nodeId];
                 if (node.bounds && node.bounds.lock_c !== undefined && node.bounds.lock_t !== undefined) return { clamped: true };
                 
                 let newC = reqC;
                 let newT = reqT;
+                let isColliding = false;
 
+                // Restrict horizontal drag if permanently locked
                 if (node.bounds && node.bounds.lock_c) {
                     newC = node.c;
+                }
+
+                // Strict Thermodynamic Collision (JSON min_c / max_c referencing)
+                if (node.bounds) {
+                    if (node.bounds.min_c && this.schema.nodes[node.bounds.min_c]) {
+                        let limit = this.schema.nodes[node.bounds.min_c].c;
+                        if (newC <= limit) { newC = limit + 0.5; isColliding = true; } 
+                    }
+                    if (node.bounds.max_c && this.schema.nodes[node.bounds.max_c]) {
+                        let limit = this.schema.nodes[node.bounds.max_c].c;
+                        if (newC >= limit) { newC = limit - 0.5; isColliding = true; }
+                    }
+                }
+
+                // UI Collision Warning
+                const alertEl = document.getElementById('architect-alert');
+                if (isColliding) {
+                    alertEl.innerHTML = `<strong>Thermodynamic Collision</strong><br><br>Node clamped to prevent physical inversion.`;
+                    alertEl.style.borderColor = 'var(--red)';
+                    alertEl.style.color = 'var(--red)';
+                    alertEl.style.background = 'rgba(255, 51, 51, 0.1)';
+                } else {
+                    alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
+                    alertEl.style.borderColor = 'var(--cyan)';
+                    alertEl.style.color = 'var(--cyan)';
+                    alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
                 }
 
                 newC = Math.max(0, Math.min(newC, 100));
@@ -253,7 +281,7 @@
                 node.c = newC;
                 node.t = newT;
 
-                // KINEMATIC LINKING: Lock sibling nodes on the same isotherm vertically
+                // Kinematic Vertical Locking for Isotherms
                 const isothermGroups = [
                     ['e1_a', 'e1_l', 'im1_e1'],
                     ['po_a', 'im2_po', 'im1_po'],
@@ -315,7 +343,6 @@
             },
             
             calculateCentroid(pts) {
-                // V47: Robust Centroid Calculation
                 let xSum = 0;
                 let ySum = 0;
                 let area = 0;
@@ -537,7 +564,6 @@
 
         function drawSinglePhaseUI(curT, curC) {
             sb_ctx.beginPath(); sb_ctx.arc(mapX(curC), mapY(curT), 6, 0, Math.PI*2);
-            // V47 Update: Use Lavender for single-phase pointer to avoid confusing with liquidus tool
             sb_ctx.fillStyle = sb_isFrozen ? '#b57edc' : '#fff'; sb_ctx.fill();
 
             if (sb_isFrozen) {
@@ -792,20 +818,26 @@
             sb_draw();
         }
 
+        // V48: Invariant Snapping directly to Nexus Node
         function snapToDynamicInvariant(curveId) {
             if (interactionMode !== 'navigator') setMode('navigator');
             
             let curve = PhaseEngine.schema.curves[curveId];
             let nStart = PhaseEngine.schema.nodes[curve.start];
-            let nEnd = PhaseEngine.schema.nodes[curve.end];
-            
-            let c = (nStart.c + nEnd.c) / 2;
             let visualT = nStart.t;
             
-            let regionBelow = PhaseEngine.getRegionAtPoint(mapX(c), mapY(visualT - 0.1), c, visualT - 0.1);
+            let targetC = nStart.c;
+            for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
+                if (n.t === visualT && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
+                    targetC = n.c;
+                    break;
+                }
+            }
+
+            let regionBelow = PhaseEngine.getRegionAtPoint(mapX(targetC), mapY(visualT - 0.1), targetC, visualT - 0.1);
             let evalT = (regionBelow && regionBelow.type === 'two-phase') ? visualT - 0.1 : visualT + 0.1;
 
-            snapToPoint(c, visualT, evalT);
+            snapToPoint(targetC, visualT, evalT);
         }
 
         function snapToPoint(c, visualT, evalT) {
@@ -965,12 +997,6 @@
                     let result = PhaseEngine.applyDrag(draggedNode, c, t); PhaseEngine.buildRegionPaths(); sb_draw();
                     let node = PhaseEngine.schema.nodes[draggedNode];
                     document.getElementById('sb-out-t').innerText = Math.round(node.t); document.getElementById('sb-out-c').innerText = node.c.toFixed(1);
-                    
-                    let alertEl = document.getElementById('architect-alert');
-                    alertEl.innerHTML = `<strong>Architect Mode</strong><br><br>Drag nodes to dynamically alter topology.`;
-                    alertEl.style.borderColor = 'var(--cyan)';
-                    alertEl.style.color = 'var(--cyan)';
-                    alertEl.style.background = 'rgba(0, 255, 255, 0.1)';
                 } else {
                     let found = null;
                     for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
