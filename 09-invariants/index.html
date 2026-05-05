@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V60 (Production)</title>
+    <title>Chapter 9: Procedural Phase Engine V62 (Production)</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V60: Master Build)</div>
+        <div class="brand">Phase Engine Platform (V62: Math/Subscript Final)</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -192,52 +192,68 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // V60: Universal Canvas Subscript Renderer
+        // V62: Nested Sub-Subscript Parser (C_A2B -> C(base), A(sub), 2(subsub), B(sub))
         function drawCanvasSubscript(ctx, text, x, y, align='center') {
             if (!text) return;
             let parts = [];
             
             if (text.includes("_")) {
-                let s = text.split("_");
-                parts.push({text: s[0], sub: false});
-                parts.push({text: s[1], sub: true});
+                let [baseStr, subStr] = text.split("_");
+                let bTokens = baseStr.split(/([0-9]+)/);
+                bTokens.forEach(tok => { if(tok) parts.push({text: tok, type: /[0-9]+/.test(tok) ? 'sub' : 'base'}); });
+                if (subStr) {
+                    let sTokens = subStr.split(/([0-9]+)/);
+                    sTokens.forEach(tok => { if(tok) parts.push({text: tok, type: /[0-9]+/.test(tok) ? 'subsub' : 'sub'}); });
+                }
             } else {
                 let tokens = text.split(/([0-9]+)/);
-                tokens.forEach(tok => {
-                    if (tok) parts.push({text: tok, sub: /[0-9]+/.test(tok)});
-                });
+                tokens.forEach(tok => { if(tok) parts.push({text: tok, type: /[0-9]+/.test(tok) ? 'sub' : 'base'}); });
             }
 
             const baseFont = ctx.font;
             const baseSizeMatch = baseFont.match(/\d+/);
             const baseSize = baseSizeMatch ? parseInt(baseSizeMatch[0]) : 14;
             const subSize = Math.round(baseSize * 0.75);
+            const subsubSize = Math.round(baseSize * 0.60);
 
             let totalWidth = 0;
             parts.forEach(p => {
-                ctx.font = p.sub ? `bold ${subSize}px sans-serif` : `bold ${baseSize}px sans-serif`;
+                if (p.type === 'base') ctx.font = `bold ${baseSize}px sans-serif`;
+                else if (p.type === 'sub') ctx.font = `bold ${subSize}px sans-serif`;
+                else if (p.type === 'subsub') ctx.font = `bold ${subsubSize}px sans-serif`;
                 totalWidth += ctx.measureText(p.text).width;
             });
 
             let startX = align === 'center' ? x - totalWidth / 2 : x;
+            if (align === 'right') startX = x - totalWidth;
+            
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             
             parts.forEach(p => {
-                ctx.font = p.sub ? `bold ${subSize}px sans-serif` : `bold ${baseSize}px sans-serif`;
-                let yOffset = p.sub ? baseSize * 0.25 : 0;
-                ctx.fillText(p.text, startX, y + yOffset);
+                if (p.type === 'base') {
+                    ctx.font = `bold ${baseSize}px sans-serif`;
+                    ctx.fillText(p.text, startX, y);
+                } else if (p.type === 'sub') {
+                    ctx.font = `bold ${subSize}px sans-serif`;
+                    ctx.fillText(p.text, startX, y + baseSize * 0.25);
+                } else if (p.type === 'subsub') {
+                    ctx.font = `bold ${subsubSize}px sans-serif`;
+                    ctx.fillText(p.text, startX, y + baseSize * 0.45);
+                }
                 startX += ctx.measureText(p.text).width;
             });
             ctx.font = baseFont; 
         }
 
-        // V60: HTML Panel Subscript Converter
+        // V62 HTML DOM Parser
         function toHTMLSubscript(text) {
             if (!text) return "";
             if (text.includes("_")) {
-                let s = text.split("_");
-                return `${s[0]}<sub>${s[1]}</sub>`;
+                let [baseStr, subStr] = text.split("_");
+                baseStr = baseStr.replace(/([0-9]+)/g, "<sub>$1</sub>");
+                subStr = subStr.replace(/([0-9]+)/g, "<sub>$1</sub>");
+                return `${baseStr}<sub>${subStr}</sub>`;
             }
             return text.replace(/([0-9]+)/g, "<sub>$1</sub>");
         }
@@ -256,7 +272,6 @@
             generateDynamicInvariantButtons() {
                 const container = document.getElementById('dynamic-invariant-bank');
                 container.innerHTML = '';
-                
                 let count = 1;
                 for (const [curveId, curve] of Object.entries(this.schema.curves)) {
                     if (curve.type === 'horizontal') {
@@ -269,7 +284,6 @@
                         count++;
                     }
                 }
-                
                 if (this.schema.nodes['im1_top']) {
                     let btn = document.createElement('div');
                     btn.className = 'toggle-btn';
@@ -313,8 +327,7 @@
             },
 
             buildRegionPaths() {
-                this.paths = {}; 
-                this.centroids = {};
+                this.paths = {}; this.centroids = {};
                 for (const regionId in this.schema.regions) {
                     const region = this.schema.regions[regionId];
                     if (region.type === 'intermetallic-pillar') continue; 
@@ -359,8 +372,7 @@
                     
                     if (allPts.length > 2) {
                         let calcCentroid = this.calculateCentroid(allPts);
-                        sb_ctx.save(); 
-                        sb_ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                        sb_ctx.save(); sb_ctx.setTransform(1, 0, 0, 1, 0, 0); 
                         if (region.label && !sb_ctx.isPointInPath(path, mapX(calcCentroid.c), mapY(calcCentroid.t))) {
                             calcCentroid = { c: region.label.c, t: region.label.t }; 
                         }
@@ -456,7 +468,6 @@
         }
 
         function drawTieLineUI(curT, curC, mathState) {
-            
             if (mathState.isCongruent) {
                 let vN = mathState.cNexus;
                 sb_ctx.beginPath(); sb_ctx.arc(mapX(vN), mapY(curT), 8, 0, Math.PI*2);
@@ -471,9 +482,7 @@
                 
                 sb_ctx.fillStyle = '#ff00ff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
                 sb_ctx.fillText(vN.toFixed(1), mapX(vN), yAxis+20);
-                sb_ctx.fillStyle = '#fff';
-                sb_ctx.font = 'bold 14px sans-serif';
-                drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
+                sb_ctx.fillStyle = '#fff'; drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
                 
                 let midX = mapX(vN);
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
@@ -508,15 +517,15 @@
                 
                 sb_ctx.fillStyle = '#00ffff'; sb_ctx.textAlign = 'center'; sb_ctx.font = '14px Consolas, monospace';
                 sb_ctx.fillText(vL.toFixed(1), mapX(vL), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; drawCanvasSubscript(sb_ctx, "C_L", mapX(vL), yAxis);
+                sb_ctx.fillStyle = '#00ffff'; drawCanvasSubscript(sb_ctx, "C_L", mapX(vL), yAxis);
 
                 sb_ctx.fillStyle = '#ff00ff'; sb_ctx.textAlign = 'center';
                 sb_ctx.fillText(vN.toFixed(1), mapX(vN), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
+                sb_ctx.fillStyle = '#ff00ff'; drawCanvasSubscript(sb_ctx, "C_" + mathState.reactionShort, mapX(vN), yAxis);
 
                 sb_ctx.fillStyle = '#ff8800'; sb_ctx.textAlign = 'center';
                 sb_ctx.fillText(vR.toFixed(1), mapX(vR), yAxis+20);
-                sb_ctx.fillStyle = '#fff'; drawCanvasSubscript(sb_ctx, "C_R", mapX(vR), yAxis);
+                sb_ctx.fillStyle = '#ff8800'; drawCanvasSubscript(sb_ctx, "C_R", mapX(vR), yAxis);
 
                 let midX = mapX(vL) + (mapX(vR) - mapX(vL))/2;
                 sb_ctx.fillStyle = '#050505'; sb_ctx.fillRect(midX - 35, mapY(curT) - 25, 70, 20);
@@ -747,6 +756,7 @@
             }
         }
 
+        // V62 FIX: Typos eradicated, correct joining.
         function drawLabels() {
             sb_ctx.save();
             for (const [regionId, region] of Object.entries(PhaseEngine.schema.regions)) {
@@ -758,7 +768,7 @@
                 
                 sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
                 sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
-                let text = region.label ? region.label.text : (region.phase_name || region.phases.join('_+ '));
+                let text = region.label ? region.label.text : (region.phase_name || region.phases.join(' + '));
                 drawCanvasSubscript(sb_ctx, text, mapX(c), mapY(t));
             }
             sb_ctx.restore();
