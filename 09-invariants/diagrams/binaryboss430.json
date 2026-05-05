@@ -6,8 +6,8 @@
       "t_max": 1200
     },
     "intermetallics": [
-      "AB",
-      "AB2"
+      "AB2",
+      "AB3"
     ],
     "mirrored": false
   },
@@ -30,96 +30,96 @@
     },
     "tmA": {
       "c": 0.0,
-      "t": 1079.4474
+      "t": 1098.1114
     },
     "tmB": {
       "c": 100.0,
-      "t": 1079.4474
+      "t": 1098.1114
     },
     "im1_top": {
-      "c": 66.67,
-      "t": 1104.3690637541952
+      "c": 75.0,
+      "t": 1109.4005642548232
     },
     "bot_mid1": {
-      "c": 66.67,
+      "c": 75.0,
       "t": 0.0
     },
     "bot_mid2": {
-      "c": 50.0,
+      "c": 66.67,
       "t": 0.0
     },
     "e1_a": {
-      "c": 28.0719,
-      "t": 859.8169
+      "c": 26.668,
+      "t": 820.9776
     },
     "e1_l": {
-      "c": 38.7371,
-      "t": 859.8169,
+      "c": 70.835,
+      "t": 820.9776,
       "is_nexus": true
     },
     "im1_e1": {
-      "c": 66.67,
-      "t": 859.8169
+      "c": 75.0,
+      "t": 820.9776
     },
     "po_a": {
-      "c": 17.0822,
-      "t": 523.2134
+      "c": 17.5568,
+      "t": 540.4889
     },
     "im2_po": {
-      "c": 50.0,
-      "t": 523.2134,
+      "c": 66.67,
+      "t": 540.4889,
       "is_nexus": true
     },
     "im1_po": {
-      "c": 66.67,
-      "t": 523.2134
+      "c": 75.0,
+      "t": 540.4889
     },
     "sol_a_bot": {
-      "c": 14.2179,
+      "c": 8.7784,
       "t": 0.0
     },
     "sol_e_bot": {
-      "c": 98.1797,
+      "c": 96.5625,
       "t": 0.0
     },
     "im1_p": {
-      "c": 66.67,
-      "t": 924.8161
+      "c": 75.0,
+      "t": 966.2543
     },
     "p_g": {
-      "c": 72.1003,
-      "t": 924.8161,
+      "c": 80.75,
+      "t": 966.2543,
       "is_nexus": true
     },
     "p_l": {
-      "c": 79.0735,
-      "t": 924.8161
+      "c": 86.5,
+      "t": 966.2543
     },
     "e2_g": {
-      "c": 76.6828,
-      "t": 762.0562
+      "c": 83.625,
+      "t": 741.3949
     },
     "e2_l": {
-      "c": 84.2298,
-      "t": 762.0562,
+      "c": 89.375,
+      "t": 741.3949,
       "is_nexus": true
     },
     "e2_e": {
-      "c": 90.1635,
-      "t": 762.0562
+      "c": 92.25,
+      "t": 741.3949
     },
     "im1_eu": {
-      "c": 66.67,
-      "t": 633.2137
+      "c": 75.0,
+      "t": 659.3881
     },
     "eu_g": {
-      "c": 67.5489,
-      "t": 633.2137,
+      "c": 77.875,
+      "t": 659.3881,
       "is_nexus": true
     },
     "eu_e": {
-      "c": 91.8266,
-      "t": 633.2137
+      "c": 95.125,
+      "t": 659.3881
     }
   },
   "curves": {
@@ -127,73 +127,73 @@
       "start": "tmA",
       "end": "e1_l",
       "type": "liquidus",
-      "power": 1.6
+      "cx": 3.663900389782977
     },
     "L_2": {
       "start": "e1_l",
       "end": "im1_top",
       "type": "liquidus",
-      "power": 1.58
+      "cx": -5.67176161148282
     },
     "L_3": {
       "start": "im1_top",
       "end": "p_l",
       "type": "liquidus",
-      "power": 1.59
+      "cx": 4.311336813372502
     },
     "L_4": {
       "start": "p_l",
       "end": "e2_l",
       "type": "liquidus",
-      "power": 1.5
+      "cx": 1.3423074263670571
     },
     "L_5": {
       "start": "e2_l",
       "end": "tmB",
       "type": "liquidus",
-      "power": 1.56
+      "cx": -5.33472085267568
     },
     "S_a": {
       "start": "tmA",
       "end": "e1_a",
       "type": "solidus",
-      "power": 0.73
+      "cx": -1.6576259730719738
     },
     "S_g": {
       "start": "p_g",
       "end": "e2_g",
       "type": "solidus",
-      "power": 0.71
+      "cx": 1.0
     },
     "S_e": {
       "start": "tmB",
       "end": "e2_e",
       "type": "solidus",
-      "power": 0.72
+      "cx": 1.7601554755392521
     },
     "sol_a": {
       "start": "e1_a",
       "end": "sol_a_bot",
       "type": "solvus",
-      "power": 1.67
+      "cx": 3.8305695380555482
     },
     "sol_g_L": {
       "start": "p_g",
       "end": "eu_g",
       "type": "solvus",
-      "power": 1.0
+      "cx": -1.5869589236676742
     },
     "sol_g_R": {
       "start": "e2_g",
       "end": "eu_g",
       "type": "solvus",
-      "power": 1.0
+      "cx": 1.5755737153103895
     },
     "sol_e": {
       "start": "e2_e",
       "end": "sol_e_bot",
       "type": "solvus",
-      "power": 1.82
+      "cx": -2.0404524908435553
     },
     "IM1": {
       "start": "im1_top",
@@ -299,25 +299,25 @@
       "start": "e1_a",
       "end": "po_a",
       "type": "edge",
-      "power": 1.67
+      "cx": 3.8305695380555482
     },
     "ed_sol_a_bot": {
       "start": "po_a",
       "end": "sol_a_bot",
       "type": "edge",
-      "power": 1.67
+      "cx": 3.8305695380555482
     },
     "ed_sol_e_up": {
       "start": "e2_e",
       "end": "eu_e",
       "type": "edge",
-      "power": 1.82
+      "cx": -2.0404524908435553
     },
     "ed_sol_e_bot": {
       "start": "eu_e",
       "end": "sol_e_bot",
       "type": "edge",
-      "power": 1.82
+      "cx": -2.0404524908435553
     },
     "ed_im1_1": {
       "start": "im1_top",
@@ -444,7 +444,7 @@
       "type": "two-phase",
       "phases": [
         "L",
-        "AB2"
+        "AB3"
       ],
       "bounding_curves": [
         {
@@ -469,7 +469,7 @@
       "type": "two-phase",
       "phases": [
         "\u03b1",
-        "AB2"
+        "AB3"
       ],
       "bounding_curves": [
         {
@@ -506,7 +506,7 @@
       "type": "two-phase",
       "phases": [
         "\u03b1",
-        "AB"
+        "AB2"
       ],
       "bounding_curves": [
         {
@@ -530,8 +530,8 @@
     "R_IM2_IM1": {
       "type": "two-phase",
       "phases": [
-        "AB",
-        "AB2"
+        "AB2",
+        "AB3"
       ],
       "bounding_curves": [
         {
@@ -582,7 +582,7 @@
       "type": "two-phase",
       "phases": [
         "L",
-        "AB2"
+        "AB3"
       ],
       "bounding_curves": [
         {
@@ -606,7 +606,7 @@
     "R_IM1_g": {
       "type": "two-phase",
       "phases": [
-        "AB2",
+        "AB3",
         "\u03b2"
       ],
       "bounding_curves": [
@@ -728,7 +728,7 @@
     "R_IM1_e": {
       "type": "two-phase",
       "phases": [
-        "AB2",
+        "AB3",
         "\u03b3"
       ],
       "bounding_curves": [
