@@ -280,10 +280,10 @@
                 this.schema = JSON.parse(JSON.stringify(jsonSchema));
                 this.buildRegionPaths();
                 this.generateDynamicInvariantButtons();
-                if (window.MicroEngine) window.MicroEngine.buildUI();
                 updateTally();
                 document.getElementById('loading-overlay').style.display = 'none';
-                sb_draw(); // Force redraw cleanly for Quiz randomizer
+                if (window.MicroEngine) window.MicroEngine.buildUI();
+                sb_draw(); 
             },
 
             generateDynamicInvariantButtons() {
@@ -702,6 +702,67 @@
                     } else if (currentT !== null && currentC !== null) {
                         drawSinglePhaseUI(currentT, currentC);
                     }
+                } else if (interactionMode === 'microstructure' && window.MicroEngine && window.MicroEngine.activePath) {
+                    // SPRINT 4: MACRO VIEW OVERLAY
+                    let cX = mapX(window.MicroEngine.activePath.c);
+                    
+                    // 1. Draw the vertical descent track
+                    sb_ctx.beginPath();
+                    sb_ctx.moveTo(cX, mapY(1200));
+                    sb_ctx.lineTo(cX, mapY(0));
+                    sb_ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)'; // Subtle cyan track
+                    sb_ctx.lineWidth = 2;
+                    sb_ctx.setLineDash([5, 5]);
+                    sb_ctx.stroke();
+                    sb_ctx.setLineDash([]);
+                    
+                    // 2. Draw Initial State (T=1200)
+                    if (window.MicroEngine.currentStep === 0) {
+                        sb_ctx.beginPath();
+                        sb_ctx.arc(cX, mapY(1200), 7, 0, Math.PI * 2);
+                        sb_ctx.fillStyle = '#ff00ff';
+                        sb_ctx.shadowColor = '#ff00ff';
+                        sb_ctx.shadowBlur = 12;
+                        sb_ctx.fill();
+                        sb_ctx.shadowBlur = 0;
+                    }
+                    
+                    // 3. Trace the path and draw waypoints
+                    for (let i = 0; i < window.MicroEngine.currentStep; i++) {
+                        let wp = window.MicroEngine.activePath.waypoints[i];
+                        let isCurrent = (i === window.MicroEngine.currentStep - 1);
+                        let wpY = mapY(wp.T_critical);
+                        
+                        // Solid line from top to current waypoint
+                        if (isCurrent) {
+                            sb_ctx.beginPath();
+                            sb_ctx.moveTo(cX, mapY(1200));
+                            sb_ctx.lineTo(cX, wpY);
+                            sb_ctx.strokeStyle = '#00ffff';
+                            sb_ctx.lineWidth = 2;
+                            sb_ctx.stroke();
+                        }
+
+                        // Draw Node
+                        sb_ctx.beginPath();
+                        sb_ctx.arc(cX, wpY, isCurrent ? 7 : 4, 0, Math.PI * 2);
+                        sb_ctx.fillStyle = isCurrent ? '#00ffff' : 'rgba(255, 0, 255, 0.6)';
+                        if (isCurrent) {
+                            sb_ctx.shadowColor = '#00ffff';
+                            sb_ctx.shadowBlur = 12;
+                        }
+                        sb_ctx.fill();
+                        sb_ctx.shadowBlur = 0;
+                        
+                        // Label the current Temperature
+                        if (isCurrent) {
+                            sb_ctx.fillStyle = '#fff';
+                            sb_ctx.font = 'bold 13px sans-serif';
+                            sb_ctx.textAlign = 'left';
+                            sb_ctx.textBaseline = 'middle';
+                            sb_ctx.fillText(Math.round(wp.T_critical) + ' K', cX + 15, wpY);
+                        }
+                    }
                 }
             } else {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
@@ -947,7 +1008,7 @@
 
         function setMode(mode) {
             interactionMode = mode;
-            document.querySelectorAll('#mode-navigator, #mode-microstructure, #mode-assessment').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('#mode-navigator, #mode-assessment').forEach(el => el.classList.remove('active'));
             document.getElementById('mode-' + mode).classList.add('active');
             
             document.getElementById('nav-bank').style.display = mode === 'navigator' ? 'block' : 'none';
