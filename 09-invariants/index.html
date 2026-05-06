@@ -265,6 +265,7 @@
                 this.generateDynamicInvariantButtons();
                 updateTally();
                 document.getElementById('loading-overlay').style.display = 'none';
+                sb_draw(); // Force redraw cleanly for Quiz randomizer
             },
 
             generateDynamicInvariantButtons() {
@@ -687,6 +688,7 @@
             } else {
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                     if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
+                    if (nodeId === 'bot_L' || nodeId === 'bot_R') continue; // Hide unneeded bottom axis dots
                     sb_ctx.beginPath();
                     let isHoveredOrSelected = (hoveredNode === nodeId || selectedNodeA === nodeId);
                     sb_ctx.arc(mapX(node.c), mapY(node.t), isHoveredOrSelected ? 8 : 5, 0, Math.PI * 2);
@@ -737,11 +739,22 @@
                         }
                     }
                     
-                    if (sc.status === 'correct') sb_ctx.strokeStyle = '#00ff00';
-                    else if (sc.status === 'incorrect') sb_ctx.strokeStyle = '#ffffff'; 
-                    else sb_ctx.strokeStyle = getToolHex(sc.type);
+                    if (sc.status === 'correct') {
+                        sb_ctx.strokeStyle = '#00ff00';
+                    } else if (sc.status === 'incorrect') {
+                        sb_ctx.strokeStyle = '#ffffff'; 
+                    } else {
+                        if (assessmentState === 'quiz') {
+                            sb_ctx.strokeStyle = '#4169e1';
+                            sb_ctx.shadowColor = '#4169e1';
+                            sb_ctx.shadowBlur = 8;
+                        } else {
+                            sb_ctx.strokeStyle = getToolHex(sc.type);
+                        }
+                    }
                     
                     sb_ctx.lineWidth = 4; sb_ctx.stroke();
+                    sb_ctx.shadowBlur = 0; // Reset
                 });
 
                 studentLabels.forEach(sl => {
@@ -755,8 +768,17 @@
                 if (selectedNodeA && activeTool && !activeTool.startsWith('lbl_') && activeTool !== 'eraser') {
                     let startNode = PhaseEngine.schema.nodes[selectedNodeA];
                     sb_ctx.beginPath(); sb_ctx.moveTo(mapX(startNode.c), mapY(startNode.t)); sb_ctx.lineTo(sb_mouseX, sb_mouseY);
-                    sb_ctx.strokeStyle = getToolHex(activeTool);
+                    
+                    if (assessmentState === 'quiz') {
+                        sb_ctx.strokeStyle = '#4169e1';
+                        sb_ctx.shadowColor = '#4169e1';
+                        sb_ctx.shadowBlur = 8;
+                    } else {
+                        sb_ctx.strokeStyle = getToolHex(activeTool);
+                    }
+
                     sb_ctx.lineWidth = 2; sb_ctx.setLineDash([5, 5]); sb_ctx.stroke(); sb_ctx.setLineDash([]);
+                    sb_ctx.shadowBlur = 0; // Reset
                 }
             }
         }
@@ -860,8 +882,6 @@
                 let py = mapY(sl.t);
                 
                 let clickedRegion = null;
-                
-                // Prioritize checking vertical IM pillars first (within 3 at% hit-box)
                 for (const [rId, r] of Object.entries(PhaseEngine.schema.regions)) {
                     if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 3.0) {
                         clickedRegion = r; 
@@ -869,7 +889,6 @@
                     }
                 }
 
-                // If not dropped on a pillar, check the background polygons
                 if (!clickedRegion) {
                     for (const [rId, path] of Object.entries(PhaseEngine.paths)) {
                         if (sb_ctx.isPointInPath(path, px, py)) {
@@ -920,9 +939,15 @@
 
             sb_isFrozen = false; currentC = null; currentT = null;
             hoveredNode = null; draggedNode = null; selectedNodeA = null; showDevSolution = false;
+
+            if (mode === 'navigator') {
+                studentCurves.forEach(sc => sc.status = 'un-graded');
+                studentLabels.forEach(sl => sl.status = 'un-graded');
+            }
             
             if (mode !== 'assessment' && assessmentState === 'quiz') {
                 loadRandomDiagram(); 
+                setAssessmentState('practice'); 
             } else {
                 sb_draw();
             }
@@ -1001,6 +1026,7 @@
                 let found = null;
                 for (const [nodeId, node] of Object.entries(PhaseEngine.schema.nodes)) {
                     if (node.t === 1200 || node.bounds?.lock_t === 1200) continue; 
+                    if (nodeId === 'bot_L' || nodeId === 'bot_R') continue; // Hide unneeded bottom axis dots
                     if (Math.hypot(mapX(node.c) - sb_mouseX, mapY(node.t) - sb_mouseY) < 12) { found = nodeId; break; }
                 }
                 if (found !== hoveredNode) { hoveredNode = found; sb_canvas.style.cursor = hoveredNode ? 'pointer' : 'crosshair'; }
