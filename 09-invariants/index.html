@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chapter 9: Procedural Phase Engine V66</title>
+    <title>Chapter 9: Procedural Phase Engine</title>
     <style>
         :root {
             --bg: #050505; --panel: #111; --cyan: #00ffff; --magenta: #ff00ff;
@@ -67,7 +67,7 @@
 <body>
 
     <div id="global-nav">
-        <div class="brand">Phase Engine Platform (V66: Master Build)</div>
+        <div class="brand">Phase Engine Platform</div>
     </div>
 
     <div id="view-sandbox" class="view-container">
@@ -192,7 +192,6 @@
         function invX(x) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.c_max, ((x - PAD) / (sb_canvas.width - PAD * 2)) * PhaseEngine.schema.metadata.axes.c_max)); }
         function invY(y) { return Math.max(0, Math.min(PhaseEngine.schema.metadata.axes.t_max, ((sb_canvas.height - PAD - y) / (sb_canvas.height - PAD * 2)) * PhaseEngine.schema.metadata.axes.t_max)); }
 
-        // V66: Perfect Nested Sub-Subscript Renderer
         function drawCanvasSubscript(ctx, text, x, y, align='center') {
             if (!text) return;
             let parts = [];
@@ -942,6 +941,13 @@
                 document.getElementById('sb-out-w1').innerText = sb_lastMathState.wLeft.toFixed(2);
                 document.getElementById('sb-lbl-right').innerHTML = `X<sub>${toHTMLSubscript(sb_lastMathState.phases[1])}</sub>:`;
                 document.getElementById('sb-out-w2').innerText = sb_lastMathState.wRight.toFixed(2);
+            } else if (sb_lastMathState && sb_lastMathState.isInvariant) {
+                let wLeft = (sb_lastMathState.cRight - sb_lastMathState.cNexus) / (sb_lastMathState.cRight - sb_lastMathState.cLeft);
+                let wRight = (sb_lastMathState.cNexus - sb_lastMathState.cLeft) / (sb_lastMathState.cRight - sb_lastMathState.cLeft);
+                document.getElementById('sb-lbl-left').innerHTML = `X<sub>Left</sub>:`;
+                document.getElementById('sb-out-w1').innerText = wLeft.toFixed(2);
+                document.getElementById('sb-lbl-right').innerHTML = `X<sub>Right</sub>:`;
+                document.getElementById('sb-out-w2').innerText = wRight.toFixed(2);
             } else {
                 document.getElementById('sb-lbl-left').innerHTML = `X<sub>-</sub>:`;
                 document.getElementById('sb-out-w1').innerText = "1.00";
@@ -961,6 +967,8 @@
                     <div class="math-line" style="color:#aaa">Liquid and Solid phases have identical composition.</div>
                 `;
             } else if (sb_isFrozen && sb_lastMathState && sb_lastMathState.isInvariant) {
+                let wLeft = (sb_lastMathState.cRight - sb_lastMathState.cNexus) / (sb_lastMathState.cRight - sb_lastMathState.cLeft);
+                let wRight = (sb_lastMathState.cNexus - sb_lastMathState.cLeft) / (sb_lastMathState.cRight - sb_lastMathState.cLeft);
                 document.getElementById('sb-math-content').innerHTML = `
                     <div class="math-line" style="color:var(--yellow); font-weight:bold; font-size:1.1rem; margin-bottom:10px;">${sb_lastMathState.reactionName}</div>
                     <div class="math-line">1. Isotherm Bounds:</div>
@@ -968,7 +976,9 @@
                     <div class="math-line" style="color:var(--magenta)">C<sub>${sb_lastMathState.reactionShort}</sub> = ${sb_lastMathState.cNexus.toFixed(1)}</div>
                     <div class="math-line" style="color:var(--orange)">C<sub>R</sub> = ${sb_lastMathState.cRight.toFixed(1)}</div>
                     <hr style="border-color:#333; margin:10px 0;">
-                    <div class="math-line" style="color:#aaa">3-Phase equilibrium achieved. Lever rule spans full bounds.</div>
+                    <div class="math-line">2. Invariant Phase Fractions (at Nexus):</div>
+                    <div class="math-line" style="color:var(--cyan)">X<sub>Left</sub> = ${wLeft.toFixed(2)}</div>
+                    <div class="math-line" style="color:var(--orange)">X<sub>Right</sub> = ${wRight.toFixed(2)}</div>
                 `;
             } else if(sb_isFrozen && sb_lastMathState && sb_lastMathState.isTwoPhase) {
                 let p0 = toHTMLSubscript(sb_lastMathState.phases[0]);
