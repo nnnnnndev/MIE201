@@ -270,18 +270,25 @@
             generateDynamicInvariantButtons() {
                 const container = document.getElementById('dynamic-invariant-bank');
                 container.innerHTML = '';
-                let count = 1;
-                for (const [curveId, curve] of Object.entries(this.schema.curves)) {
-                    if (curve.type === 'horizontal') {
-                        let btn = document.createElement('div');
-                        btn.className = 'toggle-btn';
-                        btn.style.borderBottom = '1px solid #444';
-                        btn.innerText = `Invariant ${count}`;
-                        btn.onclick = () => window.snapToDynamicInvariant(curveId);
-                        container.appendChild(btn);
-                        count++;
-                    }
-                }
+                
+                // Explictly structure the 5 core physical invariants independently of segments
+                const invariants = [
+                    { name: 'Eutectic 1', left: 'e1_a', right: 'im1_e1', nex: 'e1_l', type: 'Eutectic Reaction', short: 'euc' },
+                    { name: 'Peritectoid', left: 'po_a', right: 'im1_po', nex: 'im2_po', type: 'Peritectoid Reaction', short: 'perd' },
+                    { name: 'Peritectic', left: 'im1_p', right: 'p_l', nex: 'p_g', type: 'Peritectic Reaction', short: 'perc' },
+                    { name: 'Eutectic 2', left: 'e2_g', right: 'e2_e', nex: 'e2_l', type: 'Eutectic Reaction', short: 'euc' },
+                    { name: 'Eutectoid', left: 'im1_eu', right: 'eu_e', nex: 'eu_g', type: 'Eutectoid Reaction', short: 'eud' }
+                ];
+
+                invariants.forEach((inv, idx) => {
+                    let btn = document.createElement('div');
+                    btn.className = 'toggle-btn';
+                    btn.style.borderBottom = '1px solid #444';
+                    btn.innerText = inv.name;
+                    btn.onclick = () => window.snapToDynamicInvariant(inv);
+                    container.appendChild(btn);
+                });
+
                 if (this.schema.nodes['im1_top']) {
                     let btn = document.createElement('div');
                     btn.className = 'toggle-btn';
@@ -790,8 +797,6 @@
             document.getElementById('tal-lbl').innerText = `${studentLabels.length} / ${expectedLabels}`;
         }
 
-        // ---- RESTORED ASSESSMENT FUNCTIONS ----
-
         function setAssessmentState(state) {
             assessmentState = state;
             document.getElementById('test-practice').classList.toggle('active', state === 'practice');
@@ -864,7 +869,8 @@
                 }
                 if (!clickedRegion) {
                     for (const [rId, r] of Object.entries(PhaseEngine.schema.regions)) {
-                        if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 1.0) {
+                        // Increased forgiveness for IM label hit-boxes
+                        if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 2.5) {
                             clickedRegion = r; break;
                         }
                     }
@@ -898,8 +904,6 @@
             }
             sb_draw();
         }
-
-        // ---- END RESTORED ASSESSMENT FUNCTIONS ----
 
         function setMode(mode) {
             interactionMode = mode;
@@ -953,39 +957,25 @@
             sb_draw(null);
         };
 
-        window.snapToDynamicInvariant = function(curveId) {
+        window.snapToDynamicInvariant = function(invData) {
             if (interactionMode !== 'navigator') setMode('navigator');
-            let curve = PhaseEngine.schema.curves[curveId];
-            let nStart = PhaseEngine.schema.nodes[curve.start];
-            let nEnd = PhaseEngine.schema.nodes[curve.end];
-            let visualT = nStart.t;
             
-            let targetC = (nStart.c + nEnd.c) / 2;
-            let reactionType = "Reaction";
-            let reactionShort = "NEX";
-            
-            for (const [nId, n] of Object.entries(PhaseEngine.schema.nodes)) {
-                if (Math.abs(n.t - visualT) < 1 && (n.is_nexus || ['e1_l', 'p_g', 'e2_l', 'im2_po', 'eu_g'].includes(nId))) {
-                    targetC = n.c;
-                    break;
-                }
-            }
-
-            if (curveId === 'iso_e1' || curveId === 'iso_e2') { reactionType = "Eutectic Reaction"; reactionShort = "euc"; }
-            else if (curveId === 'iso_p') { reactionType = "Peritectic Reaction"; reactionShort = "perc"; }
-            else if (curveId === 'iso_eu') { reactionType = "Eutectoid Reaction"; reactionShort = "eud"; }
-            else if (curveId === 'iso_po') { reactionType = "Peritectoid Reaction"; reactionShort = "perd"; }
+            let nL = PhaseEngine.schema.nodes[invData.left];
+            let nR = PhaseEngine.schema.nodes[invData.right];
+            let nN = PhaseEngine.schema.nodes[invData.nex];
+            let visualT = nL.t;
+            let targetC = nN.c;
 
             sb_isFrozen = true; currentC = targetC; currentT = visualT;
             sb_mouseX = mapX(targetC); sb_mouseY = mapY(visualT); 
 
             sb_lastMathState = {
                 isInvariant: true,
-                cLeft: Math.min(nStart.c, nEnd.c),
-                cRight: Math.max(nStart.c, nEnd.c),
+                cLeft: Math.min(nL.c, nR.c),
+                cRight: Math.max(nL.c, nR.c),
                 cNexus: targetC,
-                reactionName: reactionType,
-                reactionShort: reactionShort
+                reactionName: invData.type,
+                reactionShort: invData.short
             };
 
             document.getElementById('sb-math-panel').style.display = 'block';
