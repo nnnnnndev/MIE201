@@ -790,6 +790,117 @@
             document.getElementById('tal-lbl').innerText = `${studentLabels.length} / ${expectedLabels}`;
         }
 
+        // ---- RESTORED ASSESSMENT FUNCTIONS ----
+
+        function setAssessmentState(state) {
+            assessmentState = state;
+            document.getElementById('test-practice').classList.toggle('active', state === 'practice');
+            document.getElementById('test-quiz').classList.toggle('active', state === 'quiz');
+            studentCurves = [];
+            studentLabels = [];
+            document.getElementById('assessment-score').style.display = 'none';
+            if (state === 'quiz') {
+                loadRandomDiagram(); 
+            } else {
+                updateTally();
+                sb_draw();
+            }
+        }
+
+        function setTool(tool) {
+            activeTool = tool;
+            selectedNodeA = null; 
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                if (btn.dataset.tool === tool) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            let imSelect = document.getElementById('im-stamp-select');
+            if (tool.startsWith('lbl_') && tool.includes('A')) {
+                imSelect.style.borderColor = '#fff';
+            } else {
+                imSelect.value = 'none';
+                imSelect.style.borderColor = '#555';
+            }
+        }
+
+        function gradeAssessment() {
+            if (!PhaseEngine.schema) return;
+            
+            let correctCurves = 0;
+            let expectedCurves = 0;
+            for(const [k, c] of Object.entries(PhaseEngine.schema.curves)) {
+                if(c.type !== 'edge') expectedCurves++;
+            }
+            
+            studentCurves.forEach(sc => {
+                let matched = false;
+                for (const [key, curve] of Object.entries(PhaseEngine.schema.curves)) {
+                    if (curve.type === 'edge') continue;
+                    let nodesMatch = (sc.start === curve.start && sc.end === curve.end) || (sc.start === curve.end && sc.end === curve.start);
+                    if (nodesMatch && sc.type === curve.type) {
+                        matched = true;
+                        break;
+                    }
+                }
+                sc.status = matched ? 'correct' : 'incorrect';
+                if (matched) correctCurves++;
+            });
+
+            let correctLabels = 0;
+            let expectedRegions = Object.values(PhaseEngine.schema.regions).filter(r => r.type === 'single-phase' || r.type === 'intermetallic-pillar');
+            let expectedLabels = expectedRegions.length;
+
+            studentLabels.forEach(sl => {
+                let matched = false;
+                let px = mapX(sl.c);
+                let py = mapY(sl.t);
+                
+                let clickedRegion = null;
+                for (const [rId, path] of Object.entries(PhaseEngine.paths)) {
+                    if (sb_ctx.isPointInPath(path, px, py)) {
+                        clickedRegion = PhaseEngine.schema.regions[rId];
+                        break;
+                    }
+                }
+                if (!clickedRegion) {
+                    for (const [rId, r] of Object.entries(PhaseEngine.schema.regions)) {
+                        if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 1.0) {
+                            clickedRegion = r; break;
+                        }
+                    }
+                }
+
+                let clickedRegionText = clickedRegion ? (clickedRegion.label ? clickedRegion.label.text : (clickedRegion.phase_name || clickedRegion.phases.join(' + '))) : "";
+
+                if (clickedRegionText === sl.text) {
+                    matched = true;
+                }
+                sl.status = matched ? 'correct' : 'incorrect';
+                if (matched) correctLabels++;
+            });
+
+            let scoreBox = document.getElementById('assessment-score');
+            scoreBox.style.display = 'block';
+            let totalCorrect = correctCurves + correctLabels;
+            let totalExpected = expectedCurves + expectedLabels;
+            let pct = Math.round((totalCorrect / totalExpected) * 100) || 0;
+            
+            if (pct === 100) {
+                scoreBox.style.color = '#00ff00';
+                scoreBox.style.borderColor = '#00ff00';
+                scoreBox.style.background = 'rgba(0,255,0,0.1)';
+                scoreBox.innerText = `Perfect! 100% (${totalCorrect}/${totalExpected})`;
+            } else {
+                scoreBox.style.color = 'var(--cyan)';
+                scoreBox.style.borderColor = 'var(--cyan)';
+                scoreBox.style.background = 'rgba(0,255,255,0.1)';
+                scoreBox.innerText = `Score: ${pct}% (${totalCorrect}/${totalExpected}). Keep practicing!`;
+            }
+            sb_draw();
+        }
+
+        // ---- END RESTORED ASSESSMENT FUNCTIONS ----
+
         function setMode(mode) {
             interactionMode = mode;
             document.querySelectorAll('#mode-navigator, #mode-assessment').forEach(el => el.classList.remove('active'));
