@@ -6,8 +6,8 @@
       "t_max": 1200
     },
     "intermetallics": [
-      "AB",
-      "A2B"
+      "A3B",
+      "A4B"
     ],
     "mirrored": true
   },
@@ -30,96 +30,96 @@
     },
     "tmA": {
       "c": 100.0,
-      "t": 1103.9017
+      "t": 1102.399
     },
     "tmB": {
       "c": 0.0,
-      "t": 1103.9017
+      "t": 1102.399
     },
     "im1_top": {
-      "c": 33.33,
-      "t": 1169.5734
+      "c": 20.0,
+      "t": 1128.2481
     },
     "bot_mid1": {
-      "c": 33.33,
+      "c": 20.0,
       "t": 0.0
     },
     "bot_mid2": {
-      "c": 50.0,
+      "c": 25.0,
       "t": 0.0
     },
     "e1_a": {
-      "c": 80.0,
-      "t": 877.4273
+      "c": 70.0,
+      "t": 826.7788
     },
     "e1_l": {
-      "c": 41.665,
-      "t": 877.4273,
+      "c": 22.5,
+      "t": 826.7788,
       "is_nexus": true
     },
     "im1_e1": {
-      "c": 33.33,
-      "t": 877.4273
+      "c": 20.0,
+      "t": 826.7788
     },
     "sol_a_bot": {
-      "c": 96.0,
+      "c": 94.0,
       "t": 0.0
     },
     "po_a": {
-      "c": 86.0444,
-      "t": 545.9549
+      "c": 78.3874,
+      "t": 537.8408
     },
     "im2_po": {
-      "c": 50.0,
-      "t": 545.9549,
+      "c": 25.0,
+      "t": 537.8408,
       "is_nexus": true
     },
     "im1_po": {
-      "c": 33.33,
-      "t": 545.9549
+      "c": 20.0,
+      "t": 537.8408
     },
     "sol_e_bot": {
       "c": 1.0,
       "t": 0.0
     },
     "im1_p": {
-      "c": 33.33,
-      "t": 949.7995
+      "c": 20.0,
+      "t": 965.204
     },
     "p_g": {
-      "c": 24.3786,
-      "t": 949.7995,
+      "c": 14.8571,
+      "t": 965.204,
       "is_nexus": true
     },
     "p_l": {
-      "c": 15.4271,
-      "t": 949.7995
+      "c": 9.7143,
+      "t": 965.204
     },
     "e2_g": {
-      "c": 19.9029,
-      "t": 761.0397
+      "c": 12.2857,
+      "t": 755.3279
     },
     "e2_l": {
-      "c": 10.9514,
-      "t": 761.0397,
+      "c": 7.1429,
+      "t": 755.3279,
       "is_nexus": true
     },
     "e2_e": {
-      "c": 6.4757,
-      "t": 761.0397
+      "c": 4.5714,
+      "t": 755.3279
     },
     "im1_eu": {
-      "c": 33.33,
-      "t": 671.0714
+      "c": 20.0,
+      "t": 659.354
     },
     "eu_g": {
-      "c": 28.8543,
-      "t": 671.0714,
+      "c": 17.4286,
+      "t": 659.354,
       "is_nexus": true
     },
     "eu_e": {
-      "c": 5.8284,
-      "t": 671.0714
+      "c": 4.1176,
+      "t": 659.354
     }
   },
   "curves": {
@@ -133,31 +133,31 @@
       "start": "im1_top",
       "end": "e1_l",
       "type": "liquidus",
-      "cx": 2.6994680290521327
+      "cx": 0.4556538319319959
     },
     "L_3": {
       "start": "im1_top",
       "end": "p_l",
       "type": "liquidus",
-      "cx": -4.0
+      "cx": -1.874687447641173
     },
     "L_4": {
       "start": "p_l",
       "end": "e2_l",
       "type": "liquidus",
-      "cx": -1.449551176680096
+      "cx": -0.46866730537197315
     },
     "L_5": {
       "start": "tmB",
       "end": "e2_l",
       "type": "liquidus",
-      "cx": 3.546845131777029
+      "cx": 1.3018759024428208
     },
     "S_a": {
       "start": "tmA",
       "end": "e1_a",
       "type": "solidus",
-      "cx": 2.5699658165420876
+      "cx": 4.0
     },
     "S_g": {
       "start": "p_g",
@@ -169,19 +169,19 @@
       "start": "tmB",
       "end": "e2_e",
       "type": "solidus",
-      "cx": -0.8321163819090802
+      "cx": -0.7121525894362192
     },
     "sol_a": {
       "start": "e1_a",
       "end": "sol_a_bot",
       "type": "solvus",
-      "cx": 0
+      "cx": -2.0
     },
     "sol_g_L": {
       "start": "p_g",
       "end": "eu_g",
       "type": "solvus",
-      "cx": -0.8465779509080105
+      "cx": -0.7600663571986778
     },
     "sol_g_R": {
       "start": "e2_g",
@@ -193,7 +193,7 @@
       "start": "e2_e",
       "end": "sol_e_bot",
       "type": "solvus",
-      "cx": 0
+      "cx": 1.05560995065112
     },
     "IM1": {
       "start": "im1_top",
@@ -419,7 +419,7 @@
       "type": "two-phase",
       "phases": [
         "L",
-        "\u03b1"
+        "\u03b3"
       ],
       "bounding_curves": [
         {
@@ -439,7 +439,7 @@
     "R_L_IM1_L": {
       "type": "two-phase",
       "phases": [
-        "A2B",
+        "A4B",
         "L"
       ],
       "bounding_curves": [
@@ -464,8 +464,8 @@
     "R_a_IM1": {
       "type": "two-phase",
       "phases": [
-        "A2B",
-        "\u03b1"
+        "A4B",
+        "\u03b3"
       ],
       "bounding_curves": [
         {
@@ -501,8 +501,8 @@
     "R_a_IM2": {
       "type": "two-phase",
       "phases": [
-        "AB",
-        "\u03b1"
+        "A3B",
+        "\u03b3"
       ],
       "bounding_curves": [
         {
@@ -526,8 +526,8 @@
     "R_IM2_IM1": {
       "type": "two-phase",
       "phases": [
-        "A2B",
-        "AB"
+        "A4B",
+        "A3B"
       ],
       "bounding_curves": [
         {
@@ -550,7 +550,7 @@
     },
     "R_a": {
       "type": "single-phase",
-      "phase_name": "\u03b1",
+      "phase_name": "\u03b3",
       "bounding_curves": [
         {
           "id": "S_a",
@@ -578,7 +578,7 @@
       "type": "two-phase",
       "phases": [
         "L",
-        "A2B"
+        "A4B"
       ],
       "bounding_curves": [
         {
@@ -603,7 +603,7 @@
       "type": "two-phase",
       "phases": [
         "\u03b2",
-        "A2B"
+        "A4B"
       ],
       "bounding_curves": [
         {
@@ -656,7 +656,7 @@
     "R_L_e": {
       "type": "two-phase",
       "phases": [
-        "\u03b3",
+        "\u03b1",
         "L"
       ],
       "bounding_curves": [
@@ -695,7 +695,7 @@
     "R_g_e": {
       "type": "two-phase",
       "phases": [
-        "\u03b3",
+        "\u03b1",
         "\u03b2"
       ],
       "bounding_curves": [
@@ -724,8 +724,8 @@
     "R_IM1_e": {
       "type": "two-phase",
       "phases": [
-        "\u03b3",
-        "A2B"
+        "\u03b1",
+        "A4B"
       ],
       "bounding_curves": [
         {
@@ -756,7 +756,7 @@
     },
     "R_e": {
       "type": "single-phase",
-      "phase_name": "\u03b3",
+      "phase_name": "\u03b1",
       "bounding_curves": [
         {
           "id": "S_e",
