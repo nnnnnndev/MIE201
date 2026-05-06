@@ -271,7 +271,6 @@
                 const container = document.getElementById('dynamic-invariant-bank');
                 container.innerHTML = '';
                 
-                // Explictly structure the 5 core physical invariants independently of segments
                 const invariants = [
                     { name: 'Eutectic 1', left: 'e1_a', right: 'im1_e1', nex: 'e1_l', type: 'Eutectic Reaction', short: 'euc' },
                     { name: 'Peritectoid', left: 'po_a', right: 'im1_po', nex: 'im2_po', type: 'Peritectoid Reaction', short: 'perd' },
@@ -861,17 +860,21 @@
                 let py = mapY(sl.t);
                 
                 let clickedRegion = null;
-                for (const [rId, path] of Object.entries(PhaseEngine.paths)) {
-                    if (sb_ctx.isPointInPath(path, px, py)) {
-                        clickedRegion = PhaseEngine.schema.regions[rId];
+                
+                // Prioritize checking vertical IM pillars first (within 3 at% hit-box)
+                for (const [rId, r] of Object.entries(PhaseEngine.schema.regions)) {
+                    if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 3.0) {
+                        clickedRegion = r; 
                         break;
                     }
                 }
+
+                // If not dropped on a pillar, check the background polygons
                 if (!clickedRegion) {
-                    for (const [rId, r] of Object.entries(PhaseEngine.schema.regions)) {
-                        // Increased forgiveness for IM label hit-boxes
-                        if (r.type === 'intermetallic-pillar' && Math.abs(sl.c - r.stoichiometric_c) < 2.5) {
-                            clickedRegion = r; break;
+                    for (const [rId, path] of Object.entries(PhaseEngine.paths)) {
+                        if (sb_ctx.isPointInPath(path, px, py)) {
+                            clickedRegion = PhaseEngine.schema.regions[rId];
+                            break;
                         }
                     }
                 }
@@ -920,7 +923,6 @@
             
             if (mode !== 'assessment' && assessmentState === 'quiz') {
                 loadRandomDiagram(); 
-                setAssessmentState('practice'); 
             } else {
                 sb_draw();
             }
