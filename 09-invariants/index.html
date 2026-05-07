@@ -824,6 +824,15 @@
                                 sb_ctx.fill();
                                 sb_ctx.shadowBlur = 0;
                             });
+
+                            if (isCurrent) {
+                                [nL, nN, nR].forEach(node => {
+                                    sb_ctx.fillStyle = '#ff3333';
+                                    sb_ctx.font = '11px Consolas, monospace';
+                                    sb_ctx.textAlign = 'center';
+                                    sb_ctx.fillText(node.c.toFixed(1), mapX(node.c), wpY - 15);
+                                });
+                            }
                         }
                         
                         // Solid line from top to current waypoint
@@ -853,7 +862,11 @@
                             sb_ctx.font = 'bold 13px sans-serif';
                             sb_ctx.textAlign = 'left';
                             sb_ctx.textBaseline = 'middle';
-                            sb_ctx.fillText(Math.round(wp.T_critical) + ' K', cX + 15, wpY);
+                            let label = Math.round(wp.T_critical) + ' K';
+                            if (wp.type === "Invariant Reaction") {
+                                label += ` (C₀ = ${window.MicroEngine.activePath.c.toFixed(1)} at% B)`;
+                            }
+                            sb_ctx.fillText(label, cX + 15, wpY);
                         }
                     }
                 }
@@ -1461,7 +1474,7 @@
                 ];
                 for (let inv of invariants) {
                     let nL = this.engine.schema.nodes[inv.left];
-                    if (nL && Math.abs(nL.t - T) < 2) return inv;
+                    if (nL && Math.abs(nL.t - T) <= 2) return inv;
                 }
                 return null;
             }
@@ -1496,17 +1509,17 @@
                     let mathLine = "";
                     if (wp.invariant.type.includes('Eutectic') || wp.invariant.type.includes('Eutectoid')) {
                         transitionLine = `${toHTMLSubscript(pN)} &rarr; ${toHTMLSubscript(pL)} + ${toHTMLSubscript(pR)}`;
-                        mathLine = `${toHTMLSubscript(pN)}(${cN} at% B) &rarr; ${toHTMLSubscript(pL)}(${cL} at% B) + ${toHTMLSubscript(pR)}(${cR} at% B)`;
+                        mathLine = `${toHTMLSubscript(pN)} (${cN} at% B) &rarr; ${toHTMLSubscript(pL)} (${cL} at% B) + ${toHTMLSubscript(pR)} (${cR} at% B)`;
                     } else {
                         transitionLine = `${toHTMLSubscript(pL)} + ${toHTMLSubscript(pR)} &rarr; ${toHTMLSubscript(pN)}`;
-                        mathLine = `${toHTMLSubscript(pL)}(${cL} at% B) + ${toHTMLSubscript(pR)}(${cR} at% B) &rarr; ${toHTMLSubscript(pN)}(${cN} at% B)`;
+                        mathLine = `${toHTMLSubscript(pL)} (${cL} at% B) + ${toHTMLSubscript(pR)} (${cR} at% B) &rarr; ${toHTMLSubscript(pN)} (${cN} at% B)`;
                     }
 
                     readout.innerHTML = `
                         <div style="color:var(--yellow); font-weight:bold; margin-bottom:5px;">Step ${this.currentStep} / ${this.activePath.waypoints.length}</div>
                         <div style="color:#aaa;">T &approx; ${Math.round(wp.T_critical)} K</div>
-                        <div style="color:var(--magenta); margin-top:5px;">${wp.invariant.type}</div>
-                        <div style="margin-top:5px;">Transition: ${transitionLine}</div>
+                        <div style="color:var(--magenta); margin-top:5px;">Invariant Reaction - ${wp.invariant.type.split(' ')[0]}</div>
+                        <div style="margin-top:5px; color:var(--red);">Transition: ${transitionLine}</div>
                         <div style="margin-top:5px; color:var(--red); font-size: 0.85em;">${mathLine}</div>
                     `;
                 } else {
@@ -1560,23 +1573,23 @@
                         let maxC = Math.max(nL, nR);
                         
                         if (C0 >= minC - 0.5 && C0 <= maxC + 0.5) {
-                            if (!waypoints.some(w => w.invariant && w.invariant.name === activeInv.name)) {
-                                waypoints.push({
-                                    T_critical: T,
-                                    type: "Invariant Reaction",
-                                    invariant: activeInv,
-                                    fromRegion: previousRegion,
-                                    toRegion: currentRegion
-                                });
-                                invariantHitTemp = T;
-                            }
+                            let invT = this.engine.schema.nodes[activeInv.left].t;
+                            waypoints.push({
+                                T_critical: invT,
+                                type: "Invariant Reaction",
+                                invariant: activeInv,
+                                fromRegion: previousRegion,
+                                toRegion: currentRegion
+                            });
+                            invariantHitTemp = invT;
                         }
                     } else if (currentRegion && previousRegion && currentRegion.id !== previousRegion.id) {
                         let crossingType = "Phase Boundary";
                         if (previousRegion.type === "single-phase" && currentRegion.type === "two-phase") crossingType = "Liquidus/Solvus Crossing";
                         
-                        if (!waypoints.some(w => Math.abs(w.T_critical - T) < 2)) {
-                            waypoints.push({ T_critical: T, fromRegion: previousRegion, toRegion: currentRegion, type: crossingType });
+                        // Only add if we aren't at the exact same temp as a just-hit invariant
+                        if (invariantHitTemp === null || T < invariantHitTemp - 3) {
+                             waypoints.push({ T_critical: T, fromRegion: previousRegion, toRegion: currentRegion, type: crossingType });
                         }
                     }
                     if (currentRegion) previousRegion = currentRegion;
@@ -1593,7 +1606,20 @@
                         }
                     }
                 }
-                return waypoints;
+
+                // Cleanup step to purge false 1-pixel "Phase Boundary" crossings right above an invariant
+                let cleanedWaypoints = [];
+                for (let i = 0; i < waypoints.length; i++) {
+                    if (waypoints[i].type === "Phase Boundary" && i < waypoints.length - 1) {
+                        let nextWp = waypoints[i+1];
+                        if (nextWp.type === "Invariant Reaction" && Math.abs(waypoints[i].T_critical - nextWp.T_critical) <= 5) {
+                            continue; // Skip the spurious boundary
+                        }
+                    }
+                    cleanedWaypoints.push(waypoints[i]);
+                }
+
+                return cleanedWaypoints;
             }
         }
 
