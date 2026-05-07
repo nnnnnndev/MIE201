@@ -705,10 +705,15 @@
                 } else if (interactionMode === 'microstructure' && window.MicroEngine && window.MicroEngine.activePath) {
                     let cX = mapX(window.MicroEngine.activePath.c);
                     
-                    // 1. Draw the vertical descent track
+                    // 1. Draw the vertical descent track (stops at the last waypoint now)
                     sb_ctx.beginPath();
                     sb_ctx.moveTo(cX, mapY(1200));
-                    sb_ctx.lineTo(cX, mapY(0));
+                    
+                    let lowestT = 1200;
+                    if (window.MicroEngine.activePath.waypoints.length > 0) {
+                        lowestT = window.MicroEngine.activePath.waypoints[window.MicroEngine.activePath.waypoints.length - 1].T_critical;
+                    }
+                    sb_ctx.lineTo(cX, mapY(lowestT));
                     sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; 
                     sb_ctx.lineWidth = 2;
                     sb_ctx.setLineDash([5, 5]);
@@ -733,7 +738,7 @@
                         let wpY = mapY(wp.T_critical);
 
                         // Ghost Tie-Line Sweep 
-                        if (i > 0) {
+                        if (i > 0 && wp.type !== "Final Microstructure Reached") {
                             let wpPrev = window.MicroEngine.activePath.waypoints[i-1];
                             let twoPhaseRegion = wp.fromRegion;
                             if (twoPhaseRegion && twoPhaseRegion.type === 'two-phase') {
@@ -795,11 +800,11 @@
                             sb_ctx.lineWidth = isCurrent ? 3 : 2;
                             sb_ctx.stroke();
 
-                            if (isCurrent) {
+                            if (isCurrent || i < window.MicroEngine.currentStep - 1) { // keep red lines if we move past
                                 [nL.c, nR.c, nN.c].forEach(c => {
                                     sb_ctx.beginPath();
                                     sb_ctx.moveTo(mapX(c), wpY);
-                                    sb_ctx.lineTo(mapX(c), mapY(0));
+                                    sb_ctx.lineTo(mapX(c), mapY(wp.T_critical - 80)); // Truncate red lines too
                                     sb_ctx.strokeStyle = 'rgba(255, 51, 51, 0.6)';
                                     sb_ctx.lineWidth = 1.5;
                                     sb_ctx.setLineDash([4, 4]);
@@ -843,7 +848,7 @@
                         sb_ctx.shadowBlur = 0;
                         
                         // Label the current Temperature
-                        if (isCurrent) {
+                        if (isCurrent && wp.type !== "Final Microstructure Reached") {
                             sb_ctx.fillStyle = '#fff';
                             sb_ctx.font = 'bold 13px sans-serif';
                             sb_ctx.textAlign = 'left';
@@ -1471,7 +1476,14 @@
                 
                 let wp = this.activePath.waypoints[this.currentStep - 1];
 
-                if (wp.type === "Invariant Reaction" && wp.invariant) {
+                if (wp.type === "Final Microstructure Reached") {
+                     readout.innerHTML = `
+                        <div style="color:var(--yellow); font-weight:bold; margin-bottom:5px;">Step ${this.currentStep} / ${this.activePath.waypoints.length}</div>
+                        <div style="color:#aaa;">T &approx; ${Math.round(wp.T_critical)} K</div>
+                        <div style="color:var(--green); margin-top:5px;">Simulation Terminated</div>
+                        <div style="margin-top:5px;">Final Microstructure Established.</div>
+                    `;
+                } else if (wp.type === "Invariant Reaction" && wp.invariant) {
                     let pL = this.getPhaseForNode(wp.invariant.left);
                     let pR = this.getPhaseForNode(wp.invariant.right);
                     let pN = this.getPhaseForNode(wp.invariant.nex);
@@ -1534,13 +1546,14 @@
             generateCoolingPath(C0) {
                 let waypoints = [];
                 let previousRegion = null;
+                let invariantHitTemp = null; 
                 
                 for (let T = 1200; T >= 0; T -= 1) {
                     let testX = mapX(C0); let testY = mapY(T);
                     let currentRegion = this.engine.getRegionAtPoint(testX, testY, C0, T);
                     
                     let activeInv = this.getInvariantAtTemp(T);
-                    if (activeInv) {
+                    if (activeInv && invariantHitTemp === null) {
                         let nL = this.engine.schema.nodes[activeInv.left].c;
                         let nR = this.engine.schema.nodes[activeInv.right].c;
                         let minC = Math.min(nL, nR);
@@ -1555,6 +1568,7 @@
                                     fromRegion: previousRegion,
                                     toRegion: currentRegion
                                 });
+                                invariantHitTemp = T;
                             }
                         }
                     } else if (currentRegion && previousRegion && currentRegion.id !== previousRegion.id) {
@@ -1566,6 +1580,18 @@
                         }
                     }
                     if (currentRegion) previousRegion = currentRegion;
+
+                    if (invariantHitTemp !== null && T <= invariantHitTemp - 80) {
+                        waypoints.push({ T_critical: T, type: "Final Microstructure Reached", fromRegion: currentRegion, toRegion: currentRegion });
+                        break;
+                    }
+                    
+                    if (invariantHitTemp === null && waypoints.length > 0 && T <= waypoints[0].T_critical - 150) {
+                        if (currentRegion && currentRegion.type === 'single-phase') {
+                             waypoints.push({ T_critical: T, type: "Final Microstructure Reached", fromRegion: currentRegion, toRegion: currentRegion });
+                             break;
+                        }
+                    }
                 }
                 return waypoints;
             }
