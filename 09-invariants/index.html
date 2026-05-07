@@ -703,14 +703,13 @@
                         drawSinglePhaseUI(currentT, currentC);
                     }
                 } else if (interactionMode === 'microstructure' && window.MicroEngine && window.MicroEngine.activePath) {
-                    // SPRINT 4: MACRO VIEW OVERLAY
                     let cX = mapX(window.MicroEngine.activePath.c);
                     
                     // 1. Draw the vertical descent track
                     sb_ctx.beginPath();
                     sb_ctx.moveTo(cX, mapY(1200));
                     sb_ctx.lineTo(cX, mapY(0));
-                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Subtle white track
+                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; 
                     sb_ctx.lineWidth = 2;
                     sb_ctx.setLineDash([5, 5]);
                     sb_ctx.stroke();
@@ -733,9 +732,35 @@
                         let isCurrent = (i === window.MicroEngine.currentStep - 1);
                         let wpY = mapY(wp.T_critical);
 
-                        // Tie-line at boundaries
+                        // Ghost Tie-Line Sweep 
+                        if (i > 0) {
+                            let wpPrev = window.MicroEngine.activePath.waypoints[i-1];
+                            let twoPhaseRegion = wp.fromRegion;
+                            if (twoPhaseRegion && twoPhaseRegion.type === 'two-phase') {
+                                for (let frac = 0.15; frac < 1.0; frac += 0.15) {
+                                    let ghostT = wpPrev.T_critical - frac * (wpPrev.T_critical - wp.T_critical);
+                                    let mathState = PhaseEngine.calculateTieLine(twoPhaseRegion, ghostT, window.MicroEngine.activePath.c);
+                                    if (mathState) {
+                                        sb_ctx.beginPath();
+                                        sb_ctx.moveTo(mapX(mathState.cLeft), mapY(ghostT));
+                                        sb_ctx.lineTo(mapX(mathState.cRight), mapY(ghostT));
+                                        sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                                        sb_ctx.lineWidth = 1;
+                                        sb_ctx.setLineDash([2, 4]);
+                                        sb_ctx.stroke();
+                                        sb_ctx.setLineDash([]);
+                                        
+                                        sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cLeft), mapY(ghostT), 2, 0, Math.PI * 2); sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; sb_ctx.fill();
+                                        sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cRight), mapY(ghostT), 2, 0, Math.PI * 2); sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; sb_ctx.fill();
+                                        sb_ctx.beginPath(); sb_ctx.arc(cX, mapY(ghostT), 2, 0, Math.PI * 2); sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; sb_ctx.fill();
+                                    }
+                                }
+                            }
+                        }
+
+                        // Boundary Highlight
                         if (wp.type === "Liquidus/Solvus Crossing") {
-                            let twoPhaseRegion = wp.toRegion.type === 'two-phase' ? wp.toRegion : (wp.fromRegion.type === 'two-phase' ? wp.fromRegion : null);
+                            let twoPhaseRegion = wp.toRegion.type === 'two-phase' ? wp.toRegion : (wp.fromRegion && wp.fromRegion.type === 'two-phase' ? wp.fromRegion : null);
                             if (twoPhaseRegion) {
                                 let calcT = wp.toRegion.type === 'two-phase' ? wp.T_critical - 0.5 : wp.T_critical + 0.5;
                                 let mathState = PhaseEngine.calculateTieLine(twoPhaseRegion, calcT, window.MicroEngine.activePath.c);
@@ -749,11 +774,51 @@
                                     sb_ctx.stroke();
                                     sb_ctx.setLineDash([]);
                                     
-                                    // End dots
                                     sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cLeft), wpY, 4, 0, Math.PI * 2); sb_ctx.fillStyle = '#ffffff'; sb_ctx.fill();
                                     sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cRight), wpY, 4, 0, Math.PI * 2); sb_ctx.fillStyle = '#ffffff'; sb_ctx.fill();
                                 }
                             }
+                        }
+
+                        // Invariant Visuals
+                        if (wp.type === "Invariant Reaction" && wp.invariant) {
+                            let nL = PhaseEngine.schema.nodes[wp.invariant.left];
+                            let nR = PhaseEngine.schema.nodes[wp.invariant.right];
+                            let nN = PhaseEngine.schema.nodes[wp.invariant.nex];
+                            let minC = Math.min(nL.c, Math.min(nR.c, nN.c));
+                            let maxC = Math.max(nL.c, Math.max(nR.c, nN.c));
+                            
+                            sb_ctx.beginPath();
+                            sb_ctx.moveTo(mapX(minC), wpY);
+                            sb_ctx.lineTo(mapX(maxC), wpY);
+                            sb_ctx.strokeStyle = isCurrent ? '#ff3333' : 'rgba(255, 51, 51, 0.4)';
+                            sb_ctx.lineWidth = isCurrent ? 3 : 2;
+                            sb_ctx.stroke();
+
+                            if (isCurrent) {
+                                [nL.c, nR.c, nN.c].forEach(c => {
+                                    sb_ctx.beginPath();
+                                    sb_ctx.moveTo(mapX(c), wpY);
+                                    sb_ctx.lineTo(mapX(c), mapY(0));
+                                    sb_ctx.strokeStyle = 'rgba(255, 51, 51, 0.6)';
+                                    sb_ctx.lineWidth = 1.5;
+                                    sb_ctx.setLineDash([4, 4]);
+                                    sb_ctx.stroke();
+                                    sb_ctx.setLineDash([]);
+                                });
+                            }
+
+                            [nL, nR, nN].forEach(node => {
+                                sb_ctx.beginPath();
+                                sb_ctx.arc(mapX(node.c), wpY, isCurrent ? 6 : 4, 0, Math.PI * 2);
+                                sb_ctx.fillStyle = isCurrent ? '#ff3333' : 'rgba(255, 51, 51, 0.4)';
+                                if (isCurrent) {
+                                    sb_ctx.shadowColor = '#ff3333';
+                                    sb_ctx.shadowBlur = 10;
+                                }
+                                sb_ctx.fill();
+                                sb_ctx.shadowBlur = 0;
+                            });
                         }
                         
                         // Solid line from top to current waypoint
@@ -1370,6 +1435,32 @@
                 sb_draw();
             }
 
+            getPhaseForNode(nodeId) {
+                const r = this.engine.schema.regions;
+                if(nodeId.includes('_a') || nodeId.includes('po_a')) return r['R_a'].phase_name || "α";
+                if(nodeId.includes('_l') || nodeId === 'L') return 'L';
+                if(nodeId.includes('im1')) return r['R_IM1_pillar'] ? r['R_IM1_pillar'].phase_name : 'IM1';
+                if(nodeId.includes('im2')) return r['R_IM2_pillar'] ? r['R_IM2_pillar'].phase_name : 'IM2';
+                if(nodeId.includes('_g')) return r['R_g'].phase_name || "β";
+                if(nodeId.includes('_e')) return r['R_e'].phase_name || "γ";
+                return '?';
+            }
+
+            getInvariantAtTemp(T) {
+                const invariants = [
+                    { name: 'Eutectic 1', left: 'e1_a', right: 'im1_e1', nex: 'e1_l', type: 'Eutectic Reaction' },
+                    { name: 'Peritectoid', left: 'po_a', right: 'im1_po', nex: 'im2_po', type: 'Peritectoid Reaction' },
+                    { name: 'Peritectic', left: 'im1_p', right: 'p_l', nex: 'p_g', type: 'Peritectic Reaction' },
+                    { name: 'Eutectic 2', left: 'e2_g', right: 'e2_e', nex: 'e2_l', type: 'Eutectic Reaction' },
+                    { name: 'Eutectoid', left: 'im1_eu', right: 'eu_e', nex: 'eu_g', type: 'Eutectoid Reaction' }
+                ];
+                for (let inv of invariants) {
+                    let nL = this.engine.schema.nodes[inv.left];
+                    if (nL && Math.abs(nL.t - T) < 2) return inv;
+                }
+                return null;
+            }
+
             // Updates the text box
             updateReadout() {
                 const readout = document.getElementById('micro-step-readout');
@@ -1379,15 +1470,43 @@
                 }
                 
                 let wp = this.activePath.waypoints[this.currentStep - 1];
-                let fromPhase = wp.fromRegion ? (wp.fromRegion.label ? wp.fromRegion.label.text : wp.fromRegion.phase_name || wp.fromRegion.phases.join(' + ')) : 'Unknown';
-                let toPhase = wp.toRegion ? (wp.toRegion.label ? wp.toRegion.label.text : wp.toRegion.phase_name || wp.toRegion.phases.join(' + ')) : 'Unknown';
-                
-                readout.innerHTML = `
-                    <div style="color:var(--yellow); font-weight:bold; margin-bottom:5px;">Step ${this.currentStep} / ${this.activePath.waypoints.length}</div>
-                    <div style="color:#aaa;">T &approx; ${Math.round(wp.T_critical)} K</div>
-                    <div style="color:var(--magenta); margin-top:5px;">${wp.type}</div>
-                    <div style="margin-top:5px;">Transition: ${toHTMLSubscript(fromPhase)} &rarr; ${toHTMLSubscript(toPhase)}</div>
-                `;
+
+                if (wp.type === "Invariant Reaction" && wp.invariant) {
+                    let pL = this.getPhaseForNode(wp.invariant.left);
+                    let pR = this.getPhaseForNode(wp.invariant.right);
+                    let pN = this.getPhaseForNode(wp.invariant.nex);
+                    
+                    let cL = this.engine.schema.nodes[wp.invariant.left].c.toFixed(1);
+                    let cR = this.engine.schema.nodes[wp.invariant.right].c.toFixed(1);
+                    let cN = this.engine.schema.nodes[wp.invariant.nex].c.toFixed(1);
+
+                    let transitionLine = "";
+                    let mathLine = "";
+                    if (wp.invariant.type.includes('Eutectic') || wp.invariant.type.includes('Eutectoid')) {
+                        transitionLine = `${toHTMLSubscript(pN)} &rarr; ${toHTMLSubscript(pL)} + ${toHTMLSubscript(pR)}`;
+                        mathLine = `${toHTMLSubscript(pN)}(${cN} at% B) &rarr; ${toHTMLSubscript(pL)}(${cL} at% B) + ${toHTMLSubscript(pR)}(${cR} at% B)`;
+                    } else {
+                        transitionLine = `${toHTMLSubscript(pL)} + ${toHTMLSubscript(pR)} &rarr; ${toHTMLSubscript(pN)}`;
+                        mathLine = `${toHTMLSubscript(pL)}(${cL} at% B) + ${toHTMLSubscript(pR)}(${cR} at% B) &rarr; ${toHTMLSubscript(pN)}(${cN} at% B)`;
+                    }
+
+                    readout.innerHTML = `
+                        <div style="color:var(--yellow); font-weight:bold; margin-bottom:5px;">Step ${this.currentStep} / ${this.activePath.waypoints.length}</div>
+                        <div style="color:#aaa;">T &approx; ${Math.round(wp.T_critical)} K</div>
+                        <div style="color:var(--magenta); margin-top:5px;">${wp.invariant.type}</div>
+                        <div style="margin-top:5px;">Transition: ${transitionLine}</div>
+                        <div style="margin-top:5px; color:var(--red); font-size: 0.85em;">${mathLine}</div>
+                    `;
+                } else {
+                    let fromPhase = wp.fromRegion ? (wp.fromRegion.label ? wp.fromRegion.label.text : wp.fromRegion.phase_name || wp.fromRegion.phases.join(' + ')) : 'Unknown';
+                    let toPhase = wp.toRegion ? (wp.toRegion.label ? wp.toRegion.label.text : wp.toRegion.phase_name || wp.toRegion.phases.join(' + ')) : 'Unknown';
+                    readout.innerHTML = `
+                        <div style="color:var(--yellow); font-weight:bold; margin-bottom:5px;">Step ${this.currentStep} / ${this.activePath.waypoints.length}</div>
+                        <div style="color:#aaa;">T &approx; ${Math.round(wp.T_critical)} K</div>
+                        <div style="color:var(--magenta); margin-top:5px;">${wp.type}</div>
+                        <div style="margin-top:5px;">Transition: ${toHTMLSubscript(fromPhase)} &rarr; ${toHTMLSubscript(toPhase)}</div>
+                    `;
+                }
             }
 
             getPedagogicalPaths() {
@@ -1420,12 +1539,31 @@
                     let testX = mapX(C0); let testY = mapY(T);
                     let currentRegion = this.engine.getRegionAtPoint(testX, testY, C0, T);
                     
-                    if (currentRegion && previousRegion && currentRegion.id !== previousRegion.id) {
+                    let activeInv = this.getInvariantAtTemp(T);
+                    if (activeInv) {
+                        let nL = this.engine.schema.nodes[activeInv.left].c;
+                        let nR = this.engine.schema.nodes[activeInv.right].c;
+                        let minC = Math.min(nL, nR);
+                        let maxC = Math.max(nL, nR);
+                        
+                        if (C0 >= minC - 0.5 && C0 <= maxC + 0.5) {
+                            if (!waypoints.some(w => w.invariant && w.invariant.name === activeInv.name)) {
+                                waypoints.push({
+                                    T_critical: T,
+                                    type: "Invariant Reaction",
+                                    invariant: activeInv,
+                                    fromRegion: previousRegion,
+                                    toRegion: currentRegion
+                                });
+                            }
+                        }
+                    } else if (currentRegion && previousRegion && currentRegion.id !== previousRegion.id) {
                         let crossingType = "Phase Boundary";
                         if (previousRegion.type === "single-phase" && currentRegion.type === "two-phase") crossingType = "Liquidus/Solvus Crossing";
-                        else if (previousRegion.type === "two-phase" && currentRegion.type === "two-phase") crossingType = "Invariant Reaction";
-
-                        waypoints.push({ T_critical: T, fromRegion: previousRegion, toRegion: currentRegion, type: crossingType });
+                        
+                        if (!waypoints.some(w => Math.abs(w.T_critical - T) < 2)) {
+                            waypoints.push({ T_critical: T, fromRegion: previousRegion, toRegion: currentRegion, type: crossingType });
+                        }
                     }
                     if (currentRegion) previousRegion = currentRegion;
                 }
