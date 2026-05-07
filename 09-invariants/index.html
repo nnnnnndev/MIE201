@@ -710,7 +710,7 @@
                     sb_ctx.beginPath();
                     sb_ctx.moveTo(cX, mapY(1200));
                     sb_ctx.lineTo(cX, mapY(0));
-                    sb_ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)'; // Subtle cyan track
+                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Subtle white track
                     sb_ctx.lineWidth = 2;
                     sb_ctx.setLineDash([5, 5]);
                     sb_ctx.stroke();
@@ -720,8 +720,8 @@
                     if (window.MicroEngine.currentStep === 0) {
                         sb_ctx.beginPath();
                         sb_ctx.arc(cX, mapY(1200), 7, 0, Math.PI * 2);
-                        sb_ctx.fillStyle = '#ff00ff';
-                        sb_ctx.shadowColor = '#ff00ff';
+                        sb_ctx.fillStyle = '#ffffff';
+                        sb_ctx.shadowColor = '#ffffff';
                         sb_ctx.shadowBlur = 12;
                         sb_ctx.fill();
                         sb_ctx.shadowBlur = 0;
@@ -732,13 +732,36 @@
                         let wp = window.MicroEngine.activePath.waypoints[i];
                         let isCurrent = (i === window.MicroEngine.currentStep - 1);
                         let wpY = mapY(wp.T_critical);
+
+                        // Tie-line at boundaries
+                        if (wp.type === "Liquidus/Solvus Crossing") {
+                            let twoPhaseRegion = wp.toRegion.type === 'two-phase' ? wp.toRegion : (wp.fromRegion.type === 'two-phase' ? wp.fromRegion : null);
+                            if (twoPhaseRegion) {
+                                let calcT = wp.toRegion.type === 'two-phase' ? wp.T_critical - 0.5 : wp.T_critical + 0.5;
+                                let mathState = PhaseEngine.calculateTieLine(twoPhaseRegion, calcT, window.MicroEngine.activePath.c);
+                                if (mathState) {
+                                    sb_ctx.beginPath();
+                                    sb_ctx.moveTo(mapX(mathState.cLeft), wpY);
+                                    sb_ctx.lineTo(mapX(mathState.cRight), wpY);
+                                    sb_ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                                    sb_ctx.lineWidth = 2;
+                                    sb_ctx.setLineDash([4, 4]);
+                                    sb_ctx.stroke();
+                                    sb_ctx.setLineDash([]);
+                                    
+                                    // End dots
+                                    sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cLeft), wpY, 4, 0, Math.PI * 2); sb_ctx.fillStyle = '#ffffff'; sb_ctx.fill();
+                                    sb_ctx.beginPath(); sb_ctx.arc(mapX(mathState.cRight), wpY, 4, 0, Math.PI * 2); sb_ctx.fillStyle = '#ffffff'; sb_ctx.fill();
+                                }
+                            }
+                        }
                         
                         // Solid line from top to current waypoint
                         if (isCurrent) {
                             sb_ctx.beginPath();
                             sb_ctx.moveTo(cX, mapY(1200));
                             sb_ctx.lineTo(cX, wpY);
-                            sb_ctx.strokeStyle = '#00ffff';
+                            sb_ctx.strokeStyle = '#ffffff';
                             sb_ctx.lineWidth = 2;
                             sb_ctx.stroke();
                         }
@@ -746,9 +769,9 @@
                         // Draw Node
                         sb_ctx.beginPath();
                         sb_ctx.arc(cX, wpY, isCurrent ? 7 : 4, 0, Math.PI * 2);
-                        sb_ctx.fillStyle = isCurrent ? '#00ffff' : 'rgba(255, 0, 255, 0.6)';
+                        sb_ctx.fillStyle = isCurrent ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
                         if (isCurrent) {
-                            sb_ctx.shadowColor = '#00ffff';
+                            sb_ctx.shadowColor = '#ffffff';
                             sb_ctx.shadowBlur = 12;
                         }
                         sb_ctx.fill();
@@ -868,13 +891,25 @@
                 if (!region.label && !PhaseEngine.centroids[regionId]) continue;
                 if (sb_labelMode === 'single' && region.type !== 'single-phase') continue;
                 
-                let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
-                let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
+                let text = region.label ? region.label.text : (region.phase_name || region.phases.join(' + '));
+                let pxX, pxY;
+
+                if (text === 'L' && PhaseEngine.schema.nodes['im1_top']) {
+                    let im1 = PhaseEngine.schema.nodes['im1_top'];
+                    pxX = mapX(im1.c) - 40;
+                    if (pxX < PAD + 30) pxX = mapX(im1.c) + 40;
+                    pxY = mapY(im1.t) - 25;
+                    if (pxY < PAD) pxY = PAD + 10;
+                } else {
+                    let c = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].c : (region.stoichiometric_c || 50);
+                    let t = PhaseEngine.centroids[regionId] ? PhaseEngine.centroids[regionId].t : 400;
+                    pxX = mapX(c);
+                    pxY = mapY(t);
+                }
                 
                 sb_ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
                 sb_ctx.shadowColor = '#000000'; sb_ctx.shadowBlur = 6;
-                let text = region.label ? region.label.text : (region.phase_name || region.phases.join(' + '));
-                drawCanvasSubscript(sb_ctx, text, mapX(c), mapY(t));
+                drawCanvasSubscript(sb_ctx, text, pxX, pxY);
             }
             sb_ctx.restore();
         }
